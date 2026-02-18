@@ -428,6 +428,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_users_for_role_management: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          email: string | null
+          full_name: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "manager" | "staff" | "no_role"

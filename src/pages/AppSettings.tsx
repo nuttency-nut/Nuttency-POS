@@ -14,6 +14,7 @@ type AppRole = "admin" | "manager" | "staff" | "no_role";
 
 interface RoleUser {
   user_id: string;
+  email: string | null;
   full_name: string | null;
   role: AppRole;
 }
@@ -73,6 +74,36 @@ export default function AppSettings() {
     if (!canManageRoles) return;
     setLoadingRoleUsers(true);
 
+    const rpcRes = await supabase.rpc("list_users_for_role_management");
+
+    if (!rpcRes.error && rpcRes.data) {
+      const rows = rpcRes.data as Array<{
+        user_id: string;
+        email: string | null;
+        full_name: string | null;
+        role: AppRole;
+      }>;
+
+      const users = rows.map((u) => ({
+        user_id: u.user_id,
+        email: u.email,
+        full_name: u.full_name,
+        role: u.role ?? "no_role",
+      }));
+
+      users.sort((a, b) => {
+        if (a.user_id === user?.id) return -1;
+        if (b.user_id === user?.id) return 1;
+        return (a.full_name ?? a.email ?? a.user_id).localeCompare(
+          b.full_name ?? b.email ?? b.user_id
+        );
+      });
+
+      setRoleUsers(users);
+      setLoadingRoleUsers(false);
+      return;
+    }
+
     const [profilesRes, rolesRes] = await Promise.all([
       supabase.from("profiles").select("user_id, full_name"),
       supabase.from("user_roles").select("user_id, role"),
@@ -97,6 +128,7 @@ export default function AppSettings() {
 
     const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
       user_id: userId,
+      email: userId === user?.id ? user.email ?? null : null,
       full_name: profileMap.get(userId) ?? null,
       role: userRole,
     }));
@@ -104,7 +136,9 @@ export default function AppSettings() {
     merged.sort((a, b) => {
       if (a.user_id === user?.id) return -1;
       if (b.user_id === user?.id) return 1;
-      return (a.full_name ?? a.user_id).localeCompare(b.full_name ?? b.user_id);
+      return (a.full_name ?? a.email ?? a.user_id).localeCompare(
+        b.full_name ?? b.email ?? b.user_id
+      );
     });
 
     setRoleUsers(merged);
@@ -140,9 +174,21 @@ export default function AppSettings() {
 
     setSavingUserId(targetUser.user_id);
 
-    const { error } = await supabase
+    const { data: existingRole, error: existingRoleError } = await supabase
       .from("user_roles")
-      .upsert({ user_id: targetUser.user_id, role: nextRole }, { onConflict: "user_id" });
+      .select("id")
+      .eq("user_id", targetUser.user_id)
+      .maybeSingle();
+
+    if (existingRoleError) {
+      toast.error(existingRoleError.message || "Không kiểm tra được quyền hiện tại");
+      setSavingUserId(null);
+      return;
+    }
+
+    const { error } = existingRole
+      ? await supabase.from("user_roles").update({ role: nextRole }).eq("id", existingRole.id)
+      : await supabase.from("user_roles").insert({ user_id: targetUser.user_id, role: nextRole });
 
     if (error) {
       toast.error(error.message || "Cập nhật quyền thất bại");
@@ -185,9 +231,7 @@ export default function AppSettings() {
               ) : (
                 <Sun className="w-5 h-5 text-muted-foreground" />
               )}
-              <span className="font-medium text-foreground">
-                {isDark ? "Chế độ tối" : "Chế độ sáng"}
-              </span>
+              <span className="font-medium text-foreground">{isDark ? "Chế độ tối" : "Chế độ sáng"}</span>
             </div>
             <div
               className={`w-11 h-6 rounded-full transition-colors ${
@@ -264,10 +308,8 @@ export default function AppSettings() {
                       <Card key={u.user_id} className="border-0 shadow-sm">
                         <CardContent className="p-4 space-y-3">
                           <div className="space-y-1">
-                            <p className="text-sm font-semibold truncate">
-                              {u.full_name?.trim() || "Chưa có tên"}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate">{u.user_id}</p>
+                            <p className="text-sm font-semibold truncate">{u.full_name?.trim() || "Chưa có tên"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{u.email || "Chưa có email"}</p>
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -291,9 +333,7 @@ export default function AppSettings() {
                           </div>
 
                           {!editable && (
-                            <p className="text-xs text-muted-foreground">
-                              Không thể chỉnh quyền tài khoản này.
-                            </p>
+                            <p className="text-xs text-muted-foreground">Không thể chỉnh quyền tài khoản này.</p>
                           )}
                         </CardContent>
                       </Card>
@@ -307,9 +347,7 @@ export default function AppSettings() {
           generalContent
         )}
 
-        <p className="text-center text-xs text-muted-foreground pt-2">
-          SalesPro v1.0 • Quản lý bán hàng thông minh
-        </p>
+        <p className="text-center text-xs text-muted-foreground pt-2">SalesPro v1.0 • Quản lý bán hàng thông minh</p>
       </div>
     </AppLayout>
   );
