@@ -76,5 +76,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     multiTab: false,
+    // Mobile web often hangs on Navigator LockManager after tab/background resume.
+    // Use a single-tab lock strategy to avoid lock timeout deadlocks.
+    lock: async (_name, _acquireTimeout, fn) => await fn(),
   },
 });
