@@ -15,6 +15,13 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const isDebugSupabase = () => {
+  try {
+    return localStorage.getItem("debug_supabase") === "1";
+  } catch {
+    return false;
+  }
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -25,13 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const safeRefreshSession = async () => {
     try {
+      if (isDebugSupabase()) console.log("[AUTH_REFRESH_START]");
       await supabase.auth.refreshSession();
+      if (isDebugSupabase()) console.log("[AUTH_REFRESH_OK]");
     } catch (error) {
       // Ignore lock-timeout refresh errors; another tab/process is already refreshing token.
       const message = error instanceof Error ? error.message.toLowerCase() : "";
       if (!message.includes("lock") && !message.includes("timed out")) {
         throw error;
       }
+      if (isDebugSupabase()) console.warn("[AUTH_REFRESH_LOCK_TIMEOUT]", message);
     }
   };
 
@@ -79,6 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (isDebugSupabase()) {
+          console.log("[AUTH_STATE_CHANGE]", {
+            event: _event,
+            hasSession: Boolean(session),
+            visibility: document.visibilityState,
+            online: navigator.onLine,
+          });
+        }
         try {
           setSession(session);
           setUser(session?.user ?? null);
@@ -123,6 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
     const onVisibilityChange = async () => {
+      if (isDebugSupabase()) {
+        console.log("[AUTH_VISIBILITY]", {
+          visibility: document.visibilityState,
+          online: navigator.onLine,
+        });
+      }
       if (document.visibilityState !== "visible") return;
       if (restoringSessionRef.current) return;
 

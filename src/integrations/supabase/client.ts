@@ -13,9 +13,19 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 
 const DEFAULT_SUPABASE_REQUEST_TIMEOUT_MS = 20000;
 const STORAGE_UPLOAD_TIMEOUT_MS = 90000;
+let requestSeq = 0;
+
+const isDebugSupabase = () => {
+  try {
+    return localStorage.getItem("debug_supabase") === "1";
+  } catch {
+    return false;
+  }
+};
 
 const fetchWithTimeout: typeof fetch = async (input, init) => {
   const attemptFetch = async () => {
+    const requestId = ++requestSeq;
     const requestUrl = typeof input === "string" ? input : input.url;
     const requestMethod = (init?.method ?? "GET").toUpperCase();
     const isStorageUpload =
@@ -23,6 +33,19 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
     const timeoutMs = isStorageUpload
       ? STORAGE_UPLOAD_TIMEOUT_MS
       : DEFAULT_SUPABASE_REQUEST_TIMEOUT_MS;
+    const startedAt = performance.now();
+    const debug = isDebugSupabase();
+
+    if (debug) {
+      console.log("[SB_REQ_START]", {
+        requestId,
+        requestMethod,
+        requestUrl,
+        timeoutMs,
+        visibility: document.visibilityState,
+        online: navigator.onLine,
+      });
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -36,13 +59,41 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
     }
 
     try {
-      return await fetch(input, { ...init, signal: controller.signal });
+      const response = await fetch(input, { ...init, signal: controller.signal });
+      if (debug) {
+        console.log("[SB_REQ_END]", {
+          requestId,
+          status: response.status,
+          durationMs: Math.round(performance.now() - startedAt),
+          requestMethod,
+          requestUrl,
+        });
+      }
+      return response;
     } catch (error) {
       const isTimeoutAbort =
         error instanceof DOMException && error.name === "AbortError";
 
       if (isTimeoutAbort) {
+        if (debug) {
+          console.error("[SB_REQ_TIMEOUT]", {
+            requestId,
+            durationMs: Math.round(performance.now() - startedAt),
+            requestMethod,
+            requestUrl,
+            timeoutMs,
+          });
+        }
         throw new Error(`[NETWORK_TIMEOUT] Supabase request quá ${timeoutMs / 1000}s`);
+      }
+      if (debug) {
+        console.error("[SB_REQ_ERROR]", {
+          requestId,
+          durationMs: Math.round(performance.now() - startedAt),
+          requestMethod,
+          requestUrl,
+          error,
+        });
       }
       throw error;
     } finally {
@@ -58,6 +109,9 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
       message.includes("[NETWORK_TIMEOUT]") || error instanceof TypeError;
 
     if (shouldRetry) {
+      if (isDebugSupabase()) {
+        console.warn("[SB_REQ_RETRY]", { reason: message || "TypeError" });
+      }
       return attemptFetch();
     }
     throw error;
