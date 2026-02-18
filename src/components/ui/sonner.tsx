@@ -12,7 +12,9 @@ const Toaster = ({ ...props }: ToasterProps) => (
       duration: 3200,
       roundness: 18,
       fill: "hsl(var(--card))",
-      autopilot: { expand: 1800, collapse: 500 },
+      // Keep all active toasts expanded so new toasts stack at the bottom
+      // and older ones are pushed upward (chat-like behavior).
+      autopilot: false,
     }}
     {...props}
   />
