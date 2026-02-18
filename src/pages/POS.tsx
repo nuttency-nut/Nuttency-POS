@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
-import { Search } from "lucide-react";
+import { Search, QrCode } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useProducts, Product } from "@/hooks/useProducts";
@@ -14,6 +14,7 @@ import ClassificationDialog, { SelectedClassifications } from "@/components/pos/
 import CheckoutSheet from "@/components/pos/CheckoutSheet";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
+import QrScannerDialog from "@/components/common/QrScannerDialog";
 
 interface FlyAnimation {
   id: string;
@@ -31,6 +32,7 @@ export default function POS() {
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { data: products = [], isLoading } = useProducts();
@@ -161,10 +163,17 @@ export default function POS() {
               placeholder="Tìm sản phẩm, mã vạch..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-11 rounded-xl bg-card"
+              className="pl-10 pr-10 h-11 rounded-xl bg-card"
             />
+            <button
+              onClick={() => setScannerOpen(true)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
+              aria-label="Quét QR"
+            >
+              <QrCode className="w-4 h-4" />
+            </button>
           </div>
-          </div>
+        </div>
 
           {/* Category tabs */}
           {activeCategories.length > 0 && (
@@ -276,6 +285,13 @@ export default function POS() {
         open={!!dialogProduct}
         onClose={() => setDialogProduct(null)}
         onConfirm={addToCart}
+      />
+
+      <QrScannerDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={(code) => setSearch(code)}
+        title="Quét mã QR bán hàng"
       />
     </AppLayout>
   );
