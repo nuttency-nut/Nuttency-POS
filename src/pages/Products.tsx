@@ -109,11 +109,15 @@ export default function Products() {
         </div>
       }
     >
-      <div className="px-4 pt-3">
-        <ProductSearch value={search} onChange={setSearch} />
-      </div>
+      <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
+        <div className="px-4 pt-3 pb-2 bg-background border-b border-border/50 shrink-0">
+          <ProductSearch value={search} onChange={setSearch} />
+        </div>
 
-      <ProductList products={filteredProducts} isLoading={isLoading} onSelect={handleEdit} onDelete={setDeletingProduct} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <ProductList products={filteredProducts} isLoading={isLoading} onSelect={handleEdit} onDelete={setDeletingProduct} />
+        </div>
+      </div>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>

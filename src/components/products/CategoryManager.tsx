@@ -75,11 +75,11 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
       <div key={cat.id}>
         <div
           className={cn(
-            "flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all cursor-pointer group",
+            "flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
             isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted active:bg-muted/80",
             level > 0 && "ml-6"
           )}
-          onClick={() => onSelectCategory?.(isSelected ? null : cat.id)}
+          onClick={() => onSelectCategory?.(cat.id)}
         >
           {children.length > 0 ? (
             <ChevronRight className={cn("w-4 h-4 transition-transform text-muted-foreground", isSelected && "rotate-90")} />
@@ -87,7 +87,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
             <FolderOpen className="w-4 h-4 text-muted-foreground" />
           )}
           <span className={cn("flex-1 text-sm", isSelected ? "font-semibold" : "font-medium")}>{cat.name}</span>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
