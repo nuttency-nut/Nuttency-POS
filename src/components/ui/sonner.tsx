@@ -30,9 +30,8 @@ const Toaster = ({ ...props }: ToasterProps) => (
     position="bottom-left"
     offset={{
       bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)",
-      // Keep toast inside app frame (AppLayout max-w-lg) on desktop,
-      // and near the left edge on mobile.
-      left: "max(12px, calc(50vw - 16rem + 12px))",
+      // Keep toast inside app frame (max-w-lg) on desktop and mobile.
+      left: "max(12px, calc((100vw - min(100vw, 32rem)) / 2 + 12px))",
     }}
     options={{
       duration: 1800,

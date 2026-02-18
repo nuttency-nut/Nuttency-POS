@@ -176,12 +176,17 @@
 
 /* Sileo toast tuning for mobile app frame */
 [data-sileo-toast] {
-  width: min(280px, calc(100vw - 40px));
+  width: min(280px, calc(min(100vw, 32rem) - 24px)) !important;
+  max-width: min(280px, calc(min(100vw, 32rem) - 24px)) !important;
 }
 
 [data-sileo-description] {
-  white-space: normal;
-  word-break: break-word;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+[data-sileo-viewport] {
+  max-width: calc(min(100vw, 32rem) - 24px) !important;
 }
 
 @keyframes fly-to-cart {

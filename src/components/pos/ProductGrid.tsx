@@ -129,7 +129,8 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
       </div>
 
       {/* Alphabet sidebar */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center py-1 w-4">
+      <div className="absolute right-0 top-0 bottom-0 z-30 flex items-center w-4 pointer-events-none">
+        <div className="flex flex-col items-center py-1 w-4 pointer-events-auto">
         {ALPHABET.map((letter) => {
           const isActive = !!grouped[letter];
           return (
@@ -147,6 +148,7 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
             </button>);
 
         })}
+        </div>
       </div>
     </div>);
 

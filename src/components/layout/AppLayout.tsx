@@ -9,7 +9,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, title, headerRight }: AppLayoutProps) {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-dvh bg-background flex flex-col overflow-hidden">
       {/* Header */}
       {title && (
         <header className="sticky top-0 z-40 glass-strong safe-top">
@@ -21,7 +21,7 @@ export default function AppLayout({ children, title, headerRight }: AppLayoutPro
       )}
 
       {/* Content */}
-      <main className="flex-1 pb-20 max-w-lg mx-auto w-full">
+      <main className="flex-1 min-h-0 pb-20 max-w-lg mx-auto w-full overflow-hidden">
         {children}
       </main>
 
