@@ -71,6 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    const bootstrapTimeout = setTimeout(() => {
+      // Fail-safe: never keep the whole app in loading state forever.
+      console.error("[AUTH_BOOTSTRAP_TIMEOUT] Fallback after 8s");
+      setLoading(false);
+    }, 8000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         try {
@@ -86,25 +92,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("[AUTH_STATE_CHANGE_ERROR]", error);
           setRole("no_role");
         } finally {
+          clearTimeout(bootstrapTimeout);
           setLoading(false);
         }
       }
     );
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      try {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchRole(session.user.id);
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchRole(session.user.id);
+          }
+        } catch (error) {
+          console.error("[AUTH_GET_SESSION_ERROR]", error);
+          setRole("no_role");
+        } finally {
+          clearTimeout(bootstrapTimeout);
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("[AUTH_GET_SESSION_ERROR]", error);
+      })
+      .catch((error) => {
+        console.error("[AUTH_GET_SESSION_REJECTED]", error);
+        clearTimeout(bootstrapTimeout);
         setRole("no_role");
-      } finally {
         setLoading(false);
-      }
-    });
+      });
 
     const onVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
@@ -124,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      clearTimeout(bootstrapTimeout);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       subscription.unsubscribe();
     };
