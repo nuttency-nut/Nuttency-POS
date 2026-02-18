@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 export interface ProductVariant {
   id: string;
@@ -197,10 +197,10 @@ export function useCreateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["classification-group-names"] });
-      toast.success("Đã thêm sản phẩm");
+      toast.success("ÄÃ£ thÃªm sáº£n pháº©m");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error("Lá»—i: " + error.message);
     },
   });
 }
@@ -284,10 +284,10 @@ export function useUpdateProduct() {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product"] });
       queryClient.invalidateQueries({ queryKey: ["classification-group-names"] });
-      toast.success("Đã cập nhật sản phẩm");
+      toast.success("ÄÃ£ cáº­p nháº­t sáº£n pháº©m");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error("Lá»—i: " + error.message);
     },
   });
 }
@@ -301,10 +301,11 @@ export function useDeleteProduct() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Đã xóa sản phẩm");
+      toast.success("ÄÃ£ xÃ³a sáº£n pháº©m");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error("Lá»—i: " + error.message);
     },
   });
 }
+

@@ -1,11 +1,11 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { ShoppingBag, Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -28,15 +28,15 @@ export default function Auth() {
         const { error } = await signIn(email, password);
         if (error) {
           toast.error(error.message === "Invalid login credentials"
-            ? "Email hoặc mật khẩu không đúng"
+            ? "Email hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng"
             : error.message);
         } else {
-          toast.success("Đăng nhập thành công!");
+          toast.success("ÄÄƒng nháº­p thÃ nh cÃ´ng!");
           navigate("/");
         }
       } else {
         if (!fullName.trim()) {
-          toast.error("Vui lòng nhập họ tên");
+          toast.error("Vui lÃ²ng nháº­p há» tÃªn");
           setIsSubmitting(false);
           return;
         }
@@ -44,7 +44,7 @@ export default function Auth() {
         if (error) {
           toast.error(error.message);
         } else {
-          toast.success("Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.");
+          toast.success("ÄÄƒng kÃ½ thÃ nh cÃ´ng! Vui lÃ²ng kiá»ƒm tra email Ä‘á»ƒ xÃ¡c nháº­n.");
           setIsLogin(true);
         }
       }
@@ -69,7 +69,7 @@ export default function Auth() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">SalesPro</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Quản lý bán hàng thông minh
+              Quáº£n lÃ½ bÃ¡n hÃ ng thÃ´ng minh
             </p>
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function Auth() {
                     : "text-muted-foreground"
                 }`}
               >
-                Đăng nhập
+                ÄÄƒng nháº­p
               </button>
               <button
                 type="button"
@@ -98,7 +98,7 @@ export default function Auth() {
                     : "text-muted-foreground"
                 }`}
               >
-                Đăng ký
+                ÄÄƒng kÃ½
               </button>
             </div>
 
@@ -111,12 +111,12 @@ export default function Auth() {
                   className="space-y-2"
                 >
                   <Label htmlFor="fullName" className="text-sm font-medium">
-                    Họ và tên
+                    Há» vÃ  tÃªn
                   </Label>
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="Nguyễn Văn A"
+                    placeholder="Nguyá»…n VÄƒn A"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="h-12 rounded-xl"
@@ -141,13 +141,13 @@ export default function Auth() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu
+                  Máº­t kháº©u
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -172,9 +172,9 @@ export default function Auth() {
                 {isSubmitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : isLogin ? (
-                  "Đăng nhập"
+                  "ÄÄƒng nháº­p"
                 ) : (
-                  "Đăng ký"
+                  "ÄÄƒng kÃ½"
                 )}
               </Button>
             </form>
@@ -182,9 +182,10 @@ export default function Auth() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          Bằng việc tiếp tục, bạn đồng ý với điều khoản sử dụng
+          Báº±ng viá»‡c tiáº¿p tá»¥c, báº¡n Ä‘á»“ng Ã½ vá»›i Ä‘iá»u khoáº£n sá»­ dá»¥ng
         </p>
       </motion.div>
     </div>
   );
 }
+

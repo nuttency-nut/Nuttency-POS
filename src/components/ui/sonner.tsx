@@ -1,27 +1,30 @@
-import { useTheme } from "next-themes";
-import { Toaster as Sonner, toast } from "sonner";
+import { Toaster as SileoToaster, sileo, type SileoOptions } from "sileo";
+import "sileo/styles.css";
 
-type ToasterProps = React.ComponentProps<typeof Sonner>;
+type ToasterProps = React.ComponentProps<typeof SileoToaster>;
+type ToastOptions = Omit<SileoOptions, "title">;
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+const Toaster = ({ ...props }: ToasterProps) => (
+  <SileoToaster
+    position="top-right"
+    offset={{ top: 12, right: 12, bottom: 12, left: 12 }}
+    options={{
+      duration: 3200,
+      roundness: 18,
+      fill: "hsl(var(--card))",
+      autopilot: { expand: 1800, collapse: 500 },
+    }}
+    {...props}
+  />
+);
 
-  return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      toastOptions={{
-        classNames: {
-          toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-        },
-      }}
-      {...props}
-    />
-  );
+export const toast = {
+  success: (title: string, options?: ToastOptions) => sileo.success({ title, ...options }),
+  error: (title: string, options?: ToastOptions) => sileo.error({ title, ...options }),
+  info: (title: string, options?: ToastOptions) => sileo.info({ title, ...options }),
+  warning: (title: string, options?: ToastOptions) => sileo.warning({ title, ...options }),
+  dismiss: sileo.dismiss,
+  clear: sileo.clear,
 };
 
-export { Toaster, toast };
+export { Toaster };

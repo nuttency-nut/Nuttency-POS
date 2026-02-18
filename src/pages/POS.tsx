@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+﻿import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
 import { Search } from "lucide-react";
@@ -12,7 +12,7 @@ import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
 import CheckoutSheet from "@/components/pos/CheckoutSheet";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 interface FlyAnimation {
@@ -120,7 +120,7 @@ export default function POS() {
 
       setDialogProduct(null);
       triggerFlyAnimation(product);
-      toast.success(`Đã thêm ${product.name}`);
+      toast.success(`ÄÃ£ thÃªm ${product.name}`);
     },
     []
   );
@@ -144,20 +144,20 @@ export default function POS() {
   const handleCheckoutSuccess = useCallback((orderNumber: string) => {
     setCartItems([]);
     setShowCheckout(false);
-    toast.success(`Đơn hàng ${orderNumber} đã tạo thành công!`);
+    toast.success(`ÄÆ¡n hÃ ng ${orderNumber} Ä‘Ã£ táº¡o thÃ nh cÃ´ng!`);
   }, []);
 
   const activeCategories = categories.filter((c) => c.is_active);
 
   return (
-    <AppLayout title="Bán hàng">
+    <AppLayout title="BÃ¡n hÃ ng">
       <div className="flex flex-col h-full">
         {/* Search */}
         <div className="p-4 pb-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Tìm sản phẩm, mã vạch..."
+              placeholder="TÃ¬m sáº£n pháº©m, mÃ£ váº¡ch..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 h-11 rounded-xl bg-card"
@@ -178,7 +178,7 @@ export default function POS() {
                     : "bg-card text-muted-foreground border border-border"
                 )}
               >
-                Tất cả
+                Táº¥t cáº£
               </button>
               {activeCategories.map((cat) => (
                 <button
@@ -276,3 +276,4 @@ export default function POS() {
     </AppLayout>
   );
 }
+
