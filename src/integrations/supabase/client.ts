@@ -11,12 +11,21 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
-const SUPABASE_REQUEST_TIMEOUT_MS = 15000;
+const DEFAULT_SUPABASE_REQUEST_TIMEOUT_MS = 20000;
+const STORAGE_UPLOAD_TIMEOUT_MS = 90000;
 
 const fetchWithTimeout: typeof fetch = async (input, init) => {
   const attemptFetch = async () => {
+    const requestUrl = typeof input === "string" ? input : input.url;
+    const requestMethod = (init?.method ?? "GET").toUpperCase();
+    const isStorageUpload =
+      requestMethod === "POST" && requestUrl.includes("/storage/v1/object/");
+    const timeoutMs = isStorageUpload
+      ? STORAGE_UPLOAD_TIMEOUT_MS
+      : DEFAULT_SUPABASE_REQUEST_TIMEOUT_MS;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), SUPABASE_REQUEST_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     if (init?.signal) {
       if (init.signal.aborted) {
@@ -33,7 +42,7 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
         error instanceof DOMException && error.name === "AbortError";
 
       if (isTimeoutAbort) {
-        throw new Error(`[NETWORK_TIMEOUT] Supabase request quá ${SUPABASE_REQUEST_TIMEOUT_MS / 1000}s`);
+        throw new Error(`[NETWORK_TIMEOUT] Supabase request quá ${timeoutMs / 1000}s`);
       }
       throw error;
     } finally {

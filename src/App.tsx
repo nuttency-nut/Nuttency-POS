@@ -10,6 +10,7 @@ import Products from "./pages/Products";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import NotFound from "./pages/NotFound";
+import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
 const queryClient = new QueryClient();
 type AppRole = "admin" | "manager" | "staff" | "no_role";
@@ -26,7 +27,10 @@ function ProtectedRoute({
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs">Đang khôi phục phiên đăng nhập...</p>
+        </div>
       </div>
     );
   }
@@ -49,7 +53,10 @@ function AppRoutes() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs">Đang tải dữ liệu...</p>
+        </div>
       </div>
     );
   }
@@ -116,16 +123,18 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <AppErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </AppErrorBoundary>
 );
 
 export default App;

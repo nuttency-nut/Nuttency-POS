@@ -128,10 +128,11 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       const ext = file.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const filePath = `products/${fileName}`;
+      const uploadTimeoutMs = Math.max(45000, Math.min(120000, Math.ceil(file.size / (1024 * 1024)) * 30000));
 
       const { error: uploadError } = await withTimeout(
         supabase.storage.from("product-images").upload(filePath, file, { upsert: true }),
-        15000,
+        uploadTimeoutMs,
         "Upload ảnh sản phẩm"
       );
 
@@ -147,6 +148,8 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
+        online: navigator.onLine,
+        visibility: document.visibilityState,
       });
       toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {

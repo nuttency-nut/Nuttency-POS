@@ -36,56 +36,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchRole = async (userId: string) => {
-    const queryRole = () =>
-      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+    try {
+      const queryRole = () =>
+        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
 
-    let { data, error } = await queryRole();
+      let { data, error } = await queryRole();
 
-    if (error) {
-      const message = error.message.toLowerCase();
-      const shouldRefresh =
-        message.includes("jwt") ||
-        message.includes("token") ||
-        message.includes("session");
+      if (error) {
+        const message = error.message.toLowerCase();
+        const shouldRefresh =
+          message.includes("jwt") ||
+          message.includes("token") ||
+          message.includes("session");
 
-      if (shouldRefresh) {
-        await safeRefreshSession();
-        const retry = await queryRole();
-        data = retry.data;
-        error = retry.error;
+        if (shouldRefresh) {
+          await safeRefreshSession();
+          const retry = await queryRole();
+          data = retry.data;
+          error = retry.error;
+        }
       }
-    }
 
-    if (error) {
+      if (error) {
+        console.error("[AUTH_FETCH_ROLE_ERROR]", error.message);
+        setRole("no_role");
+        return;
+      }
+
+      setRole((data?.role as AppRole) ?? "no_role");
+    } catch (error) {
+      console.error("[AUTH_FETCH_ROLE_EXCEPTION]", error);
       setRole("no_role");
-      return;
     }
-
-    setRole((data?.role as AppRole) ?? "no_role");
   };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+        try {
+          setSession(session);
+          setUser(session?.user ?? null);
 
-        if (session?.user) {
-          await fetchRole(session.user.id);
-        } else {
-          setRole(null);
+          if (session?.user) {
+            await fetchRole(session.user.id);
+          } else {
+            setRole(null);
+          }
+        } catch (error) {
+          console.error("[AUTH_STATE_CHANGE_ERROR]", error);
+          setRole("no_role");
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchRole(session.user.id);
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchRole(session.user.id);
+        }
+      } catch (error) {
+        console.error("[AUTH_GET_SESSION_ERROR]", error);
+        setRole("no_role");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     const onVisibilityChange = async () => {
