@@ -1,8 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, QrCode, X } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
-import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useProducts, Product } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
@@ -13,7 +11,7 @@ import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
 import CheckoutSheet from "@/components/pos/CheckoutSheet";
-import QrScannerDialog from "@/components/common/QrScannerDialog";
+import ProductSearch from "@/components/products/ProductSearch";
 
 interface FlyAnimation {
   id: string;
@@ -30,7 +28,6 @@ export default function POS() {
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { data: products = [], isLoading } = useProducts();
@@ -148,30 +145,7 @@ export default function POS() {
       <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
         <div className="shrink-0 bg-background border-b border-border/50">
           <div className="p-4 pb-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm sản phẩm, mã vạch..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-16 h-10 rounded-xl bg-card border-0"
-              />
-
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {search && (
-                  <button onClick={() => setSearch("")} className="text-muted-foreground p-1" aria-label="Xóa tìm kiếm">
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  onClick={() => setScannerOpen(true)}
-                  className="text-muted-foreground p-1"
-                  aria-label="Quét QR hoặc barcode"
-                >
-                  <QrCode className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            <ProductSearch value={search} onChange={setSearch} />
           </div>
 
           {activeCategories.length > 0 && (
@@ -255,13 +229,6 @@ export default function POS() {
         open={!!dialogProduct}
         onClose={() => setDialogProduct(null)}
         onConfirm={addToCart}
-      />
-
-      <QrScannerDialog
-        open={scannerOpen}
-        onOpenChange={setScannerOpen}
-        onDetected={(code) => setSearch(code)}
-        title="Quét mã QR / Barcode bán hàng"
       />
     </AppLayout>
   );

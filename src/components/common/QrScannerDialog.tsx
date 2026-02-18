@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
+import {
+  BarcodeFormat,
+  BinaryBitmap,
+  DecodeHintType,
+  HybridBinarizer,
+  MultiFormatReader,
+  RGBLuminanceSource,
+} from "@zxing/library";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
@@ -44,6 +52,7 @@ export default function QrScannerDialog({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const intervalRef = useRef<number | null>(null);
   const detectorRef = useRef<BarcodeLikeDetector | null>(null);
+  const zxingReaderRef = useRef<MultiFormatReader | null>(null);
   const detectedRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -78,6 +87,24 @@ export default function QrScannerDialog({
     detectedRef.current = false;
 
     const initDetector = async () => {
+      if (!zxingReaderRef.current) {
+        const reader = new MultiFormatReader();
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.CODABAR,
+          BarcodeFormat.ITF,
+        ]);
+        reader.setHints(hints);
+        zxingReaderRef.current = reader;
+      }
+
       const Ctor = (window as Window & { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
       if (!Ctor) {
         detectorRef.current = null;
@@ -153,6 +180,22 @@ export default function QrScannerDialog({
 
           // 2) Fallback QR decoder for browsers without BarcodeDetector support
           const imageData = context.getImageData(0, 0, width, height);
+          const zxingReader = zxingReaderRef.current;
+          if (zxingReader) {
+            try {
+              const luminance = new RGBLuminanceSource(imageData.data, width, height);
+              const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminance));
+              const result = zxingReader.decode(binaryBitmap);
+              if (result?.getText()) {
+                notifyDetected(result.getText());
+                return;
+              }
+            } catch {
+              // Continue fallback
+            }
+          }
+
+          // 3) Last fallback for QR only
           const qr = jsQR(imageData.data, width, height, { inversionAttempts: "attemptBoth" });
           if (qr?.data) {
             notifyDetected(qr.data);

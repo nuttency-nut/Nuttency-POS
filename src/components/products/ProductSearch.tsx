@@ -17,7 +17,7 @@ export default function ProductSearch({ value, onChange }: ProductSearchProps) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Tìm sản phẩm, mã barcode..."
-          className="pl-9 pr-16 rounded-xl bg-muted/50 border-0 h-10"
+          className="pl-9 pr-16 rounded-xl bg-card border-0 h-10"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
