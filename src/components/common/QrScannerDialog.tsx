@@ -101,6 +101,7 @@ export default function QrScannerDialog({
           BarcodeFormat.CODABAR,
           BarcodeFormat.ITF,
         ]);
+        hints.set(DecodeHintType.TRY_HARDER, true);
         reader.setHints(hints);
         zxingReaderRef.current = reader;
       }
@@ -183,7 +184,16 @@ export default function QrScannerDialog({
           const zxingReader = zxingReaderRef.current;
           if (zxingReader) {
             try {
-              const luminance = new RGBLuminanceSource(imageData.data, width, height);
+              const rgba = imageData.data;
+              const luminanceBytes = new Uint8ClampedArray(width * height);
+              for (let i = 0, p = 0; i < rgba.length; i += 4, p += 1) {
+                const r = rgba[i];
+                const g = rgba[i + 1];
+                const b = rgba[i + 2];
+                // Green-weighted grayscale for better 1D barcode contrast.
+                luminanceBytes[p] = (r + g * 2 + b) >> 2;
+              }
+              const luminance = new RGBLuminanceSource(luminanceBytes, width, height);
               const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminance));
               const result = zxingReader.decode(binaryBitmap);
               if (result?.getText()) {
