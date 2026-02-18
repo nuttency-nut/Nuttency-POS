@@ -44,7 +44,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckout }: CartP
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button className="fixed bottom-20 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-24px)] max-w-sm h-12 rounded-2xl bg-primary text-primary-foreground flex items-center px-3 shadow-lg active:scale-[0.98] transition-transform">
+        <button className="fixed left-1/2 -translate-x-1/2 z-30 w-[calc(100%-24px)] max-w-sm h-12 rounded-2xl bg-primary text-primary-foreground flex items-center px-3 shadow-lg active:scale-[0.98] transition-transform bottom-[calc(env(safe-area-inset-bottom,0px)+84px)]">
           <span className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-sm font-bold shrink-0">
             {totalQty}
           </span>
