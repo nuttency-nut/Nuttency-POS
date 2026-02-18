@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data } = await supabase.auth.getSession();
         if (!data.session?.user) return;
+        await safeRefreshSession();
         await fetchRole(data.session.user.id);
       } finally {
         restoringSessionRef.current = false;
