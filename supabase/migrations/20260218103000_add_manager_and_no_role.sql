@@ -12,6 +12,40 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
 
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 
+WITH ranked_roles AS (
+  SELECT
+    id,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_id
+      ORDER BY CASE role::text
+        WHEN 'admin' THEN 4
+        WHEN 'manager' THEN 3
+        WHEN 'staff' THEN 2
+        WHEN 'no_role' THEN 1
+        ELSE 0
+      END DESC,
+      id
+    ) AS rn
+  FROM public.user_roles
+)
+DELETE FROM public.user_roles ur
+USING ranked_roles rr
+WHERE ur.id = rr.id
+  AND rr.rn > 1;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'user_roles_user_id_key'
+      AND conrelid = 'public.user_roles'::regclass
+  ) THEN
+    ALTER TABLE public.user_roles
+    ADD CONSTRAINT user_roles_user_id_key UNIQUE (user_id);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
@@ -95,6 +129,53 @@ AS $$
   )
 $$;
 
+CREATE OR REPLACE FUNCTION public.role_level(_role_text TEXT)
+RETURNS INTEGER
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE _role_text
+    WHEN 'admin' THEN 4
+    WHEN 'manager' THEN 3
+    WHEN 'staff' THEN 2
+    WHEN 'no_role' THEN 1
+    ELSE 0
+  END
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_level(_user_id UUID)
+RETURNS INTEGER
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(MAX(public.role_level(ur.role::text)), 0)
+  FROM public.user_roles ur
+  WHERE ur.user_id = _user_id
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_manage_user(_actor_id UUID, _target_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.user_level(_actor_id) > public.user_level(_target_user_id)
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_assign_role(_actor_id UUID, _target_user_id UUID, _new_role_text TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.user_level(_actor_id) > public.user_level(_target_user_id)
+     AND public.user_level(_actor_id) > public.role_level(_new_role_text)
+$$;
+
 DROP POLICY IF EXISTS "Users can view their own roles" ON public.user_roles;
 CREATE POLICY "Users can view their own roles"
   ON public.user_roles FOR SELECT
@@ -121,11 +202,25 @@ CREATE POLICY "Users can insert their own profile"
 
 -- user_roles
 DROP POLICY IF EXISTS "Admins can manage all roles" ON public.user_roles;
-CREATE POLICY "Managers can manage all roles"
-  ON public.user_roles FOR ALL
+DROP POLICY IF EXISTS "Managers can manage all roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Managers can assign lower roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Managers can update lower roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Managers can delete lower roles" ON public.user_roles;
+CREATE POLICY "Managers can assign lower roles"
+  ON public.user_roles FOR INSERT
   TO authenticated
-  USING (public.can_manage(auth.uid()))
-  WITH CHECK (public.can_manage(auth.uid()));
+  WITH CHECK (public.can_assign_role(auth.uid(), user_id, role::text));
+
+CREATE POLICY "Managers can update lower roles"
+  ON public.user_roles FOR UPDATE
+  TO authenticated
+  USING (public.can_manage_user(auth.uid(), user_id))
+  WITH CHECK (public.can_assign_role(auth.uid(), user_id, role::text));
+
+CREATE POLICY "Managers can delete lower roles"
+  ON public.user_roles FOR DELETE
+  TO authenticated
+  USING (public.can_manage_user(auth.uid(), user_id));
 
 -- profiles
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;

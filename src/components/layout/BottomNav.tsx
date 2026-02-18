@@ -3,19 +3,21 @@ import { ShoppingCart, ClipboardList, Package, BarChart3, Settings } from "lucid
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
+type AppRole = "admin" | "manager" | "staff" | "no_role";
+
 interface NavItem {
   path: string;
   label: string;
   icon: React.ElementType;
-  adminOnly?: boolean;
+  allowedRoles: AppRole[];
 }
 
 const navItems: NavItem[] = [
-  { path: "/pos", label: "Bán hàng", icon: ShoppingCart },
-  { path: "/orders", label: "Đơn hàng", icon: ClipboardList },
-  { path: "/products", label: "Sản phẩm", icon: Package, adminOnly: true },
-  { path: "/reports", label: "Báo cáo", icon: BarChart3, adminOnly: true },
-  { path: "/settings", label: "Cài đặt", icon: Settings },
+  { path: "/pos", label: "Bán hàng", icon: ShoppingCart, allowedRoles: ["admin", "manager", "staff"] },
+  { path: "/orders", label: "Đơn hàng", icon: ClipboardList, allowedRoles: ["admin", "manager", "staff"] },
+  { path: "/products", label: "Sản phẩm", icon: Package, allowedRoles: ["admin"] },
+  { path: "/reports", label: "Báo cáo", icon: BarChart3, allowedRoles: ["admin", "manager"] },
+  { path: "/settings", label: "Cài đặt", icon: Settings, allowedRoles: ["admin", "manager", "staff", "no_role"] },
 ];
 
 export default function BottomNav() {
@@ -23,9 +25,8 @@ export default function BottomNav() {
   const navigate = useNavigate();
   const { role } = useAuth();
 
-  const visibleItems = navItems.filter(
-    (item) => !item.adminOnly || role === "admin" || role === "manager"
-  );
+  const effectiveRole = role ?? "no_role";
+  const visibleItems = navItems.filter((item) => item.allowedRoles.includes(effectiveRole));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong safe-bottom">
@@ -51,9 +52,7 @@ export default function BottomNav() {
                   isActive && "bg-primary/10"
                 )}
               >
-                <Icon
-                  className={cn("w-5 h-5", isActive && "stroke-[2.5]")}
-                />
+                <Icon className={cn("w-5 h-5", isActive && "stroke-[2.5]")} />
               </div>
               <span
                 className={cn(

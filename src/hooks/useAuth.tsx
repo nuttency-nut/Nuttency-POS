@@ -23,13 +23,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchRole = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .maybeSingle();
-    
-    setRole(data?.role as AppRole || null);
+
+    if (error) {
+      setRole("no_role");
+      return;
+    }
+
+    setRole((data?.role as AppRole) ?? "no_role");
   };
 
   useEffect(() => {
@@ -37,9 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
-          setTimeout(() => fetchRole(session.user.id), 0);
+          await fetchRole(session.user.id);
         } else {
           setRole(null);
         }
@@ -47,11 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchRole(session.user.id);
+        await fetchRole(session.user.id);
       }
       setLoading(false);
     });

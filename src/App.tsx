@@ -12,8 +12,15 @@ import AppSettings from "./pages/AppSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+type AppRole = "admin" | "manager" | "staff" | "no_role";
 
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: AppRole[];
+}) {
   const { session, role, loading } = useAuth();
 
   if (loading) {
@@ -28,15 +35,16 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/auth" replace />;
   }
 
-  if (adminOnly && role !== "admin" && role !== "manager") {
-    return <Navigate to="/pos" replace />;
+  const effectiveRole = role ?? "no_role";
+  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
+    return <Navigate to={effectiveRole === "no_role" ? "/settings" : "/pos"} replace />;
   }
 
   return <>{children}</>;
 }
 
 function AppRoutes() {
-  const { session, loading } = useAuth();
+  const { session, role, loading } = useAuth();
 
   if (loading) {
     return (
@@ -52,11 +60,20 @@ function AppRoutes() {
         path="/auth"
         element={session ? <Navigate to="/pos" replace /> : <Auth />}
       />
-      <Route path="/" element={<Navigate to="/pos" replace />} />
+      <Route
+        path="/"
+        element={
+          session ? (
+            <Navigate to={(role ?? "no_role") === "no_role" ? "/settings" : "/pos"} replace />
+          ) : (
+            <Navigate to="/auth" replace />
+          )
+        }
+      />
       <Route
         path="/pos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
             <POS />
           </ProtectedRoute>
         }
@@ -64,7 +81,7 @@ function AppRoutes() {
       <Route
         path="/orders"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
             <Orders />
           </ProtectedRoute>
         }
@@ -72,7 +89,7 @@ function AppRoutes() {
       <Route
         path="/products"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={["admin"]}>
             <Products />
           </ProtectedRoute>
         }
@@ -80,7 +97,7 @@ function AppRoutes() {
       <Route
         path="/reports"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={["admin", "manager"]}>
             <Reports />
           </ProtectedRoute>
         }
