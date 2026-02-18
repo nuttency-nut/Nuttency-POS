@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import { withTimeout } from "@/lib/utils";
 
 export interface ProductVariant {
   id: string;
@@ -123,7 +124,7 @@ export function useProduct(id: string | null) {
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (values: ProductFormValues) => {
+    mutationFn: async (values: ProductFormValues) => withTimeout((async () => {
       const { variants, classification_groups, ...productData } = values;
       const { data: product, error } = await supabase
         .from("products")
@@ -193,7 +194,7 @@ export function useCreateProduct() {
       }
 
       return product;
-    },
+    })(), 45000, "Lưu sản phẩm mới"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["classification-group-names"] });
@@ -208,7 +209,7 @@ export function useCreateProduct() {
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => {
+    mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => withTimeout((async () => {
       const { variants, classification_groups, ...productData } = values;
       const { error } = await supabase
         .from("products")
@@ -279,7 +280,7 @@ export function useUpdateProduct() {
         const { error: vError } = await supabase.from("product_variants").insert(variantRows);
         if (vError) throw vError;
       }
-    },
+    })(), 45000, "Cập nhật sản phẩm"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product"] });
@@ -295,10 +296,10 @@ export function useUpdateProduct() {
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: string) => withTimeout((async () => {
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
-    },
+    })(), 20000, "Xóa sản phẩm"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Đã xóa sản phẩm");

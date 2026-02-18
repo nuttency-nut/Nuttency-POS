@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
+import { withTimeout } from "@/lib/utils";
 
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 
@@ -75,7 +76,11 @@ export default function AppSettings() {
     setLoadingRoleUsers(true);
 
     try {
-      const rpcRes = await supabase.rpc("list_users_for_role_management");
+      const rpcRes = await withTimeout(
+        supabase.rpc("list_users_for_role_management"),
+        12000,
+        "Tải danh sách phân quyền (RPC)"
+      );
 
       if (!rpcRes.error && rpcRes.data) {
         const rows = rpcRes.data as Array<{
@@ -104,10 +109,14 @@ export default function AppSettings() {
         return;
       }
 
-      const [profilesRes, rolesRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name"),
-        supabase.from("user_roles").select("user_id, role"),
-      ]);
+      const [profilesRes, rolesRes] = await withTimeout(
+        Promise.all([
+          supabase.from("profiles").select("user_id, full_name"),
+          supabase.from("user_roles").select("user_id, role"),
+        ]),
+        12000,
+        "Tải danh sách phân quyền (fallback)"
+      );
 
       if (profilesRes.error || rolesRes.error) {
         toast.error("Không tải được danh sách tài khoản");
@@ -141,8 +150,10 @@ export default function AppSettings() {
       });
 
       setRoleUsers(merged);
-    } catch {
-      toast.error("Lỗi kết nối. Vui lòng thử lại");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Lỗi kết nối";
+      console.error("[ROLE_USERS_LOAD_ERROR]", message);
+      toast.error(`Không tải được danh sách tài khoản: ${message}`);
     } finally {
       setLoadingRoleUsers(false);
     }

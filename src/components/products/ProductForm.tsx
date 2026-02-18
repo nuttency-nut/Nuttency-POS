@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Plus, Trash2, Camera, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/sonner";
+import { withTimeout } from "@/lib/utils";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -128,9 +129,11 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const filePath = `products/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(filePath, file, { upsert: true });
+      const { error: uploadError } = await withTimeout(
+        supabase.storage.from("product-images").upload(filePath, file, { upsert: true }),
+        15000,
+        "Upload ảnh sản phẩm"
+      );
 
       if (uploadError) throw uploadError;
 
@@ -139,9 +142,16 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       toast.success("Đã tải ảnh lên");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      console.error("[IMAGE_UPLOAD_ERROR]", {
+        message,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      });
       toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
