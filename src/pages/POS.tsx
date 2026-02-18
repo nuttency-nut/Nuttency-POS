@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProducts, Product } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/hooks/useAuth";
@@ -142,7 +142,7 @@ export default function POS() {
 
   return (
     <AppLayout title="Bán hàng">
-      <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
+      <div className="flex flex-col h-full overflow-hidden">
         <div className="shrink-0 bg-background border-b border-border/50">
           <div className="p-4 pb-2">
             <ProductSearch value={search} onChange={setSearch} />
@@ -177,7 +177,6 @@ export default function POS() {
                   </button>
                 ))}
               </div>
-              <ScrollBar orientation="horizontal" />
             </ScrollArea>
           )}
         </div>

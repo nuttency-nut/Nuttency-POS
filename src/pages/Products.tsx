@@ -109,7 +109,7 @@ export default function Products() {
         </div>
       }
     >
-      <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
+      <div className="flex flex-col h-full overflow-hidden">
         <div className="px-4 pt-3 pb-2 bg-background border-b border-border/50 shrink-0">
           <ProductSearch value={search} onChange={setSearch} />
         </div>

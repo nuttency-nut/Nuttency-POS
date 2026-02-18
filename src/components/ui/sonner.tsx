@@ -28,7 +28,12 @@ function createToastPayload(title: string, options?: ToastOptions, kind: "succes
 const Toaster = ({ ...props }: ToasterProps) => (
   <SileoToaster
     position="bottom-left"
-    offset={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)", left: 12 }}
+    offset={{
+      bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)",
+      // Keep toast inside app frame (AppLayout max-w-lg) on desktop,
+      // and near the left edge on mobile.
+      left: "max(12px, calc(50vw - 16rem + 12px))",
+    }}
     options={{
       duration: 1800,
       roundness: 18,
@@ -36,7 +41,7 @@ const Toaster = ({ ...props }: ToasterProps) => (
       // Auto-expand quickly so long messages can wrap in description area.
       autopilot: { expand: 120, collapse: 1200 },
       styles: {
-        description: "whitespace-normal break-words text-left",
+        description: "whitespace-normal break-words text-left max-w-[220px]",
       },
     }}
     {...props}
