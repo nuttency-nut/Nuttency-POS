@@ -24,7 +24,7 @@ export default function BottomNav() {
   const { role } = useAuth();
 
   const visibleItems = navItems.filter(
-    (item) => !item.adminOnly || role === "admin"
+    (item) => !item.adminOnly || role === "admin" || role === "manager"
   );
 
   return (

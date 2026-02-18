@@ -30,6 +30,15 @@ export default function AppSettings() {
     navigate("/auth");
   };
 
+  const roleLabel =
+    role === "admin"
+      ? "Quản trị viên"
+      : role === "manager"
+        ? "Quản lý"
+        : role === "staff"
+          ? "Nhân viên bán hàng"
+          : "Chưa phân quyền";
+
   return (
     <AppLayout title="Cài đặt">
       <div className="p-4 space-y-4">
@@ -46,8 +55,8 @@ export default function AppSettings() {
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Shield className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-xs font-medium text-primary capitalize">
-                    {role === "admin" ? "Quản trị viên" : "Nhân viên"}
+                  <span className="text-xs font-medium text-primary">
+                    {roleLabel}
                   </span>
                 </div>
               </div>
