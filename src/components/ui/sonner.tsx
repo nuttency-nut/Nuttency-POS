@@ -6,7 +6,7 @@ type ToastOptions = Omit<SileoOptions, "title">;
 type ToastPayload = SileoOptions & { id: string };
 
 function createToastPayload(title: string, options?: ToastOptions, kind: "success" | "error" | "info" | "warning" = "info"): ToastPayload {
-  const isLong = title.length > 48;
+  const isLong = title.length > 30 || /ORD-\d{8}-\d+/i.test(title);
   const fallbackTitle =
     kind === "success"
       ? "Thành công"
