@@ -1,4 +1,4 @@
-﻿import AppLayout from "@/components/layout/AppLayout";
+import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,12 +26,12 @@ export default function AppSettings() {
 
   const handleSignOut = async () => {
     await signOut();
-    toast.success("ÄÃ£ Ä‘Äƒng xuáº¥t");
+    toast.success("Đã đăng xuất");
     navigate("/auth");
   };
 
   return (
-    <AppLayout title="CÃ i Ä‘áº·t">
+    <AppLayout title="Cài đặt">
       <div className="p-4 space-y-4">
         {/* User info */}
         <Card className="border-0 shadow-sm">
@@ -47,7 +47,7 @@ export default function AppSettings() {
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Shield className="w-3.5 h-3.5 text-primary" />
                   <span className="text-xs font-medium text-primary capitalize">
-                    {role === "admin" ? "Quáº£n trá»‹ viÃªn" : "NhÃ¢n viÃªn"}
+                    {role === "admin" ? "Quản trị viên" : "Nhân viên"}
                   </span>
                 </div>
               </div>
@@ -69,7 +69,7 @@ export default function AppSettings() {
                   <Sun className="w-5 h-5 text-muted-foreground" />
                 )}
                 <span className="font-medium text-foreground">
-                  {isDark ? "Cháº¿ Ä‘á»™ tá»‘i" : "Cháº¿ Ä‘á»™ sÃ¡ng"}
+                  {isDark ? "Chế độ tối" : "Chế độ sáng"}
                 </span>
               </div>
               <div
@@ -94,11 +94,11 @@ export default function AppSettings() {
           className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/5"
         >
           <LogOut className="w-4 h-4" />
-          ÄÄƒng xuáº¥t
+          Đăng xuất
         </Button>
 
         <p className="text-center text-xs text-muted-foreground pt-4">
-          SalesPro v1.0 â€¢ Quáº£n lÃ½ bÃ¡n hÃ ng thÃ´ng minh
+          SalesPro v1.0 • Quản lý bán hàng thông minh
         </p>
       </div>
     </AppLayout>

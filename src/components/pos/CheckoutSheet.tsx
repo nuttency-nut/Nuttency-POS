@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -127,11 +127,11 @@ export default function CheckoutSheet({
   const handleSubmit = async () => {
     if (items.length === 0) return;
     if (useLoyalty && (!customerName.trim() || !customerPhone.trim())) {
-      toast.error("Vui lÃ²ng nháº­p tÃªn vÃ  SÄT khÃ¡ch hÃ ng");
+      toast.error("Vui lòng nhập tên và SĐT khách hàng");
       return;
     }
     if (paymentMethod === "cash" && cashReceivedNum < finalAmount) {
-      toast.error("Sá»‘ tiá»n nháº­n chÆ°a Ä‘á»§");
+      toast.error("Số tiền nhận chưa đủ");
       return;
     }
 
@@ -177,7 +177,7 @@ export default function CheckoutSheet({
           user_id: userId,
           total_amount: finalAmount,
           order_number: "",
-          customer_name: useLoyalty ? customerName : "KhÃ¡ch láº»",
+          customer_name: useLoyalty ? customerName : "Khách lẻ",
           customer_phone: useLoyalty ? customerPhone : null,
           payment_method: paymentMethod,
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
@@ -210,15 +210,15 @@ export default function CheckoutSheet({
       onSuccess(order.order_number);
     } catch (err: any) {
       console.error("Checkout error:", err);
-      toast.error("Lá»—i khi táº¡o Ä‘Æ¡n hÃ ng: " + (err.message || ""));
+      toast.error("Lỗi khi tạo đơn hàng: " + (err.message || ""));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const paymentMethods: { key: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-    { key: "cash", label: "Tiá»n máº·t", icon: <Banknote className="w-4 h-4" /> },
-    { key: "transfer", label: "Chuyá»ƒn khoáº£n", icon: <CreditCard className="w-4 h-4" /> },
+    { key: "cash", label: "Tiền mặt", icon: <Banknote className="w-4 h-4" /> },
+    { key: "transfer", label: "Chuyển khoản", icon: <CreditCard className="w-4 h-4" /> },
     { key: "momo", label: "MoMo", icon: <Smartphone className="w-4 h-4" /> },
   ];
 
@@ -230,14 +230,14 @@ export default function CheckoutSheet({
             <ArrowLeft className="w-4 h-4" />
           </button>
           <SheetTitle className="text-base font-bold text-foreground flex-1">
-            Thanh toÃ¡n
+            Thanh toán
           </SheetTitle>
           <span className="text-sm font-bold text-primary">{formatPrice(totalPrice)}</span>
         </SheetHeader>
 
         <ScrollArea className="flex-1 px-4">
           <div className="space-y-4 pb-4">
-            {/* 1. Loyalty / TÃ­ch Ä‘iá»ƒm */}
+            {/* 1. Loyalty / Tích điểm */}
             <div className="space-y-2">
               <button
                 onClick={() => setUseLoyalty(!useLoyalty)}
@@ -249,28 +249,28 @@ export default function CheckoutSheet({
                 )}
               >
                 <Star className={cn("w-4 h-4", useLoyalty && "fill-amber-400 text-amber-400")} />
-                TÃ­ch Ä‘iá»ƒm
+                Tích điểm
                 {useLoyalty && <Check className="w-4 h-4 ml-auto" />}
               </button>
 
               {useLoyalty && (
                 <div className="space-y-2 pl-2">
                   <Input
-                    placeholder="TÃªn khÃ¡ch hÃ ng"
+                    placeholder="Tên khách hàng"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="h-9 rounded-lg text-sm"
                   />
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Sá»‘ Ä‘iá»‡n thoáº¡i"
+                      placeholder="Số điện thoại"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       onBlur={searchCustomer}
                       className="h-9 rounded-lg text-sm flex-1"
                     />
                     {searchingCustomer && (
-                      <span className="text-xs text-muted-foreground self-center">Äang tÃ¬m...</span>
+                      <span className="text-xs text-muted-foreground self-center">Đang tìm...</span>
                     )}
                   </div>
                   {foundCustomer && (
@@ -278,13 +278,13 @@ export default function CheckoutSheet({
                       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                       <span className="text-foreground font-medium">{foundCustomer.name}</span>
                       <Badge variant="secondary" className="text-[10px] ml-auto">
-                        {foundCustomer.loyalty_points} Ä‘iá»ƒm
+                        {foundCustomer.loyalty_points} điểm
                       </Badge>
                     </div>
                   )}
                   {!foundCustomer && customerPhone.length >= 9 && !searchingCustomer && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <UserPlus className="w-3 h-3" /> KhÃ¡ch hÃ ng má»›i, sáº½ táº¡o tÃ i khoáº£n tá»± Ä‘á»™ng
+                      <UserPlus className="w-3 h-3" /> Khách hàng mới, sẽ tạo tài khoản tự động
                     </p>
                   )}
                 </div>
@@ -293,7 +293,7 @@ export default function CheckoutSheet({
 
             {/* 2. Payment method */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-foreground">PhÆ°Æ¡ng thá»©c thanh toÃ¡n</p>
+              <p className="text-xs font-semibold text-foreground">Phương thức thanh toán</p>
               <div className="grid grid-cols-3 gap-2">
                 {paymentMethods.map((pm) => (
                   <button
@@ -316,7 +316,7 @@ export default function CheckoutSheet({
               {paymentMethod === "cash" && (
                 <div className="space-y-1.5">
                   <Input
-                    placeholder="Tiá»n nháº­n tá»« khÃ¡ch"
+                    placeholder="Tiền nhận từ khách"
                     value={cashReceived}
                     onChange={(e) => setCashReceived(e.target.value)}
                     className="h-9 rounded-lg text-sm"
@@ -324,9 +324,9 @@ export default function CheckoutSheet({
                   />
                   {cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted text-sm">
-                      <span className="text-muted-foreground">Tiá»n thá»‘i</span>
+                      <span className="text-muted-foreground">Tiền thối</span>
                       <span className={cn("font-bold", changeAmount >= 0 ? "text-green-600" : "text-destructive")}>
-                        {changeAmount >= 0 ? formatPrice(changeAmount) : "ChÆ°a Ä‘á»§"}
+                        {changeAmount >= 0 ? formatPrice(changeAmount) : "Chưa đủ"}
                       </span>
                     </div>
                   )}
@@ -350,7 +350,7 @@ export default function CheckoutSheet({
                   )}
                 >
                   <Star className="w-4 h-4" />
-                  DÃ¹ng Ä‘iá»ƒm tÃ­ch lÅ©y ({foundCustomer.loyalty_points} Ä‘iá»ƒm)
+                  Dùng điểm tích lũy ({foundCustomer.loyalty_points} điểm)
                   {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
                 </button>
                 {useLoyaltyPoints && (
@@ -368,7 +368,7 @@ export default function CheckoutSheet({
                       className="h-9 rounded-lg text-sm w-24"
                     />
                     <span className="text-xs text-muted-foreground">
-                      = giáº£m {formatPrice(loyaltyPointsToUse * pointValue)}
+                      = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
                     </span>
                   </div>
                 )}
@@ -377,9 +377,9 @@ export default function CheckoutSheet({
 
             {/* 4. Order note */}
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-foreground">Ghi chÃº Ä‘Æ¡n hÃ ng</p>
+              <p className="text-xs font-semibold text-foreground">Ghi chú đơn hàng</p>
               <Textarea
-                placeholder="Ghi chÃº cho Ä‘Æ¡n hÃ ng..."
+                placeholder="Ghi chú cho đơn hàng..."
                 value={orderNote}
                 onChange={(e) => setOrderNote(e.target.value)}
                 className="min-h-[60px] rounded-lg text-sm resize-none"
@@ -392,18 +392,18 @@ export default function CheckoutSheet({
         <div className="border-t border-border p-4 safe-bottom space-y-2">
           {loyaltyDiscount > 0 && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Giáº£m Ä‘iá»ƒm</span>
+              <span className="text-muted-foreground">Giảm điểm</span>
               <span className="text-green-600 font-medium">-{formatPrice(loyaltyDiscount)}</span>
             </div>
           )}
           {pointsEarned > 0 && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Äiá»ƒm tÃ­ch lÅ©y</span>
-              <span className="text-amber-500 font-medium">+{pointsEarned} Ä‘iá»ƒm</span>
+              <span>Điểm tích lũy</span>
+              <span className="text-amber-500 font-medium">+{pointsEarned} điểm</span>
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Thanh toÃ¡n</span>
+            <span className="text-sm text-muted-foreground">Thanh toán</span>
             <span className="text-lg font-bold text-foreground">{formatPrice(finalAmount)}</span>
           </div>
           <Button
@@ -411,7 +411,7 @@ export default function CheckoutSheet({
             disabled={isSubmitting}
             className="w-full h-12 rounded-xl text-base font-bold"
           >
-            {isSubmitting ? "Äang xá»­ lÃ½..." : "XÃ¡c nháº­n thanh toÃ¡n"}
+            {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
           </Button>
         </div>
       </SheetContent>

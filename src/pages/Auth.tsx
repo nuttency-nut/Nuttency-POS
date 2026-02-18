@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -28,15 +28,15 @@ export default function Auth() {
         const { error } = await signIn(email, password);
         if (error) {
           toast.error(error.message === "Invalid login credentials"
-            ? "Email hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng"
+            ? "Email hoặc mật khẩu không đúng"
             : error.message);
         } else {
-          toast.success("ÄÄƒng nháº­p thÃ nh cÃ´ng!");
+          toast.success("Đăng nhập thành công!");
           navigate("/");
         }
       } else {
         if (!fullName.trim()) {
-          toast.error("Vui lÃ²ng nháº­p há» tÃªn");
+          toast.error("Vui lòng nhập họ tên");
           setIsSubmitting(false);
           return;
         }
@@ -44,7 +44,7 @@ export default function Auth() {
         if (error) {
           toast.error(error.message);
         } else {
-          toast.success("ÄÄƒng kÃ½ thÃ nh cÃ´ng! Vui lÃ²ng kiá»ƒm tra email Ä‘á»ƒ xÃ¡c nháº­n.");
+          toast.success("Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.");
           setIsLogin(true);
         }
       }
@@ -69,7 +69,7 @@ export default function Auth() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">SalesPro</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Quáº£n lÃ½ bÃ¡n hÃ ng thÃ´ng minh
+              Quản lý bán hàng thông minh
             </p>
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function Auth() {
                     : "text-muted-foreground"
                 }`}
               >
-                ÄÄƒng nháº­p
+                Đăng nhập
               </button>
               <button
                 type="button"
@@ -98,7 +98,7 @@ export default function Auth() {
                     : "text-muted-foreground"
                 }`}
               >
-                ÄÄƒng kÃ½
+                Đăng ký
               </button>
             </div>
 
@@ -111,12 +111,12 @@ export default function Auth() {
                   className="space-y-2"
                 >
                   <Label htmlFor="fullName" className="text-sm font-medium">
-                    Há» vÃ  tÃªn
+                    Họ và tên
                   </Label>
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="Nguyá»…n VÄƒn A"
+                    placeholder="Nguyễn Văn A"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="h-12 rounded-xl"
@@ -141,13 +141,13 @@ export default function Auth() {
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
-                  Máº­t kháº©u
+                  Mật khẩu
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                    placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -172,9 +172,9 @@ export default function Auth() {
                 {isSubmitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : isLogin ? (
-                  "ÄÄƒng nháº­p"
+                  "Đăng nhập"
                 ) : (
-                  "ÄÄƒng kÃ½"
+                  "Đăng ký"
                 )}
               </Button>
             </form>
@@ -182,7 +182,7 @@ export default function Auth() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          Báº±ng viá»‡c tiáº¿p tá»¥c, báº¡n Ä‘á»“ng Ã½ vá»›i Ä‘iá»u khoáº£n sá»­ dá»¥ng
+          Bằng việc tiếp tục, bạn đồng ý với điều khoản sử dụng
         </p>
       </motion.div>
     </div>

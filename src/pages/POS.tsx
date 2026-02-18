@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
 import { Search } from "lucide-react";
@@ -120,7 +120,7 @@ export default function POS() {
 
       setDialogProduct(null);
       triggerFlyAnimation(product);
-      toast.success(`ÄÃ£ thÃªm ${product.name}`);
+      toast.success(`Đã thêm ${product.name}`);
     },
     []
   );
@@ -144,20 +144,20 @@ export default function POS() {
   const handleCheckoutSuccess = useCallback((orderNumber: string) => {
     setCartItems([]);
     setShowCheckout(false);
-    toast.success(`ÄÆ¡n hÃ ng ${orderNumber} Ä‘Ã£ táº¡o thÃ nh cÃ´ng!`);
+    toast.success(`Đơn hàng ${orderNumber} đã tạo thành công!`);
   }, []);
 
   const activeCategories = categories.filter((c) => c.is_active);
 
   return (
-    <AppLayout title="BÃ¡n hÃ ng">
+    <AppLayout title="Bán hàng">
       <div className="flex flex-col h-full">
         {/* Search */}
         <div className="p-4 pb-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="TÃ¬m sáº£n pháº©m, mÃ£ váº¡ch..."
+              placeholder="Tìm sản phẩm, mã vạch..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 h-11 rounded-xl bg-card"
@@ -178,7 +178,7 @@ export default function POS() {
                     : "bg-card text-muted-foreground border border-border"
                 )}
               >
-                Táº¥t cáº£
+                Tất cả
               </button>
               {activeCategories.map((cat) => (
                 <button

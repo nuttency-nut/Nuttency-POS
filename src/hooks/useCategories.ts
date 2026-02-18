@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 
@@ -41,10 +41,10 @@ export function useCreateCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      toast.success("ÄÃ£ thÃªm danh má»¥c");
+      toast.success("Đã thêm danh mục");
     },
     onError: (error) => {
-      toast.error("Lá»—i: " + error.message);
+      toast.error("Lỗi: " + error.message);
     },
   });
 }
@@ -64,10 +64,10 @@ export function useUpdateCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      toast.success("ÄÃ£ cáº­p nháº­t danh má»¥c");
+      toast.success("Đã cập nhật danh mục");
     },
     onError: (error) => {
-      toast.error("Lá»—i: " + error.message);
+      toast.error("Lỗi: " + error.message);
     },
   });
 }
@@ -81,10 +81,10 @@ export function useDeleteCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      toast.success("ÄÃ£ xÃ³a danh má»¥c");
+      toast.success("Đã xóa danh mục");
     },
     onError: (error) => {
-      toast.error("Lá»—i: " + error.message);
+      toast.error("Lỗi: " + error.message);
     },
   });
 }
