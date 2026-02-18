@@ -80,9 +80,9 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
   }
 
   return (
-    <div className="relative flex overflow-hidden">
+    <div className="relative flex overflow-hidden h-full">
       {/* Main scrollable content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-24 pr-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-24 pr-4 h-full">
         {activeLetters.map((letter) =>
         <div
           key={letter}
@@ -129,7 +129,7 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
       </div>
 
       {/* Alphabet sidebar */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center py-1 w-4">
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center py-1 w-4">
         {ALPHABET.map((letter) => {
           const isActive = !!grouped[letter];
           return (

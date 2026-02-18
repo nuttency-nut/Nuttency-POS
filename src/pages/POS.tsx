@@ -151,9 +151,10 @@ export default function POS() {
 
   return (
     <AppLayout title="Bán hàng">
-      <div className="flex flex-col h-full">
-        {/* Search */}
-        <div className="p-4 pb-2">
+      <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
+        <div className="shrink-0 bg-background border-b border-border/50">
+          {/* Search */}
+          <div className="p-4 pb-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -163,48 +164,51 @@ export default function POS() {
               className="pl-10 h-11 rounded-xl bg-card"
             />
           </div>
-        </div>
+          </div>
 
-        {/* Category tabs */}
-        {activeCategories.length > 0 && (
-          <ScrollArea className="w-full">
-            <div className="flex gap-2 px-4 pb-2">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
-                  selectedCategory === null
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card text-muted-foreground border border-border"
-                )}
-              >
-                Tất cả
-              </button>
-              {activeCategories.map((cat) => (
+          {/* Category tabs */}
+          {activeCategories.length > 0 && (
+            <ScrollArea className="w-full">
+              <div className="flex gap-2 px-4 pb-2">
                 <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => setSelectedCategory(null)}
                   className={cn(
                     "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
-                    selectedCategory === cat.id
+                    selectedCategory === null
                       ? "bg-primary text-primary-foreground"
                       : "bg-card text-muted-foreground border border-border"
                   )}
                 >
-                  {cat.name}
+                  Tất cả
                 </button>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        )}
+                {activeCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={cn(
+                      "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
+                      selectedCategory === cat.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-card text-muted-foreground border border-border"
+                    )}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          )}
+        </div>
 
-        {/* Product grid */}
-        <ProductGrid
-          products={filtered}
-          isLoading={isLoading}
-          onSelect={handleSelectProduct}
-        />
+        <div className="min-h-0 flex-1">
+          {/* Product grid */}
+          <ProductGrid
+            products={filtered}
+            isLoading={isLoading}
+            onSelect={handleSelectProduct}
+          />
+        </div>
       </div>
 
       {/* Fly-to-cart animations */}
