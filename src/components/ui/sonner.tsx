@@ -6,8 +6,8 @@ type ToastOptions = Omit<SileoOptions, "title">;
 
 const Toaster = ({ ...props }: ToasterProps) => (
   <SileoToaster
-    position="top-right"
-    offset={{ top: 12, right: 12, bottom: 12, left: 12 }}
+    position="bottom-left"
+    offset={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)", left: 12 }}
     options={{
       duration: 3200,
       roundness: 18,
