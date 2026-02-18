@@ -1,0 +1,9 @@
+﻿{
+  "name": "SalesPro",
+  "short_name": "SalesPro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#f97316",
+  "lang": "vi"
+}
