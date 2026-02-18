@@ -11,10 +11,57 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
+const SUPABASE_REQUEST_TIMEOUT_MS = 15000;
+
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const attemptFetch = async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SUPABASE_REQUEST_TIMEOUT_MS);
+
+    if (init?.signal) {
+      if (init.signal.aborted) {
+        clearTimeout(timeoutId);
+        throw new DOMException("Aborted", "AbortError");
+      }
+      init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } catch (error) {
+      const isTimeoutAbort =
+        error instanceof DOMException && error.name === "AbortError";
+
+      if (isTimeoutAbort) {
+        throw new Error(`[NETWORK_TIMEOUT] Supabase request quá ${SUPABASE_REQUEST_TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  try {
+    return await attemptFetch();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const shouldRetry =
+      message.includes("[NETWORK_TIMEOUT]") || error instanceof TypeError;
+
+    if (shouldRetry) {
+      return attemptFetch();
+    }
+    throw error;
+  }
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: fetchWithTimeout,
+  },
   auth: {
     storage: localStorage,
     persistSession: true,
