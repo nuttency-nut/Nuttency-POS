@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,6 +21,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const restoringSessionRef = useRef(false);
+
+  const safeRefreshSession = async () => {
+    try {
+      await supabase.auth.refreshSession();
+    } catch (error) {
+      // Ignore lock-timeout refresh errors; another tab/process is already refreshing token.
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (!message.includes("lock") && !message.includes("timed out")) {
+        throw error;
+      }
+    }
+  };
 
   const fetchRole = async (userId: string) => {
     const queryRole = () =>
@@ -36,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         message.includes("session");
 
       if (shouldRefresh) {
-        await supabase.auth.refreshSession();
+        await safeRefreshSession();
         const retry = await queryRole();
         data = retry.data;
         error = retry.error;
@@ -77,12 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const onVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
+      if (restoringSessionRef.current) return;
 
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) return;
-
-      await supabase.auth.refreshSession();
-      await fetchRole(data.session.user.id);
+      restoringSessionRef.current = true;
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.user) return;
+        await fetchRole(data.session.user.id);
+      } finally {
+        restoringSessionRef.current = false;
+      }
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
