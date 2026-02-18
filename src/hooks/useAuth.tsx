@@ -23,11 +23,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const queryRole = () =>
+      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+
+    let { data, error } = await queryRole();
+
+    if (error) {
+      const message = error.message.toLowerCase();
+      const shouldRefresh =
+        message.includes("jwt") ||
+        message.includes("token") ||
+        message.includes("session");
+
+      if (shouldRefresh) {
+        await supabase.auth.refreshSession();
+        const retry = await queryRole();
+        data = retry.data;
+        error = retry.error;
+      }
+    }
 
     if (error) {
       setRole("no_role");
@@ -61,7 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    const onVisibilityChange = async () => {
+      if (document.visibilityState !== "visible") return;
+
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user) return;
+
+      await supabase.auth.refreshSession();
+      await fetchRole(data.session.user.id);
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {

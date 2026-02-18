@@ -74,24 +74,65 @@ export default function AppSettings() {
     if (!canManageRoles) return;
     setLoadingRoleUsers(true);
 
-    const rpcRes = await supabase.rpc("list_users_for_role_management");
+    try {
+      const rpcRes = await supabase.rpc("list_users_for_role_management");
 
-    if (!rpcRes.error && rpcRes.data) {
-      const rows = rpcRes.data as Array<{
-        user_id: string;
-        email: string | null;
-        full_name: string | null;
-        role: AppRole;
-      }>;
+      if (!rpcRes.error && rpcRes.data) {
+        const rows = rpcRes.data as Array<{
+          user_id: string;
+          email: string | null;
+          full_name: string | null;
+          role: AppRole;
+        }>;
 
-      const users = rows.map((u) => ({
-        user_id: u.user_id,
-        email: u.email,
-        full_name: u.full_name,
-        role: u.role ?? "no_role",
+        const users = rows.map((u) => ({
+          user_id: u.user_id,
+          email: u.email,
+          full_name: u.full_name,
+          role: u.role ?? "no_role",
+        }));
+
+        users.sort((a, b) => {
+          if (a.user_id === user?.id) return -1;
+          if (b.user_id === user?.id) return 1;
+          return (a.full_name ?? a.email ?? a.user_id).localeCompare(
+            b.full_name ?? b.email ?? b.user_id
+          );
+        });
+
+        setRoleUsers(users);
+        return;
+      }
+
+      const [profilesRes, rolesRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name"),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+
+      if (profilesRes.error || rolesRes.error) {
+        toast.error("Không tải được danh sách tài khoản");
+        return;
+      }
+
+      const roleMap = new Map<string, AppRole>();
+      (rolesRes.data ?? []).forEach((r) => {
+        roleMap.set(r.user_id, (r.role as AppRole) ?? "no_role");
+      });
+
+      const profileMap = new Map<string, string | null>();
+      (profilesRes.data ?? []).forEach((p) => {
+        profileMap.set(p.user_id, p.full_name);
+        if (!roleMap.has(p.user_id)) roleMap.set(p.user_id, "no_role");
+      });
+
+      const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
+        user_id: userId,
+        email: userId === user?.id ? user.email ?? null : null,
+        full_name: profileMap.get(userId) ?? null,
+        role: userRole,
       }));
 
-      users.sort((a, b) => {
+      merged.sort((a, b) => {
         if (a.user_id === user?.id) return -1;
         if (b.user_id === user?.id) return 1;
         return (a.full_name ?? a.email ?? a.user_id).localeCompare(
@@ -99,50 +140,12 @@ export default function AppSettings() {
         );
       });
 
-      setRoleUsers(users);
+      setRoleUsers(merged);
+    } catch {
+      toast.error("Lỗi kết nối. Vui lòng thử lại");
+    } finally {
       setLoadingRoleUsers(false);
-      return;
     }
-
-    const [profilesRes, rolesRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name"),
-      supabase.from("user_roles").select("user_id, role"),
-    ]);
-
-    if (profilesRes.error || rolesRes.error) {
-      toast.error("Không tải được danh sách tài khoản");
-      setLoadingRoleUsers(false);
-      return;
-    }
-
-    const roleMap = new Map<string, AppRole>();
-    (rolesRes.data ?? []).forEach((r) => {
-      roleMap.set(r.user_id, (r.role as AppRole) ?? "no_role");
-    });
-
-    const profileMap = new Map<string, string | null>();
-    (profilesRes.data ?? []).forEach((p) => {
-      profileMap.set(p.user_id, p.full_name);
-      if (!roleMap.has(p.user_id)) roleMap.set(p.user_id, "no_role");
-    });
-
-    const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
-      user_id: userId,
-      email: userId === user?.id ? user.email ?? null : null,
-      full_name: profileMap.get(userId) ?? null,
-      role: userRole,
-    }));
-
-    merged.sort((a, b) => {
-      if (a.user_id === user?.id) return -1;
-      if (b.user_id === user?.id) return 1;
-      return (a.full_name ?? a.email ?? a.user_id).localeCompare(
-        b.full_name ?? b.email ?? b.user_id
-      );
-    });
-
-    setRoleUsers(merged);
-    setLoadingRoleUsers(false);
   };
 
   useEffect(() => {
