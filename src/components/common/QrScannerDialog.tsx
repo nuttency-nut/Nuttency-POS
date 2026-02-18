@@ -11,18 +11,40 @@ interface QrScannerDialogProps {
   title?: string;
 }
 
+type BarcodeLikeDetector = {
+  detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
+};
+
+type BarcodeDetectorCtor = {
+  new (options?: { formats?: string[] }): BarcodeLikeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+
 const SCAN_INTERVAL_MS = 200; // 5 fps
+const BARCODE_FORMATS = [
+  "qr_code",
+  "ean_13",
+  "ean_8",
+  "upc_a",
+  "upc_e",
+  "code_128",
+  "code_39",
+  "codabar",
+  "itf",
+] as const;
 
 export default function QrScannerDialog({
   open,
   onOpenChange,
   onDetected,
-  title = "Quét mã QR",
+  title = "Quét mã QR / Barcode",
 }: QrScannerDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const detectorRef = useRef<BarcodeLikeDetector | null>(null);
+  const detectedRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const stopScanner = () => {
@@ -37,6 +59,15 @@ export default function QrScannerDialog({
     }
   };
 
+  const notifyDetected = (value: string) => {
+    if (detectedRef.current) return;
+    detectedRef.current = true;
+    stopScanner();
+    onDetected(value);
+    onOpenChange(false);
+    toast.success("Đã quét mã");
+  };
+
   useEffect(() => {
     if (!open) {
       stopScanner();
@@ -44,14 +75,33 @@ export default function QrScannerDialog({
     }
 
     let cancelled = false;
+    detectedRef.current = false;
+
+    const initDetector = async () => {
+      const Ctor = (window as Window & { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+      if (!Ctor) {
+        detectorRef.current = null;
+        return;
+      }
+
+      try {
+        const supported = (await Ctor.getSupportedFormats?.()) || [];
+        const usableFormats = BARCODE_FORMATS.filter((format) => supported.includes(format));
+        detectorRef.current = new Ctor({
+          formats: usableFormats.length > 0 ? usableFormats : ["qr_code"],
+        });
+      } catch {
+        detectorRef.current = null;
+      }
+    };
 
     const startScanner = async () => {
       setErrorMessage(null);
+      await initDetector();
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-          },
+          video: { facingMode: { ideal: "environment" } },
           audio: false,
         });
 
@@ -67,7 +117,8 @@ export default function QrScannerDialog({
         video.srcObject = stream;
         await video.play();
 
-        intervalRef.current = window.setInterval(() => {
+        intervalRef.current = window.setInterval(async () => {
+          if (detectedRef.current) return;
           const currentVideo = videoRef.current;
           if (!currentVideo || currentVideo.readyState < 2) return;
 
@@ -78,27 +129,37 @@ export default function QrScannerDialog({
           if (!canvasRef.current) {
             canvasRef.current = document.createElement("canvas");
           }
-
           const canvas = canvasRef.current;
           canvas.width = width;
           canvas.height = height;
 
           const context = canvas.getContext("2d", { willReadFrequently: true });
           if (!context) return;
-
           context.drawImage(currentVideo, 0, 0, width, height);
+
+          // 1) Try generic barcode detector first (QR + linear barcodes)
+          if (detectorRef.current) {
+            try {
+              const codes = await detectorRef.current.detect(canvas);
+              const detected = codes.find((c) => typeof c.rawValue === "string" && c.rawValue.trim() !== "");
+              if (detected?.rawValue) {
+                notifyDetected(detected.rawValue);
+                return;
+              }
+            } catch {
+              // Ignore and fallback to jsQR below
+            }
+          }
+
+          // 2) Fallback QR decoder for browsers without BarcodeDetector support
           const imageData = context.getImageData(0, 0, width, height);
           const qr = jsQR(imageData.data, width, height, { inversionAttempts: "attemptBoth" });
-
           if (qr?.data) {
-            stopScanner();
-            onDetected(qr.data);
-            onOpenChange(false);
-            toast.success("Đã quét mã QR");
+            notifyDetected(qr.data);
           }
         }, SCAN_INTERVAL_MS);
-      } catch (error) {
-        setErrorMessage("Không thể mở camera. Vui lòng cấp quyền truy cập camera.");
+      } catch {
+        setErrorMessage("Không thể mở camera. Vui lòng cấp quyền camera.");
       }
     };
 
@@ -125,7 +186,7 @@ export default function QrScannerDialog({
           {errorMessage ? (
             <p className="text-xs text-destructive">{errorMessage}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">Đưa mã QR vào giữa khung để quét (5 fps).</p>
+            <p className="text-xs text-muted-foreground">Đưa QR hoặc barcode vào giữa khung để quét (5 fps).</p>
           )}
 
           <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>

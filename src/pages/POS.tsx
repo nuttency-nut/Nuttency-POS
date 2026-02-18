@@ -1,19 +1,18 @@
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Search, QrCode, X } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
-import { Search, QrCode } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useProducts, Product } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/hooks/useAuth";
-
+import { toast } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
 import CheckoutSheet from "@/components/pos/CheckoutSheet";
-import { toast } from "@/components/ui/sonner";
-import { cn } from "@/lib/utils";
 import QrScannerDialog from "@/components/common/QrScannerDialog";
 
 interface FlyAnimation {
@@ -30,7 +29,6 @@ export default function POS() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -42,28 +40,26 @@ export default function POS() {
   const filtered = products.filter((p) => {
     if (!p.is_active) return false;
     if (selectedCategory && p.category_id !== selectedCategory) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.barcode && p.barcode.toLowerCase().includes(q))
-      );
-    }
-    return true;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q));
   });
 
   const triggerFlyAnimation = useCallback((product: Product) => {
     const id = `fly-${Date.now()}`;
-    const anim: FlyAnimation = {
-      id,
-      x: lastTapRef.current.x,
-      y: lastTapRef.current.y,
-      image_url: product.image_url,
-      name: product.name,
-    };
-    setFlyAnimations((prev) => [...prev, anim]);
+    setFlyAnimations((prev) => [
+      ...prev,
+      {
+        id,
+        x: lastTapRef.current.x,
+        y: lastTapRef.current.y,
+        image_url: product.image_url,
+        name: product.name,
+      },
+    ]);
+
     setTimeout(() => {
-      setFlyAnimations((prev) => prev.filter((a) => a.id !== id));
+      setFlyAnimations((prev) => prev.filter((item) => item.id !== id));
     }, 600);
   }, []);
 
@@ -72,39 +68,35 @@ export default function POS() {
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       lastTapRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     }
-    // Always open dialog so users can add notes
     setDialogProduct(product);
   }, []);
 
   const addToCart = useCallback(
     (product: Product, qty: number, selections: SelectedClassifications, note?: string) => {
       const groups = product.product_classification_groups || [];
-
       let extraPrice = 0;
       const labels: string[] = [];
       let selectionKey = "";
-      groups.forEach((g) => {
-        const selectedIds = selections[g.id] || [];
-        if (selectedIds.length > 0) {
-          const selectedOptions = (g.product_classification_options || [])
-            .filter((o) => selectedIds.includes(o.id));
-          const optionNames = selectedOptions.map((o) => o.name);
-          extraPrice += selectedOptions.reduce((sum, o) => sum + (o.extra_price || 0), 0);
-          labels.push(`${g.name}: ${optionNames.join(", ")}`);
-          selectionKey += `|${g.id}:${selectedIds.sort().join(",")}`;
-        }
+
+      groups.forEach((group) => {
+        const selectedIds = selections[group.id] || [];
+        if (selectedIds.length === 0) return;
+        const selectedOptions = (group.product_classification_options || []).filter((opt) => selectedIds.includes(opt.id));
+        const optionNames = selectedOptions.map((opt) => opt.name);
+        extraPrice += selectedOptions.reduce((sum, opt) => sum + (opt.extra_price || 0), 0);
+        labels.push(`${group.name}: ${optionNames.join(", ")}`);
+        selectionKey += `|${group.id}:${selectedIds.sort().join(",")}`;
       });
 
       const lineId = `${product.id}${selectionKey}`;
       const unitPrice = product.selling_price + extraPrice;
 
       setCartItems((prev) => {
-        const existing = prev.find((i) => i.id === lineId);
+        const existing = prev.find((item) => item.id === lineId);
         if (existing) {
-          return prev.map((i) =>
-            i.id === lineId ? { ...i, qty: i.qty + qty } : i
-          );
+          return prev.map((item) => (item.id === lineId ? { ...item, qty: item.qty + qty } : item));
         }
+
         return [
           ...prev,
           {
@@ -124,19 +116,19 @@ export default function POS() {
       triggerFlyAnimation(product);
       toast.success(`Đã thêm ${product.name}`);
     },
-    []
+    [triggerFlyAnimation]
   );
 
   const handleUpdateQty = useCallback((id: string, qty: number) => {
     if (qty <= 0) {
-      setCartItems((prev) => prev.filter((i) => i.id !== id));
-    } else {
-      setCartItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty } : i)));
+      setCartItems((prev) => prev.filter((item) => item.id !== id));
+      return;
     }
+    setCartItems((prev) => prev.map((item) => (item.id === id ? { ...item, qty } : item)));
   }, []);
 
   const handleRemove = useCallback((id: string) => {
-    setCartItems((prev) => prev.filter((i) => i.id !== id));
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
   const handleCheckout = useCallback(() => {
@@ -155,27 +147,33 @@ export default function POS() {
     <AppLayout title="Bán hàng">
       <div className="flex flex-col h-[calc(100dvh-8.5rem)]">
         <div className="shrink-0 bg-background border-b border-border/50">
-          {/* Search */}
           <div className="p-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Tìm sản phẩm, mã vạch..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 pr-10 h-11 rounded-xl bg-card"
-            />
-            <button
-              onClick={() => setScannerOpen(true)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
-              aria-label="Quét QR"
-            >
-              <QrCode className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm sản phẩm, mã vạch..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-16 h-10 rounded-xl bg-card border-0"
+              />
 
-          {/* Category tabs */}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {search && (
+                  <button onClick={() => setSearch("")} className="text-muted-foreground p-1" aria-label="Xóa tìm kiếm">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setScannerOpen(true)}
+                  className="text-muted-foreground p-1"
+                  aria-label="Quét QR hoặc barcode"
+                >
+                  <QrCode className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           {activeCategories.length > 0 && (
             <ScrollArea className="w-full">
               <div className="flex gap-2 px-4 pb-2">
@@ -211,42 +209,22 @@ export default function POS() {
         </div>
 
         <div className="min-h-0 flex-1">
-          {/* Product grid */}
-          <ProductGrid
-            products={filtered}
-            isLoading={isLoading}
-            onSelect={handleSelectProduct}
-          />
+          <ProductGrid products={filtered} isLoading={isLoading} onSelect={handleSelectProduct} />
         </div>
       </div>
 
-      {/* Fly-to-cart animations */}
       <AnimatePresence>
         {flyAnimations.map((anim) => {
-          // Target: cart bar at bottom center
           const targetX = window.innerWidth / 2;
           const targetY = window.innerHeight - 100;
           return (
             <motion.div
               key={anim.id}
               className="fixed z-[100] pointer-events-none"
-              initial={{
-                left: anim.x - 24,
-                top: anim.y - 24,
-                scale: 1,
-                opacity: 1,
-              }}
-              animate={{
-                left: targetX - 24,
-                top: targetY - 24,
-                scale: 0.3,
-                opacity: 0,
-              }}
+              initial={{ left: anim.x - 24, top: anim.y - 24, scale: 1, opacity: 1 }}
+              animate={{ left: targetX - 24, top: targetY - 24, scale: 0.3, opacity: 0 }}
               exit={{ opacity: 0 }}
-              transition={{
-                duration: 0.5,
-                ease: [0.32, 0, 0.24, 1],
-              }}
+              transition={{ duration: 0.5, ease: [0.32, 0, 0.24, 1] }}
             >
               <div className="w-12 h-12 rounded-xl bg-primary/90 shadow-lg flex items-center justify-center overflow-hidden border-2 border-primary-foreground/30">
                 {anim.image_url ? (
@@ -260,15 +238,8 @@ export default function POS() {
         })}
       </AnimatePresence>
 
-      {/* Cart horizontal bar + Sheet */}
-      <Cart
-        items={cartItems}
-        onUpdateQty={handleUpdateQty}
-        onRemove={handleRemove}
-        onCheckout={handleCheckout}
-      />
+      <Cart items={cartItems} onUpdateQty={handleUpdateQty} onRemove={handleRemove} onCheckout={handleCheckout} />
 
-      {/* Checkout sheet */}
       {user && (
         <CheckoutSheet
           open={showCheckout}
@@ -279,7 +250,6 @@ export default function POS() {
         />
       )}
 
-      {/* Classification selection dialog */}
       <ClassificationDialog
         product={dialogProduct}
         open={!!dialogProduct}
@@ -291,9 +261,8 @@ export default function POS() {
         open={scannerOpen}
         onOpenChange={setScannerOpen}
         onDetected={(code) => setSearch(code)}
-        title="Quét mã QR bán hàng"
+        title="Quét mã QR / Barcode bán hàng"
       />
     </AppLayout>
   );
 }
-
