@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, LogOut, Moon, RefreshCw, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
@@ -12,6 +12,7 @@ import { toast } from "@/components/ui/sonner";
 import { withTimeout } from "@/lib/utils";
 
 type AppRole = "admin" | "manager" | "staff" | "no_role";
+type SettingsTab = "general" | "roles";
 
 interface RoleUser {
   user_id: string;
@@ -44,10 +45,14 @@ const ASSIGNABLE_ROLES: Record<AppRole, AppRole[]> = {
 export default function AppSettings() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
+
   const [isDark, setIsDark] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([]);
   const [loadingRoleUsers, setLoadingRoleUsers] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+
+  const loadSeqRef = useRef(0);
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
@@ -59,10 +64,10 @@ export default function AppSettings() {
   }, []);
 
   const toggleTheme = () => {
-    const newDark = !isDark;
-    setIsDark(newDark);
-    document.documentElement.classList.toggle("dark", newDark);
-    localStorage.setItem("theme", newDark ? "dark" : "light");
+    const nextDark = !isDark;
+    setIsDark(nextDark);
+    document.documentElement.classList.toggle("dark", nextDark);
+    localStorage.setItem("theme", nextDark ? "dark" : "light");
   };
 
   const handleSignOut = async () => {
@@ -71,77 +76,16 @@ export default function AppSettings() {
     navigate("/auth");
   };
 
-  const loadRoleUsers = async () => {
-    if (!canManageRoles) return;
-    setLoadingRoleUsers(true);
-
-    try {
-      const rpcRes = await withTimeout(
-        supabase.rpc("list_users_for_role_management"),
-        12000,
-        "Tải danh sách phân quyền (RPC)"
-      );
-
-      if (!rpcRes.error && rpcRes.data) {
-        const rows = rpcRes.data as Array<{
-          user_id: string;
-          email: string | null;
-          full_name: string | null;
-          role: AppRole;
-        }>;
-
-        const users = rows.map((u) => ({
-          user_id: u.user_id,
-          email: u.email,
-          full_name: u.full_name,
-          role: u.role ?? "no_role",
-        }));
-
-        users.sort((a, b) => {
-          if (a.user_id === user?.id) return -1;
-          if (b.user_id === user?.id) return 1;
-          return (a.full_name ?? a.email ?? a.user_id).localeCompare(
-            b.full_name ?? b.email ?? b.user_id
-          );
-        });
-
-        setRoleUsers(users);
-        return;
-      }
-
-      const [profilesRes, rolesRes] = await withTimeout(
-        Promise.all([
-          supabase.from("profiles").select("user_id, full_name"),
-          supabase.from("user_roles").select("user_id, role"),
-        ]),
-        12000,
-        "Tải danh sách phân quyền (fallback)"
-      );
-
-      if (profilesRes.error || rolesRes.error) {
-        toast.error("Không tải được danh sách tài khoản");
-        return;
-      }
-
-      const roleMap = new Map<string, AppRole>();
-      (rolesRes.data ?? []).forEach((r) => {
-        roleMap.set(r.user_id, (r.role as AppRole) ?? "no_role");
-      });
-
-      const profileMap = new Map<string, string | null>();
-      (profilesRes.data ?? []).forEach((p) => {
-        profileMap.set(p.user_id, p.full_name);
-        if (!roleMap.has(p.user_id)) roleMap.set(p.user_id, "no_role");
-      });
-
-      const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
-        user_id: userId,
-        email: userId === user?.id ? user.email ?? null : null,
-        full_name: profileMap.get(userId) ?? null,
-        role: userRole,
+  const normalizeAndSortUsers = useCallback(
+    (rows: Array<{ user_id: string; email: string | null; full_name: string | null; role: AppRole }>) => {
+      const users = rows.map((u) => ({
+        user_id: u.user_id,
+        email: u.email,
+        full_name: u.full_name,
+        role: u.role ?? "no_role",
       }));
 
-      merged.sort((a, b) => {
+      users.sort((a, b) => {
         if (a.user_id === user?.id) return -1;
         if (b.user_id === user?.id) return 1;
         return (a.full_name ?? a.email ?? a.user_id).localeCompare(
@@ -149,20 +93,126 @@ export default function AppSettings() {
         );
       });
 
-      setRoleUsers(merged);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Lỗi kết nối";
-      console.error("[ROLE_USERS_LOAD_ERROR]", message);
-      toast.error(`Không tải được danh sách tài khoản: ${message}`);
-    } finally {
-      setLoadingRoleUsers(false);
-    }
-  };
+      return users;
+    },
+    [user?.id]
+  );
+
+  const loadRoleUsers = useCallback(
+    async (silent = false) => {
+      if (!canManageRoles) return;
+
+      const currentSeq = ++loadSeqRef.current;
+      if (!silent) setLoadingRoleUsers(true);
+
+      const watchdog = setTimeout(() => {
+        if (loadSeqRef.current === currentSeq) {
+          setLoadingRoleUsers(false);
+          toast.error("Tải danh sách tài khoản quá lâu, vui lòng thử lại");
+          console.error("[ROLE_USERS_WATCHDOG_TIMEOUT]", { seq: currentSeq });
+        }
+      }, 15000);
+
+      try {
+        const rpcRes = await withTimeout(
+          supabase.rpc("list_users_for_role_management"),
+          10000,
+          "Tải danh sách phân quyền (RPC)"
+        );
+
+        if (!rpcRes.error && rpcRes.data) {
+          if (loadSeqRef.current === currentSeq) {
+            setRoleUsers(
+              normalizeAndSortUsers(
+                rpcRes.data as Array<{
+                  user_id: string;
+                  email: string | null;
+                  full_name: string | null;
+                  role: AppRole;
+                }>
+              )
+            );
+          }
+          return;
+        }
+
+        const [profilesRes, rolesRes] = await withTimeout(
+          Promise.all([
+            supabase.from("profiles").select("user_id, full_name"),
+            supabase.from("user_roles").select("user_id, role"),
+          ]),
+          10000,
+          "Tải danh sách phân quyền (fallback)"
+        );
+
+        if (profilesRes.error || rolesRes.error) {
+          toast.error("Không tải được danh sách tài khoản");
+          console.error("[ROLE_USERS_FALLBACK_ERROR]", {
+            profilesError: profilesRes.error?.message,
+            rolesError: rolesRes.error?.message,
+          });
+          return;
+        }
+
+        const roleMap = new Map<string, AppRole>();
+        (rolesRes.data ?? []).forEach((r) => {
+          roleMap.set(r.user_id, (r.role as AppRole) ?? "no_role");
+        });
+
+        const profileMap = new Map<string, string | null>();
+        (profilesRes.data ?? []).forEach((p) => {
+          profileMap.set(p.user_id, p.full_name);
+          if (!roleMap.has(p.user_id)) roleMap.set(p.user_id, "no_role");
+        });
+
+        const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
+          user_id: userId,
+          email: userId === user?.id ? user.email ?? null : null,
+          full_name: profileMap.get(userId) ?? null,
+          role: userRole,
+        }));
+
+        if (loadSeqRef.current === currentSeq) {
+          setRoleUsers(normalizeAndSortUsers(merged));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Lỗi kết nối";
+        console.error("[ROLE_USERS_LOAD_ERROR]", message);
+        toast.error(`Không tải được danh sách tài khoản: ${message}`);
+      } finally {
+        clearTimeout(watchdog);
+        if (loadSeqRef.current === currentSeq) {
+          setLoadingRoleUsers(false);
+        }
+      }
+    },
+    [canManageRoles, normalizeAndSortUsers, user?.email, user?.id]
+  );
 
   useEffect(() => {
+    if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManageRoles]);
+  }, [activeTab, canManageRoles, loadRoleUsers]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (activeTab !== "roles" || !canManageRoles) return;
+      void loadRoleUsers(true);
+    };
+
+    const handleOnline = () => {
+      if (activeTab !== "roles" || !canManageRoles) return;
+      void loadRoleUsers(true);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [activeTab, canManageRoles, loadRoleUsers]);
 
   const canEditTarget = (targetUserId: string, targetRole: AppRole) => {
     if (!canManageRoles) return false;
@@ -247,11 +297,7 @@ export default function AppSettings() {
               )}
               <span className="font-medium text-foreground">{isDark ? "Chế độ tối" : "Chế độ sáng"}</span>
             </div>
-            <div
-              className={`w-11 h-6 rounded-full transition-colors ${
-                isDark ? "bg-primary" : "bg-muted"
-              } relative`}
-            >
+            <div className={`w-11 h-6 rounded-full transition-colors ${isDark ? "bg-primary" : "bg-muted"} relative`}>
               <div
                 className={`absolute top-0.5 w-5 h-5 rounded-full bg-card shadow-sm transition-transform ${
                   isDark ? "translate-x-5.5 left-0.5" : "left-0.5"
@@ -277,7 +323,7 @@ export default function AppSettings() {
     <AppLayout title="Cài đặt">
       <div className="p-4 space-y-4">
         {canManageRoles ? (
-          <Tabs defaultValue="general" className="w-full">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">
               <TabsTrigger value="general">Chung</TabsTrigger>
               <TabsTrigger value="roles">Phân quyền</TabsTrigger>
@@ -313,11 +359,21 @@ export default function AppSettings() {
                       Đang tải danh sách tài khoản...
                     </CardContent>
                   </Card>
+                ) : roleUsers.length === 0 ? (
+                  <Card className="border-0 shadow-sm">
+                    <CardContent className="p-4 space-y-2">
+                      <p className="text-sm text-muted-foreground">Chưa lấy được danh sách tài khoản.</p>
+                      <Button variant="outline" size="sm" onClick={() => void loadRoleUsers()}>
+                        Tải lại
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ) : (
                   roleUsers.map((u) => {
                     const editable = canEditTarget(u.user_id, u.role);
                     const isSaving = savingUserId === u.user_id;
                     const roleOptions = editable ? optionsForTarget : [u.role];
+
                     return (
                       <Card key={u.user_id} className="border-0 shadow-sm">
                         <CardContent className="p-4 space-y-3">

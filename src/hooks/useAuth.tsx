@@ -15,131 +15,111 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const isDebugSupabase = () => {
+
+const roleCacheKey = (userId: string) => `role_cache_${userId}`;
+
+const getCachedRole = (userId: string): AppRole | null => {
   try {
-    return localStorage.getItem("debug_supabase") === "1";
+    const raw = localStorage.getItem(roleCacheKey(userId));
+    if (raw === "admin" || raw === "manager" || raw === "staff" || raw === "no_role") {
+      return raw;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
   }
 };
+
+const setCachedRole = (userId: string, role: AppRole) => {
+  try {
+    localStorage.setItem(roleCacheKey(userId), role);
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, tag: string): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`[${tag}] timeout ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const safeRefreshSession = async () => {
-    try {
-      if (isDebugSupabase()) console.log("[AUTH_REFRESH_START]");
-      await supabase.auth.refreshSession();
-      if (isDebugSupabase()) console.log("[AUTH_REFRESH_OK]");
-    } catch (error) {
-      // Ignore lock-timeout refresh errors; another tab/process is already refreshing token.
-      const message = error instanceof Error ? error.message.toLowerCase() : "";
-      if (!message.includes("lock") && !message.includes("timed out")) {
-        throw error;
-      }
-      if (isDebugSupabase()) console.warn("[AUTH_REFRESH_LOCK_TIMEOUT]", message);
+
+  const resolveRole = async (userId: string) => {
+    const cachedRole = getCachedRole(userId);
+    if (cachedRole) {
+      setRole(cachedRole);
     }
-  };
 
-  const fetchRole = async (userId: string) => {
     try {
-      const queryRole = () =>
-        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
-
-      let { data, error } = await queryRole();
-
-      if (error) {
-        const message = error.message.toLowerCase();
-        const shouldRefresh =
-          message.includes("jwt") ||
-          message.includes("token") ||
-          message.includes("session");
-
-        if (shouldRefresh) {
-          await safeRefreshSession();
-          const retry = await queryRole();
-          data = retry.data;
-          error = retry.error;
-        }
-      }
+      const { data, error } = await withTimeout(
+        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+        8000,
+        "AUTH_ROLE_FETCH"
+      );
 
       if (error) {
-        console.error("[AUTH_FETCH_ROLE_ERROR]", error.message);
-        setRole("no_role");
+        console.error("[AUTH_ROLE_FETCH_ERROR]", error.message);
         return;
       }
 
-      setRole((data?.role as AppRole) ?? "no_role");
+      const nextRole = ((data?.role as AppRole) ?? "no_role");
+      setRole(nextRole);
+      setCachedRole(userId, nextRole);
     } catch (error) {
-      console.error("[AUTH_FETCH_ROLE_EXCEPTION]", error);
-      setRole("no_role");
+      console.error("[AUTH_ROLE_FETCH_EXCEPTION]", error);
+      // Keep cached role (if any), don't force no_role on transient failures.
     }
   };
 
   useEffect(() => {
-    const bootstrapTimeout = setTimeout(() => {
-      // Fail-safe: never keep the whole app in loading state forever.
-      console.error("[AUTH_BOOTSTRAP_TIMEOUT] Fallback after 8s");
-      setLoading(false);
-    }, 8000);
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (isDebugSupabase()) {
-          console.log("[AUTH_STATE_CHANGE]", {
-            event: _event,
-            hasSession: Boolean(session),
-            visibility: document.visibilityState,
-            online: navigator.onLine,
-          });
-        }
-        try {
-          setSession(session);
-          setUser(session?.user ?? null);
+      async (_event, nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
 
-          if (session?.user) {
-            await fetchRole(session.user.id);
-          } else {
-            setRole(null);
-          }
-        } catch (error) {
-          console.error("[AUTH_STATE_CHANGE_ERROR]", error);
-          setRole("no_role");
-        } finally {
-          clearTimeout(bootstrapTimeout);
+        if (!nextSession?.user) {
+          setRole(null);
           setLoading(false);
+          return;
         }
+
+        setLoading(true);
+        await resolveRole(nextSession.user.id);
+        setLoading(false);
       }
     );
 
     supabase.auth
       .getSession()
-      .then(async ({ data: { session } }) => {
-        try {
-          setSession(session);
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchRole(session.user.id);
-          }
-        } catch (error) {
-          console.error("[AUTH_GET_SESSION_ERROR]", error);
-          setRole("no_role");
-        } finally {
-          clearTimeout(bootstrapTimeout);
+      .then(async ({ data: { session: initialSession } }) => {
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+
+        if (!initialSession?.user) {
+          setRole(null);
           setLoading(false);
+          return;
         }
+
+        setLoading(true);
+        await resolveRole(initialSession.user.id);
+        setLoading(false);
       })
       .catch((error) => {
-        console.error("[AUTH_GET_SESSION_REJECTED]", error);
-        clearTimeout(bootstrapTimeout);
-        setRole("no_role");
+        console.error("[AUTH_GET_SESSION_ERROR]", error);
         setLoading(false);
       });
 
     const onVisibilityChange = () => {
-      if (isDebugSupabase()) {
+      if (localStorage.getItem("debug_supabase") === "1") {
         console.log("[AUTH_VISIBILITY]", {
           visibility: document.visibilityState,
           online: navigator.onLine,
@@ -150,7 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      clearTimeout(bootstrapTimeout);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       subscription.unsubscribe();
     };
