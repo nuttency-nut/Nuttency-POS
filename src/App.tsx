@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useEffect, useRef } from "react";
-import { reconnectSupabaseRealtime, restoreSupabaseSession } from "@/integrations/supabase/client";
+import { reconnectSupabaseRealtime } from "@/integrations/supabase/client";
 import Auth from "./pages/Auth";
 import POS from "./pages/POS";
 import Orders from "./pages/Orders";
@@ -52,7 +52,6 @@ function ResumeSync() {
       inFlightRef.current = true;
 
       try {
-        await restoreSupabaseSession();
         reconnectSupabaseRealtime();
         await queryClient.refetchQueries({ type: "active" });
       } catch (error) {

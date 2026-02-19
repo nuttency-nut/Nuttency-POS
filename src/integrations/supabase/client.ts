@@ -13,7 +13,7 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
 
 const fetchWithTimeout: typeof fetch = async (input, init) => {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
     return await fetch(input, {
@@ -24,14 +24,6 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
     clearTimeout(timeout);
   }
 };
-
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Supabase request timeout ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
@@ -59,7 +51,7 @@ export async function restoreSupabaseSession() {
   const {
     data: { session },
     error: sessionError,
-  } = await withTimeout(supabase.auth.getSession(), 10000);
+  } = await supabase.auth.getSession();
 
   if (sessionError) {
     throw sessionError;
@@ -68,7 +60,7 @@ export async function restoreSupabaseSession() {
   if (session && session.expires_at) {
     const expiresInMs = session.expires_at * 1000 - Date.now();
     if (expiresInMs < 60_000) {
-      const { error: refreshError } = await withTimeout(supabase.auth.refreshSession(), 10000);
+      const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         throw refreshError;
       }
