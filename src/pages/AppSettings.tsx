@@ -41,6 +41,14 @@ const ASSIGNABLE_ROLES: Record<AppRole, AppRole[]> = {
   no_role: [],
 };
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, message: string) =>
+  Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+
 export default function AppSettings() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
@@ -105,7 +113,11 @@ export default function AppSettings() {
       if (!silent) setLoadingRoleUsers(true);
 
       try {
-        const rpcRes = await supabase.rpc("list_users_for_role_management");
+        const rpcRes = await withTimeout(
+          supabase.rpc("list_users_for_role_management"),
+          12000,
+          "Tải danh sách tài khoản quá lâu"
+        );
 
         if (!rpcRes.error && rpcRes.data) {
           if (loadSeqRef.current === currentSeq) {
@@ -123,10 +135,14 @@ export default function AppSettings() {
           return;
         }
 
-        const [profilesRes, rolesRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, full_name"),
-          supabase.from("user_roles").select("user_id, role"),
-        ]);
+        const [profilesRes, rolesRes] = await withTimeout(
+          Promise.all([
+            supabase.from("profiles").select("user_id, full_name"),
+            supabase.from("user_roles").select("user_id, role"),
+          ]),
+          12000,
+          "Tải danh sách tài khoản quá lâu"
+        );
 
         if (profilesRes.error || rolesRes.error) {
           toast.error("Không tải được danh sách tài khoản");
