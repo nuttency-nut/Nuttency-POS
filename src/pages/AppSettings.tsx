@@ -52,6 +52,7 @@ export default function AppSettings() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
   const loadSeqRef = useRef(0);
+  const loadInFlightRef = useRef(false);
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
@@ -100,12 +101,19 @@ export default function AppSettings() {
   const loadRoleUsers = useCallback(
     async (silent = false) => {
       if (!canManageRoles) return;
+      if (loadInFlightRef.current) return;
 
       const currentSeq = ++loadSeqRef.current;
+      loadInFlightRef.current = true;
       if (!silent) setLoadingRoleUsers(true);
 
       try {
-        const rpcRes = await supabase.rpc("list_users_for_role_management");
+        const rpcRes = await Promise.race([
+          supabase.rpc("list_users_for_role_management"),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Tải danh sách tài khoản quá lâu")), 30000)
+          ),
+        ]);
 
         if (!rpcRes.error && rpcRes.data) {
           if (loadSeqRef.current === currentSeq) {
@@ -163,6 +171,7 @@ export default function AppSettings() {
         console.error("[ROLE_USERS_LOAD_ERROR]", message);
         toast.error(`Không tải được danh sách tài khoản: ${message}`);
       } finally {
+        loadInFlightRef.current = false;
         if (loadSeqRef.current === currentSeq) {
           setLoadingRoleUsers(false);
         }
@@ -174,6 +183,23 @@ export default function AppSettings() {
   useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
+  }, [activeTab, canManageRoles, loadRoleUsers]);
+
+  useEffect(() => {
+    if (!canManageRoles) return;
+
+    const handleResume = () => {
+      if (document.visibilityState !== "visible") return;
+      if (activeTab !== "roles") return;
+      void loadRoleUsers(true);
+    };
+
+    document.addEventListener("visibilitychange", handleResume);
+    window.addEventListener("focus", handleResume);
+    return () => {
+      document.removeEventListener("visibilitychange", handleResume);
+      window.removeEventListener("focus", handleResume);
+    };
   }, [activeTab, canManageRoles, loadRoleUsers]);
 
   const canEditTarget = (targetUserId: string, targetRole: AppRole) => {
