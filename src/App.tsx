@@ -1,8 +1,10 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { useEffect, useRef } from "react";
+import { reconnectSupabaseRealtime, restoreSupabaseSession } from "@/integrations/supabase/client";
 import Auth from "./pages/Auth";
 import POS from "./pages/POS";
 import Orders from "./pages/Orders";
@@ -12,8 +14,66 @@ import AppSettings from "./pages/AppSettings";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        if (failureCount >= 3) return false;
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (message.includes("permission denied")) return false;
+        return true;
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+      staleTime: 15_000,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: (failureCount, error) => {
+        if (failureCount >= 2) return false;
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        if (message.includes("permission denied")) return false;
+        return true;
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    },
+  },
+});
 type AppRole = "admin" | "manager" | "staff" | "no_role";
+
+function ResumeSync() {
+  const queryClient = useQueryClient();
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    const runResume = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      try {
+        await restoreSupabaseSession();
+        reconnectSupabaseRealtime();
+        await queryClient.refetchQueries({ type: "active" });
+      } catch (error) {
+        console.error("[APP_RESUME_SYNC_ERROR]", error);
+      } finally {
+        inFlightRef.current = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", runResume);
+    window.addEventListener("focus", runResume);
+    window.addEventListener("online", runResume);
+    return () => {
+      document.removeEventListener("visibilitychange", runResume);
+      window.removeEventListener("focus", runResume);
+      window.removeEventListener("online", runResume);
+    };
+  }, [queryClient]);
+
+  return null;
+}
 
 function ProtectedRoute({
   children,
@@ -129,6 +189,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <ResumeSync />
             <AppRoutes />
           </AuthProvider>
         </BrowserRouter>
