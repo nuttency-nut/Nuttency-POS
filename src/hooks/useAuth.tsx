@@ -22,9 +22,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
-  const bootstrappedRef = useRef(false);
 
-  const resolveRole = async (userId: string): Promise<AppRole> => {
+  const fetchRole = async (userId: string): Promise<AppRole> => {
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
@@ -42,67 +41,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mountedRef.current = true;
 
-    const applySession = async (nextSession: Session | null) => {
-      if (!mountedRef.current) return;
-
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-
-      if (!nextSession?.user) {
-        setRole(null);
-        setLoading(false);
-        bootstrappedRef.current = true;
-        return;
-      }
-
-      if (!bootstrappedRef.current) {
-        setLoading(true);
-      }
-      const nextRole = await resolveRole(nextSession.user.id);
-      if (!mountedRef.current) return;
-      setRole(nextRole);
-      setLoading(false);
-      bootstrappedRef.current = true;
-    };
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, nextSession) => {
-        if (event === "SIGNED_OUT") {
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-            await applySession(data.session);
-            return;
-          }
+      (event, newSession) => {
+        if (!mountedRef.current) return;
 
-          if (!mountedRef.current) return;
-          setSession(null);
-          setUser(null);
+        // Always sync latest session from auth events.
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+
+        if (event === "SIGNED_OUT") {
           setRole(null);
           setLoading(false);
-          bootstrappedRef.current = true;
           return;
         }
 
-        if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
-          await applySession(nextSession);
+        if (newSession?.user) {
+          setTimeout(async () => {
+            const nextRole = await fetchRole(newSession.user.id);
+            if (!mountedRef.current) return;
+            setRole(nextRole);
+            setLoading(false);
+          }, 0);
           return;
         }
 
-        await applySession(nextSession);
+        setRole(null);
+        setLoading(false);
       }
     );
 
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session: initialSession } }) => {
-        await applySession(initialSession);
-      })
-      .catch((error) => {
+    const bootstrapSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (!mountedRef.current) return;
+
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+
+        if (initialSession?.user) {
+          const nextRole = await fetchRole(initialSession.user.id);
+          if (!mountedRef.current) return;
+          setRole(nextRole);
+        } else {
+          setRole(null);
+        }
+      } catch (error) {
         console.error("[AUTH_GET_SESSION_ERROR]", error);
         if (!mountedRef.current) return;
+        setSession(null);
+        setUser(null);
+        setRole(null);
+      } finally {
+        if (!mountedRef.current) return;
         setLoading(false);
-        bootstrappedRef.current = true;
-      });
+      }
+    };
+
+    void bootstrapSession();
 
     return () => {
       mountedRef.current = false;
