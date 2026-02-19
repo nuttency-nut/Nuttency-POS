@@ -37,6 +37,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     detectSessionInUrl: true,
     multiTab: false,
-    lock: async (_name, acquire) => await acquire(),
+    lock: async (...args: unknown[]) => {
+      const maybeFn = args[args.length - 1];
+      if (typeof maybeFn === "function") {
+        return await (maybeFn as () => Promise<unknown> | unknown)();
+      }
+      return null;
+    },
   },
 });
