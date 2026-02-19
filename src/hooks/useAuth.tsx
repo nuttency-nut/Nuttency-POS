@@ -16,134 +16,75 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const roleCacheKey = (userId: string) => `role_cache_${userId}`;
-
-const getCachedRole = (userId: string): AppRole | null => {
-  try {
-    const raw = localStorage.getItem(roleCacheKey(userId));
-    if (raw === "admin" || raw === "manager" || raw === "staff" || raw === "no_role") {
-      return raw;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-};
-
-const setCachedRole = (userId: string, role: AppRole) => {
-  try {
-    localStorage.setItem(roleCacheKey(userId), role);
-  } catch {
-    // ignore storage errors
-  }
-};
-
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, tag: string): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`[${tag}] timeout ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
   const bootstrappedRef = useRef(false);
 
-  const resolveRole = async (userId: string) => {
-    const cachedRole = getCachedRole(userId);
-    if (cachedRole) {
-      setRole(cachedRole);
+  const resolveRole = async (userId: string): Promise<AppRole> => {
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[AUTH_ROLE_FETCH_ERROR]", error.message);
+      return "no_role";
     }
 
-    try {
-      const { data, error } = await withTimeout(
-        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-        8000,
-        "AUTH_ROLE_FETCH"
-      );
-
-      if (error) {
-        console.error("[AUTH_ROLE_FETCH_ERROR]", error.message);
-        return;
-      }
-
-      const nextRole = ((data?.role as AppRole) ?? "no_role");
-      setRole(nextRole);
-      setCachedRole(userId, nextRole);
-    } catch (error) {
-      console.error("[AUTH_ROLE_FETCH_EXCEPTION]", error);
-      // Keep cached role (if any), don't force no_role on transient failures.
-    }
+    return (data?.role as AppRole) ?? "no_role";
   };
 
   useEffect(() => {
+    mountedRef.current = true;
+
+    const applySession = async (nextSession: Session | null) => {
+      if (!mountedRef.current) return;
+
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (!nextSession?.user) {
+        setRole(null);
+        setLoading(false);
+        bootstrappedRef.current = true;
+        return;
+      }
+
+      if (!bootstrappedRef.current) {
+        setLoading(true);
+      }
+      const nextRole = await resolveRole(nextSession.user.id);
+      if (!mountedRef.current) return;
+      setRole(nextRole);
+      setLoading(false);
+      bootstrappedRef.current = true;
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, nextSession) => {
-        setSession(nextSession);
-        setUser(nextSession?.user ?? null);
-
-        if (!nextSession?.user) {
-          setRole(null);
-          if (!bootstrappedRef.current) {
-            bootstrappedRef.current = true;
-          }
-          setLoading(false);
-          return;
-        }
-
-        // Avoid full-screen loading when switching tabs and auth re-emits SIGNED_IN.
-        if (!bootstrappedRef.current) {
-          setLoading(true);
-        }
-        await resolveRole(nextSession.user.id);
-        if (!bootstrappedRef.current) {
-          bootstrappedRef.current = true;
-        }
-        setLoading(false);
+        await applySession(nextSession);
       }
     );
 
     supabase.auth
       .getSession()
       .then(async ({ data: { session: initialSession } }) => {
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
-
-        if (!initialSession?.user) {
-          setRole(null);
-          bootstrappedRef.current = true;
-          setLoading(false);
-          return;
-        }
-
-        setLoading(true);
-        await resolveRole(initialSession.user.id);
-        bootstrappedRef.current = true;
-        setLoading(false);
+        await applySession(initialSession);
       })
       .catch((error) => {
         console.error("[AUTH_GET_SESSION_ERROR]", error);
-        bootstrappedRef.current = true;
+        if (!mountedRef.current) return;
         setLoading(false);
+        bootstrappedRef.current = true;
       });
 
-    const onVisibilityChange = () => {
-      if (localStorage.getItem("debug_supabase") === "1") {
-        console.log("[AUTH_VISIBILITY]", {
-          visibility: document.visibilityState,
-          online: navigator.onLine,
-        });
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
     return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, []);

@@ -1,7 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
-import { withTimeout } from "@/lib/utils";
 
 export interface ProductVariant {
   id: string;
@@ -90,7 +89,9 @@ export function useProducts(categoryId?: string | null) {
     queryFn: async () => {
       let query = supabase
         .from("products")
-        .select("*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)")
+        .select(
+          "*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)"
+        )
         .order("created_at", { ascending: false });
 
       if (categoryId) {
@@ -111,7 +112,9 @@ export function useProduct(id: string | null) {
       if (!id) return null;
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)")
+        .select(
+          "*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)"
+        )
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
@@ -124,7 +127,7 @@ export function useProduct(id: string | null) {
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (values: ProductFormValues) => withTimeout((async () => {
+    mutationFn: async (values: ProductFormValues) => {
       const { variants, classification_groups, ...productData } = values;
       const { data: product, error } = await supabase
         .from("products")
@@ -144,12 +147,11 @@ export function useCreateProduct() {
         .single();
       if (error) throw error;
 
-      // Insert classification groups and options
       for (let i = 0; i < classification_groups.length; i++) {
         const group = classification_groups[i];
-        if (!group.name.trim() || group.options.filter(o => o.name.trim()).length === 0) continue;
+        if (!group.name.trim() || group.options.filter((o) => o.name.trim()).length === 0) continue;
 
-        const { data: groupData, error: gError } = await supabase
+        const { data: groupData, error: groupError } = await supabase
           .from("product_classification_groups")
           .insert({
             product_id: product.id,
@@ -159,49 +161,48 @@ export function useCreateProduct() {
           })
           .select()
           .single();
-        if (gError) throw gError;
+        if (groupError) throw groupError;
 
         const optionRows = group.options
-          .filter(o => o.name.trim())
-          .map((o, j) => ({
+          .filter((o) => o.name.trim())
+          .map((option, index) => ({
             group_id: groupData.id,
-            name: o.name.trim(),
-            extra_price: o.extra_price || 0,
-            sort_order: j,
+            name: option.name.trim(),
+            extra_price: option.extra_price || 0,
+            sort_order: index,
           }));
 
         if (optionRows.length > 0) {
-          const { error: oError } = await supabase
+          const { error: optionError } = await supabase
             .from("product_classification_options")
             .insert(optionRows);
-          if (oError) throw oError;
+          if (optionError) throw optionError;
         }
       }
 
-      // Insert legacy variants if any
       if (variants.length > 0) {
-        const variantRows = variants.map((v, i) => ({
+        const variantRows = variants.map((variant, index) => ({
           product_id: product.id,
-          name: v.name,
-          barcode: v.barcode || null,
-          cost_price: v.cost_price,
-          selling_price: v.selling_price,
-          sku: v.sku || null,
-          sort_order: i,
+          name: variant.name,
+          barcode: variant.barcode || null,
+          cost_price: variant.cost_price,
+          selling_price: variant.selling_price,
+          sku: variant.sku || null,
+          sort_order: index,
         }));
-        const { error: vError } = await supabase.from("product_variants").insert(variantRows);
-        if (vError) throw vError;
+        const { error: variantError } = await supabase.from("product_variants").insert(variantRows);
+        if (variantError) throw variantError;
       }
 
       return product;
-    })(), 45000, "Lưu sản phẩm mới"),
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["classification-group-names"] });
       toast.success("Đã thêm sản phẩm");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error(`Lỗi: ${error.message}`);
     },
   });
 }
@@ -209,7 +210,7 @@ export function useCreateProduct() {
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => withTimeout((async () => {
+    mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => {
       const { variants, classification_groups, ...productData } = values;
       const { error } = await supabase
         .from("products")
@@ -228,15 +229,13 @@ export function useUpdateProduct() {
         .eq("id", id);
       if (error) throw error;
 
-      // Delete old classification groups (cascade deletes options)
       await supabase.from("product_classification_groups").delete().eq("product_id", id);
 
-      // Insert new classification groups
       for (let i = 0; i < classification_groups.length; i++) {
         const group = classification_groups[i];
-        if (!group.name.trim() || group.options.filter(o => o.name.trim()).length === 0) continue;
+        if (!group.name.trim() || group.options.filter((o) => o.name.trim()).length === 0) continue;
 
-        const { data: groupData, error: gError } = await supabase
+        const { data: groupData, error: groupError } = await supabase
           .from("product_classification_groups")
           .insert({
             product_id: id,
@@ -246,41 +245,40 @@ export function useUpdateProduct() {
           })
           .select()
           .single();
-        if (gError) throw gError;
+        if (groupError) throw groupError;
 
         const optionRows = group.options
-          .filter(o => o.name.trim())
-          .map((o, j) => ({
+          .filter((o) => o.name.trim())
+          .map((option, index) => ({
             group_id: groupData.id,
-            name: o.name.trim(),
-            extra_price: o.extra_price || 0,
-            sort_order: j,
+            name: option.name.trim(),
+            extra_price: option.extra_price || 0,
+            sort_order: index,
           }));
 
         if (optionRows.length > 0) {
-          const { error: oError } = await supabase
+          const { error: optionError } = await supabase
             .from("product_classification_options")
             .insert(optionRows);
-          if (oError) throw oError;
+          if (optionError) throw optionError;
         }
       }
 
-      // Delete old variants and insert new ones
       await supabase.from("product_variants").delete().eq("product_id", id);
       if (variants.length > 0) {
-        const variantRows = variants.map((v, i) => ({
+        const variantRows = variants.map((variant, index) => ({
           product_id: id,
-          name: v.name,
-          barcode: v.barcode || null,
-          cost_price: v.cost_price,
-          selling_price: v.selling_price,
-          sku: v.sku || null,
-          sort_order: i,
+          name: variant.name,
+          barcode: variant.barcode || null,
+          cost_price: variant.cost_price,
+          selling_price: variant.selling_price,
+          sku: variant.sku || null,
+          sort_order: index,
         }));
-        const { error: vError } = await supabase.from("product_variants").insert(variantRows);
-        if (vError) throw vError;
+        const { error: variantError } = await supabase.from("product_variants").insert(variantRows);
+        if (variantError) throw variantError;
       }
-    })(), 45000, "Cập nhật sản phẩm"),
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["product"] });
@@ -288,7 +286,7 @@ export function useUpdateProduct() {
       toast.success("Đã cập nhật sản phẩm");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error(`Lỗi: ${error.message}`);
     },
   });
 }
@@ -296,17 +294,16 @@ export function useUpdateProduct() {
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => withTimeout((async () => {
+    mutationFn: async (id: string) => {
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
-    })(), 20000, "Xóa sản phẩm"),
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Đã xóa sản phẩm");
     },
     onError: (error) => {
-      toast.error("Lỗi: " + error.message);
+      toast.error(`Lỗi: ${error.message}`);
     },
   });
 }
-

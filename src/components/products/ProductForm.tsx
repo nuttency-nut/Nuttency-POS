@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Plus, Trash2, Camera, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/sonner";
-import { withTimeout } from "@/lib/utils";
 
 interface ProductFormProps {
   product?: Product | null;
@@ -128,13 +127,10 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       const ext = file.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const filePath = `products/${fileName}`;
-      const uploadTimeoutMs = Math.max(45000, Math.min(120000, Math.ceil(file.size / (1024 * 1024)) * 30000));
-
-      const { error: uploadError } = await withTimeout(
-        supabase.storage.from("product-images").upload(filePath, file, { upsert: true }),
-        uploadTimeoutMs,
-        "Upload ảnh sản phẩm"
-      );
+      const { error: uploadError } = await supabase
+        .storage
+        .from("product-images")
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -149,7 +145,6 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
         fileSize: file.size,
         fileType: file.type,
         online: navigator.onLine,
-        visibility: document.visibilityState,
       });
       toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {

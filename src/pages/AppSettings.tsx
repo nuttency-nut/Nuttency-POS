@@ -9,7 +9,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
-import { withTimeout } from "@/lib/utils";
 
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 type SettingsTab = "general" | "roles";
@@ -105,20 +104,8 @@ export default function AppSettings() {
       const currentSeq = ++loadSeqRef.current;
       if (!silent) setLoadingRoleUsers(true);
 
-      const watchdog = setTimeout(() => {
-        if (loadSeqRef.current === currentSeq) {
-          setLoadingRoleUsers(false);
-          toast.error("Tải danh sách tài khoản quá lâu, vui lòng thử lại");
-          console.error("[ROLE_USERS_WATCHDOG_TIMEOUT]", { seq: currentSeq });
-        }
-      }, 15000);
-
       try {
-        const rpcRes = await withTimeout(
-          supabase.rpc("list_users_for_role_management"),
-          10000,
-          "Tải danh sách phân quyền (RPC)"
-        );
+        const rpcRes = await supabase.rpc("list_users_for_role_management");
 
         if (!rpcRes.error && rpcRes.data) {
           if (loadSeqRef.current === currentSeq) {
@@ -136,14 +123,10 @@ export default function AppSettings() {
           return;
         }
 
-        const [profilesRes, rolesRes] = await withTimeout(
-          Promise.all([
-            supabase.from("profiles").select("user_id, full_name"),
-            supabase.from("user_roles").select("user_id, role"),
-          ]),
-          10000,
-          "Tải danh sách phân quyền (fallback)"
-        );
+        const [profilesRes, rolesRes] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name"),
+          supabase.from("user_roles").select("user_id, role"),
+        ]);
 
         if (profilesRes.error || rolesRes.error) {
           toast.error("Không tải được danh sách tài khoản");
@@ -180,7 +163,6 @@ export default function AppSettings() {
         console.error("[ROLE_USERS_LOAD_ERROR]", message);
         toast.error(`Không tải được danh sách tài khoản: ${message}`);
       } finally {
-        clearTimeout(watchdog);
         if (loadSeqRef.current === currentSeq) {
           setLoadingRoleUsers(false);
         }
@@ -192,26 +174,6 @@ export default function AppSettings() {
   useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
-  }, [activeTab, canManageRoles, loadRoleUsers]);
-
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState !== "visible") return;
-      if (activeTab !== "roles" || !canManageRoles) return;
-      void loadRoleUsers(true);
-    };
-
-    const handleOnline = () => {
-      if (activeTab !== "roles" || !canManageRoles) return;
-      void loadRoleUsers(true);
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("online", handleOnline);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("online", handleOnline);
-    };
   }, [activeTab, canManageRoles, loadRoleUsers]);
 
   const canEditTarget = (targetUserId: string, targetRole: AppRole) => {

@@ -11,69 +11,13 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
-const isDebugSupabase = () => {
-  try {
-    return localStorage.getItem("debug_supabase") === "1";
-  } catch {
-    return false;
-  }
-};
-
-let requestSeq = 0;
-const debugFetch: typeof fetch = async (input, init) => {
-  const debug = isDebugSupabase();
-  const requestId = ++requestSeq;
-  const requestUrl = typeof input === "string" ? input : input.url;
-  const requestMethod = (init?.method ?? "GET").toUpperCase();
-  const startedAt = performance.now();
-
-  if (debug) {
-    console.log("[SB_REQ_START]", {
-      requestId,
-      requestMethod,
-      requestUrl,
-      visibility: document.visibilityState,
-      online: navigator.onLine,
-    });
-  }
-
-  try {
-    const response = await fetch(input, init);
-    if (debug) {
-      console.log("[SB_REQ_END]", {
-        requestId,
-        requestMethod,
-        requestUrl,
-        status: response.status,
-        durationMs: Math.round(performance.now() - startedAt),
-      });
-    }
-    return response;
-  } catch (error) {
-    if (debug) {
-      console.error("[SB_REQ_ERROR]", {
-        requestId,
-        requestMethod,
-        requestUrl,
-        durationMs: Math.round(performance.now() - startedAt),
-        error,
-      });
-    }
-    throw error;
-  }
-};
-
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  global: {
-    fetch: debugFetch,
-  },
   auth: {
-    storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    multiTab: false,
+    detectSessionInUrl: true,
   },
 });
