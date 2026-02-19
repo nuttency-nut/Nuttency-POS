@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, restoreSupabaseSession } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 
@@ -23,7 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const bootstrappedRef = useRef(false);
-  const resumeInFlightRef = useRef(false);
 
   const resolveRole = async (userId: string): Promise<AppRole> => {
     const { data, error } = await supabase
@@ -67,7 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, nextSession) => {
+      async (event, nextSession) => {
+        if (event === "SIGNED_OUT") {
+          if (!mountedRef.current) return;
+          setSession(null);
+          setUser(null);
+          setRole(null);
+          setLoading(false);
+          bootstrappedRef.current = true;
+          return;
+        }
+
+        if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+          await applySession(nextSession);
+          return;
+        }
+
         await applySession(nextSession);
       }
     );
@@ -84,30 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bootstrappedRef.current = true;
       });
 
-    const handleResume = async () => {
-      if (document.visibilityState !== "visible") return;
-      if (resumeInFlightRef.current) return;
-      resumeInFlightRef.current = true;
-
-      try {
-        const nextSession = await restoreSupabaseSession();
-        await applySession(nextSession);
-      } catch (error) {
-        console.error("[AUTH_RESUME_ERROR]", error);
-      } finally {
-        resumeInFlightRef.current = false;
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleResume);
-    window.addEventListener("focus", handleResume);
-    window.addEventListener("online", handleResume);
-
     return () => {
       mountedRef.current = false;
-      document.removeEventListener("visibilitychange", handleResume);
-      window.removeEventListener("focus", handleResume);
-      window.removeEventListener("online", handleResume);
       subscription.unsubscribe();
     };
   }, []);

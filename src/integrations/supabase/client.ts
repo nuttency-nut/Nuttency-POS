@@ -11,76 +11,13 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
-const fetchWithTimeout: typeof fetch = async (input, init) => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  global: {
-    fetch: fetchWithTimeout,
-  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    multiTab: false,
-    lock: async (...args: unknown[]) => {
-      const acquire = args[args.length - 1];
-      if (typeof acquire === "function") {
-        return await (acquire as () => Promise<unknown> | unknown)();
-      }
-      return null;
-    },
   },
 });
-
-export async function restoreSupabaseSession() {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-
-  if (sessionError) {
-    throw sessionError;
-  }
-
-  if (session && session.expires_at) {
-    const expiresInMs = session.expires_at * 1000 - Date.now();
-    if (expiresInMs < 60_000) {
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) {
-        throw refreshError;
-      }
-    }
-  }
-
-  return session;
-}
-
-export function reconnectSupabaseRealtime() {
-  try {
-    supabase.realtime.connect();
-    const channels = supabase.getChannels();
-    channels.forEach((channel) => {
-      const state = (channel as { state?: string }).state;
-      if (state === "closed") {
-        channel.subscribe();
-      }
-    });
-  } catch (error) {
-    console.error("[SUPABASE_REALTIME_RECONNECT_ERROR]", error);
-  }
-}
