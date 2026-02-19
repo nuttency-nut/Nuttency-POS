@@ -1,9 +1,8 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { useCallback } from "react";
 import { useSupabaseReconnect } from "@/hooks/useSupabaseReconnect";
 import Auth from "./pages/Auth";
 import POS from "./pages/POS";
@@ -26,11 +25,7 @@ const queryClient = new QueryClient({
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 
 function AppResumeSync() {
-  const queryClient = useQueryClient();
-  const onResume = useCallback(async () => {
-    await queryClient.refetchQueries({ type: "active" });
-  }, [queryClient]);
-  useSupabaseReconnect(onResume);
+  useSupabaseReconnect();
 
   return null;
 }
