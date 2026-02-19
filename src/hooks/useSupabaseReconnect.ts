@@ -12,7 +12,6 @@ export function useSupabaseReconnect() {
       const { data, error } = await supabase.auth.refreshSession();
 
       if (error) {
-        console.warn("[RECONNECT] Token refresh failed:", error.message);
         return;
       }
 
@@ -20,9 +19,7 @@ export function useSupabaseReconnect() {
         supabase.realtime.connect();
         queryClient.invalidateQueries();
       }
-    } catch (err) {
-      console.error("[RECONNECT]", err);
-    }
+    } catch {}
   }, [queryClient]);
 
   useEffect(() => {

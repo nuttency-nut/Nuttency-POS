@@ -209,7 +209,6 @@ export default function CheckoutSheet({
 
       onSuccess(order.order_number);
     } catch (err: any) {
-      console.error("Checkout error:", err);
       toast.error("Lỗi khi tạo đơn hàng: " + (err.message || ""));
     } finally {
       setIsSubmitting(false);

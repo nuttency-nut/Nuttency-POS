@@ -31,7 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (error) {
-      console.error("[AUTH_ROLE_FETCH_ERROR]", error.message);
       return "no_role";
     }
 
@@ -86,7 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRole(null);
         }
       } catch (error) {
-        console.error("[AUTH_GET_SESSION_ERROR]", error);
         if (!mountedRef.current) return;
         setSession(null);
         setUser(null);

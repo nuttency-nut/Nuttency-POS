@@ -133,10 +133,6 @@ export default function AppSettings() {
 
         if (profilesRes.error || rolesRes.error) {
           toast.error("Không tải được danh sách tài khoản");
-          console.error("[ROLE_USERS_FALLBACK_ERROR]", {
-            profilesError: profilesRes.error?.message,
-            rolesError: rolesRes.error?.message,
-          });
           return;
         }
 
@@ -163,7 +159,6 @@ export default function AppSettings() {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Lỗi kết nối";
-        console.error("[ROLE_USERS_LOAD_ERROR]", message);
         toast.error(`Không tải được danh sách tài khoản: ${message}`);
       } finally {
         loadInFlightRef.current = false;

@@ -22,9 +22,7 @@ export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, A
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[APP_RUNTIME_ERROR]", error, errorInfo);
-  }
+  componentDidCatch(_error: Error, _errorInfo: ErrorInfo) {}
 
   handleReload = () => {
     window.location.reload();

@@ -139,13 +139,6 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       toast.success("Đã tải ảnh lên");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Có lỗi xảy ra";
-      console.error("[IMAGE_UPLOAD_ERROR]", {
-        message,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        online: navigator.onLine,
-      });
       toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {
       setUploading(false);
