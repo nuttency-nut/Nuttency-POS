@@ -19,13 +19,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    multiTab: false,
-    lock: async (...args: unknown[]) => {
-      const acquire = [...args].reverse().find((arg) => typeof arg === "function");
-      if (typeof acquire === "function") {
-        return await (acquire as () => Promise<unknown> | unknown)();
-      }
-      return null;
-    },
   },
 });
