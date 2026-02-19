@@ -108,12 +108,7 @@ export default function AppSettings() {
       if (!silent) setLoadingRoleUsers(true);
 
       try {
-        const rpcRes = await Promise.race([
-          supabase.rpc("list_users_for_role_management"),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Tải danh sách tài khoản quá lâu")), 30000)
-          ),
-        ]);
+        const rpcRes = await supabase.rpc("list_users_for_role_management");
 
         if (!rpcRes.error && rpcRes.data) {
           if (loadSeqRef.current === currentSeq) {
