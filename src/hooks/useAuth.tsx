@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const bootstrappedRef = useRef(false);
 
   const resolveRole = async (userId: string) => {
     const cachedRole = getCachedRole(userId);
@@ -87,12 +88,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!nextSession?.user) {
           setRole(null);
+          if (!bootstrappedRef.current) {
+            bootstrappedRef.current = true;
+          }
           setLoading(false);
           return;
         }
 
-        setLoading(true);
+        // Avoid full-screen loading when switching tabs and auth re-emits SIGNED_IN.
+        if (!bootstrappedRef.current) {
+          setLoading(true);
+        }
         await resolveRole(nextSession.user.id);
+        if (!bootstrappedRef.current) {
+          bootstrappedRef.current = true;
+        }
         setLoading(false);
       }
     );
@@ -105,16 +115,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!initialSession?.user) {
           setRole(null);
+          bootstrappedRef.current = true;
           setLoading(false);
           return;
         }
 
         setLoading(true);
         await resolveRole(initialSession.user.id);
+        bootstrappedRef.current = true;
         setLoading(false);
       })
       .catch((error) => {
         console.error("[AUTH_GET_SESSION_ERROR]", error);
+        bootstrappedRef.current = true;
         setLoading(false);
       });
 

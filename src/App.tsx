@@ -24,7 +24,7 @@ function ProtectedRoute({
 }) {
   const { session, role, loading } = useAuth();
 
-  if (loading || (session && role === null)) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -50,7 +50,7 @@ function ProtectedRoute({
 function AppRoutes() {
   const { session, role, loading } = useAuth();
 
-  if (loading || (session && role === null)) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
