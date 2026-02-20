@@ -352,7 +352,7 @@ export default function AppSettings() {
 
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
-          <button onClick={toggleTheme} className="flex items-center justify-between w-full group">
+          <button onClick={toggleTheme} className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform">
             <div className="flex items-center gap-3">
               {isDark ? (
                 <Moon className="w-5 h-5 text-muted-foreground" />
@@ -364,15 +364,21 @@ export default function AppSettings() {
             <div
               className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
                 isDark
-                  ? "bg-gradient-to-r from-slate-700 to-slate-900 border-slate-500/40"
-                  : "bg-gradient-to-r from-amber-100 to-orange-200 border-orange-300/50"
+                  ? "bg-gradient-to-r from-slate-700 to-slate-900 border-slate-500/40 shadow-inner"
+                  : "bg-gradient-to-r from-amber-200 to-orange-300 border-orange-400/50 shadow-inner"
               }`}
             >
               <div
-                className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 ${
-                  isDark ? "translate-x-6.5 left-0.5" : "left-0.5"
+                className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 flex items-center justify-center ${
+                  isDark ? "translate-x-6 left-0.5" : "left-0.5"
                 }`}
-              />
+              >
+                {isDark ? (
+                  <Moon className="w-3.5 h-3.5 text-slate-600" />
+                ) : (
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                )}
+              </div>
             </div>
           </button>
         </CardContent>
