@@ -8,7 +8,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   Banknote,
@@ -71,7 +70,6 @@ export default function CheckoutSheet({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [cashReceived, setCashReceived] = useState("");
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
-  const [loyaltyPointsToUse, setLoyaltyPointsToUse] = useState(0);
   const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("0");
   const [orderNote, setOrderNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,7 +81,21 @@ export default function CheckoutSheet({
   const maxPointsUsable = foundCustomer
     ? Math.min(foundCustomer.loyalty_points, Math.floor(totalPrice / pointValue))
     : 0;
-  const loyaltyDiscount = useLoyaltyPoints ? loyaltyPointsToUse * pointValue : 0;
+  const loyaltyInputDigits = loyaltyPointsInput.replace(/\D/g, "");
+  const loyaltyInputParsed = loyaltyInputDigits ? parseInt(loyaltyInputDigits, 10) : 0;
+  const loyaltyPointsError =
+    useLoyaltyPoints
+      ? loyaltyPointsInput.trim() === ""
+        ? "Bắt buộc"
+        : loyaltyInputParsed <= 0
+          ? "Phải > 0"
+          : loyaltyInputParsed > maxPointsUsable
+            ? `Tối đa ${formatNumberWithDots(maxPointsUsable)}`
+            : null
+      : null;
+  const loyaltyPointsToUse =
+    useLoyaltyPoints && !loyaltyPointsError ? loyaltyInputParsed : 0;
+  const loyaltyDiscount = loyaltyPointsToUse * pointValue;
   const finalAmount = totalPrice - loyaltyDiscount;
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
@@ -92,18 +104,14 @@ export default function CheckoutSheet({
   // Points earned: 1 point per 10,000 VND spent
   const pointsEarned = useLoyalty ? Math.floor(finalAmount / 10000) : 0;
 
-  const clampLoyaltyPoints = (value: number) => Math.min(maxPointsUsable, Math.max(0, value));
-
   const normalizeLoyaltyInput = (raw: string) => {
     if (raw === "") {
       setLoyaltyPointsInput("");
-      setLoyaltyPointsToUse(0);
       return;
     }
 
     const parsed = parseInt(raw.replace(/\D/g, ""), 10);
-    const next = Number.isNaN(parsed) ? 0 : clampLoyaltyPoints(parsed);
-    setLoyaltyPointsToUse(next);
+    const next = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
     setLoyaltyPointsInput(String(next));
   };
 
@@ -132,14 +140,12 @@ export default function CheckoutSheet({
       setPaymentMethod("cash");
       setCashReceived("");
       setUseLoyaltyPoints(false);
-      setLoyaltyPointsToUse(0);
       setLoyaltyPointsInput("0");
       setOrderNote("");
     }
   }, [open]);
 
   useEffect(() => {
-    setLoyaltyPointsToUse(0);
     setUseLoyaltyPoints(false);
     setLoyaltyPointsInput("0");
   }, [foundCustomer]);
@@ -175,6 +181,10 @@ export default function CheckoutSheet({
 
     if (paymentMethod === "cash" && cashReceivedNum < finalAmount) {
       toast.error("Số tiền nhận chưa đủ");
+      return;
+    }
+    if (useLoyaltyPoints && loyaltyPointsError) {
+      toast.error("Số điểm dùng không hợp lệ");
       return;
     }
 
@@ -257,9 +267,14 @@ export default function CheckoutSheet({
     { key: "momo", label: "MoMo", icon: <Smartphone className="w-4 h-4" /> },
   ];
 
+  const canSubmit =
+    !isSubmitting &&
+    (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
+    (!useLoyaltyPoints || !loyaltyPointsError);
+
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] flex flex-col p-0">
+      <SheetContent side="bottom" className="rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0">
         <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
           <button
             onClick={onClose}
@@ -271,8 +286,8 @@ export default function CheckoutSheet({
           <span className="text-sm font-bold text-primary">{formatPrice(totalPrice)}</span>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-4 pb-4">
+        <div className="flex-1 px-4 overflow-y-auto no-scrollbar">
+          <div className="space-y-4 pb-4 pt-1">
             {/* 1. Loyalty / Tích điểm */}
             <div className="space-y-2">
               <button
@@ -335,10 +350,8 @@ export default function CheckoutSheet({
                     const next = !useLoyaltyPoints;
                     setUseLoyaltyPoints(next);
                     if (next) {
-                      setLoyaltyPointsToUse(maxPointsUsable);
                       setLoyaltyPointsInput(String(maxPointsUsable));
                     } else {
-                      setLoyaltyPointsToUse(0);
                       setLoyaltyPointsInput("0");
                     }
                   }}
@@ -364,19 +377,20 @@ export default function CheckoutSheet({
                       onChange={(e) => {
                         const raw = e.target.value;
                         setLoyaltyPointsInput(raw);
-                        if (raw === "") {
-                          setLoyaltyPointsToUse(0);
-                          return;
-                        }
-                        const parsed = parseInt(raw.replace(/\D/g, ""), 10);
-                        setLoyaltyPointsToUse(Number.isNaN(parsed) ? 0 : clampLoyaltyPoints(parsed));
                       }}
                       onBlur={() => normalizeLoyaltyInput(loyaltyPointsInput)}
-                      className="h-9 rounded-lg text-sm w-24"
+                      className={cn(
+                        "h-9 rounded-lg text-sm w-28",
+                        loyaltyPointsError && "border-destructive focus-visible:ring-destructive"
+                      )}
                     />
-                    <span className="text-xs text-muted-foreground">
-                      = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
-                    </span>
+                    {loyaltyPointsError ? (
+                      <span className="text-xs text-destructive ml-auto">{loyaltyPointsError}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -415,7 +429,7 @@ export default function CheckoutSheet({
                   {cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
                       <span className="font-medium text-foreground">Tiền thối</span>
-                      <span className={cn("font-extrabold", changeAmount >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
+                      <span className={cn("font-extrabold", changeAmount >= 0 ? "text-white" : "text-destructive")}>
                         {changeAmount >= 0 ? formatPrice(changeAmount) : "Chưa đủ"}
                       </span>
                     </div>
@@ -435,7 +449,7 @@ export default function CheckoutSheet({
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Summary & Submit */}
         <div className="border-t border-border p-4 safe-bottom space-y-2">
@@ -457,7 +471,7 @@ export default function CheckoutSheet({
           </div>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={!canSubmit}
             className="w-full h-12 rounded-xl text-base font-bold"
           >
             {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
