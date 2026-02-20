@@ -221,3 +221,23 @@
     transform: scale(0.2) translate(calc(100vw - 100px - var(--x, 0px)), calc(100vh - 200px - var(--y, 0px)));
   }
 }
+
+/* Category sortable motion */
+.category-sortable-item {
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.category-sortable-item.category-sortable-chosen .category-row {
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
+  z-index: 10;
+}
+
+.category-sortable-item.category-sortable-drag .category-row {
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.22);
+}
+
+.category-sortable-item.category-sortable-ghost .category-row {
+  opacity: 0.35;
+  border: 1px dashed hsl(var(--primary) / 0.5);
+}
