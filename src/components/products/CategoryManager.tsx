@@ -76,11 +76,6 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
     }
 
     listRefs.current.delete(key);
-    const sortable = sortableRefs.current.get(key);
-    if (sortable) {
-      sortable.destroy();
-      sortableRefs.current.delete(key);
-    }
   };
 
   useEffect(() => {
