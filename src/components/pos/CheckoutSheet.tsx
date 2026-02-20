@@ -327,7 +327,7 @@ export default function CheckoutSheet({
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="bottom"
-        className="inset-x-auto left-1/2 -translate-x-1/2 w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
+        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
       >
         <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
           <button
@@ -398,31 +398,7 @@ export default function CheckoutSheet({
 
             {/* 2. Loyalty points usage (moved above payment method) */}
             <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => {
-                      if (!useLoyalty || !foundCustomer || foundCustomer.loyalty_points <= 0) return;
-                      const next = !useLoyaltyPoints;
-                      setUseLoyaltyPoints(next);
-                      if (next) {
-                        setLoyaltyPointsInput(String(maxPointsUsable));
-                      } else {
-                        setLoyaltyPointsInput("0");
-                      }
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
-                      useLoyaltyPoints
-                        ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
-                        : "bg-card border-border text-muted-foreground",
-                      (!useLoyalty || !foundCustomer || foundCustomer.loyalty_points <= 0) && "opacity-60 cursor-not-allowed"
-                    )}
-                  >
-                    <Star className="w-4 h-4" />
-                    {foundCustomer ? `Dùng điểm (${foundCustomer.loyalty_points})` : "Dùng điểm tích lũy"}
-                    {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
-                  </button>
-
+                <div className={cn("grid gap-2", useLoyalty ? "grid-cols-2" : "grid-cols-1")}>
                   <button
                     onClick={() => {
                       const next = !useDiscountCode;
@@ -442,6 +418,32 @@ export default function CheckoutSheet({
                     Dùng mã giảm giá
                     {useDiscountCode && <Check className="w-4 h-4 ml-auto" />}
                   </button>
+
+                  {useLoyalty && (
+                    <button
+                      onClick={() => {
+                        if (!foundCustomer || foundCustomer.loyalty_points <= 0) return;
+                        const next = !useLoyaltyPoints;
+                        setUseLoyaltyPoints(next);
+                        if (next) {
+                          setLoyaltyPointsInput(String(maxPointsUsable));
+                        } else {
+                          setLoyaltyPointsInput("0");
+                        }
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
+                        useLoyaltyPoints
+                          ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
+                          : "bg-card border-border text-muted-foreground",
+                        (!foundCustomer || foundCustomer.loyalty_points <= 0) && "opacity-60 cursor-not-allowed"
+                      )}
+                    >
+                      <Star className="w-4 h-4" />
+                      {foundCustomer ? `Dùng điểm (${foundCustomer.loyalty_points})` : "Dùng điểm tích lũy"}
+                      {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
+                    </button>
+                  )}
                 </div>
 
                 {(useLoyaltyPoints || useDiscountCode) && (
@@ -561,23 +563,24 @@ export default function CheckoutSheet({
         <div className="border-t border-border p-4 safe-bottom space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Tổng cộng</span>
-            <span className="text-emerald-500 font-bold">{formatPrice(totalPrice)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Giảm điểm</span>
-            <span className="text-green-600 font-medium">
-              {loyaltyDiscount > 0 ? `-${formatPrice(loyaltyDiscount)}` : formatPrice(0)}
-            </span>
+            <span className="text-white font-semibold">{formatPrice(totalPrice)}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Mã giảm giá</span>
-            <span className="text-indigo-500 font-medium">
+            <span className="text-orange-400 font-semibold">
               {discountCodeAmount > 0 ? `-${formatPrice(discountCodeAmount)}` : formatPrice(0)}
             </span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Thanh toán</span>
-            <span className="text-lg font-bold text-foreground">{formatPrice(finalAmount)}</span>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Giảm điểm</span>
+            <span className="inline-flex items-center gap-1 text-yellow-400 font-semibold">
+              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+              {loyaltyDiscount > 0 ? `-${formatPrice(loyaltyDiscount)}` : formatPrice(0)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-base font-bold text-foreground">Thanh toán</span>
+            <span className="text-base font-bold text-white">{formatPrice(finalAmount)}</span>
           </div>
           <Button
             onClick={handleSubmit}

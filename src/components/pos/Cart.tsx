@@ -54,7 +54,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckout }: CartP
       </SheetTrigger>
       <SheetContent
         side="bottom"
-        className="inset-x-auto left-1/2 -translate-x-1/2 w-full max-w-lg rounded-t-3xl max-h-[80vh] flex flex-col p-0"
+        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl max-h-[80vh] flex flex-col p-0"
       >
         <SheetHeader className="px-4 pt-4 pb-2">
           <SheetTitle className="text-base font-bold text-foreground">
