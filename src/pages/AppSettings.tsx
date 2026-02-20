@@ -20,6 +20,18 @@ interface RoleUser {
   role: AppRole;
 }
 
+const avatarCache = new Map<string, string | null>();
+
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return false;
+
+  const savedTheme = localStorage.getItem("theme");
+  if (savedTheme === "dark") return true;
+  if (savedTheme === "light") return false;
+
+  return document.documentElement.classList.contains("dark");
+};
+
 const ROLE_LABEL: Record<AppRole, string> = {
   admin: "Quản trị viên",
   manager: "Quản lý",
@@ -45,7 +57,7 @@ export default function AppSettings() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(getInitialTheme);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
@@ -62,13 +74,13 @@ export default function AppSettings() {
   const roleLabel = ROLE_LABEL[currentRole];
 
   useEffect(() => {
-    const dark = document.documentElement.classList.contains("dark");
-    setIsDark(dark);
-  }, []);
-
-  useEffect(() => {
     const loadAvatar = async () => {
       if (!user?.id) return;
+
+      if (avatarCache.has(user.id)) {
+        setAvatarUrl(avatarCache.get(user.id) ?? null);
+        return;
+      }
 
       const { data } = await supabase
         .from("profiles")
@@ -76,7 +88,9 @@ export default function AppSettings() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      setAvatarUrl(data?.avatar_url ?? null);
+      const nextAvatarUrl = data?.avatar_url ?? null;
+      avatarCache.set(user.id, nextAvatarUrl);
+      setAvatarUrl(nextAvatarUrl);
     };
 
     void loadAvatar();
@@ -128,6 +142,7 @@ export default function AppSettings() {
         .eq("user_id", user.id);
       if (profileError) throw profileError;
 
+      avatarCache.set(user.id, nextAvatarUrl);
       setAvatarUrl(nextAvatarUrl);
       toast.success("Da cap nhat anh dai dien");
     } catch (error: unknown) {

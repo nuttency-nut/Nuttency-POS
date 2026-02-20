@@ -82,7 +82,7 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
   return (
     <div className="relative flex overflow-hidden h-full">
       {/* Main scrollable content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-24 pr-4 h-full">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pb-24 pr-4 h-full">
         {activeLetters.map((letter) =>
         <div
           key={letter}
