@@ -10,7 +10,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, FolderOpen, ChevronRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,6 +43,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
+  const [dragReadyCategoryId, setDragReadyCategoryId] = useState<string | null>(null);
 
   const getSiblings = (parent: string | null) =>
     categories
@@ -106,12 +116,14 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
     });
 
     setDraggingCategoryId(null);
+    setDragReadyCategoryId(null);
   };
 
   const renderCategory = (cat: Category, level: number = 0) => {
     const children = getChildren(cat.id);
     const isSelected = selectedCategoryId === cat.id;
     const isDragging = draggingCategoryId === cat.id;
+    const isDragReady = dragReadyCategoryId === cat.id;
 
     return (
       <div key={cat.id}>
@@ -119,25 +131,53 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
           className={cn(
             "flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
             isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted active:bg-muted/80",
-            isDragging && "opacity-60",
+            isDragging && "opacity-70 scale-[0.99] shadow-sm",
             level > 0 && "ml-6"
           )}
+          draggable={isDragReady}
           onClick={() => onSelectCategory?.(cat.id)}
+          onDragStart={(e) => {
+            if (!isDragReady) {
+              e.preventDefault();
+              return;
+            }
+
+            setDraggingCategoryId(cat.id);
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", cat.id);
+          }}
+          onDragEnd={() => {
+            setDraggingCategoryId(null);
+            setDragReadyCategoryId(null);
+          }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => void handleDrop(cat)}
         >
           <button
-            className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing hover:bg-muted/70"
-            draggable
+            className={cn(
+              "h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted/70",
+              isDragReady ? "cursor-grabbing" : "cursor-grab"
+            )}
+            draggable={false}
             onDragStart={(e) => {
-              e.stopPropagation();
-              setDraggingCategoryId(cat.id);
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", cat.id);
+              e.preventDefault();
             }}
-            onDragEnd={() => setDraggingCategoryId(null)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setDragReadyCategoryId(cat.id);
+            }}
+            onPointerUp={() => {
+              if (draggingCategoryId !== cat.id) {
+                setDragReadyCategoryId(null);
+              }
+            }}
+            onPointerCancel={() => {
+              if (draggingCategoryId !== cat.id) {
+                setDragReadyCategoryId(null);
+              }
+            }}
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Kéo sắp xếp ${cat.name}`}
+            aria-label={`Drag reorder ${cat.name}`}
           >
             <GripVertical className="w-4 h-4" />
           </button>
@@ -188,7 +228,6 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         </Button>
       </div>
 
-      {/* All category */}
       <div
         className={cn(
           "flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
@@ -210,7 +249,6 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         rootCategories.map((cat) => renderCategory(cat))
       )}
 
-      {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm mx-auto">
           <DialogHeader>
@@ -256,7 +294,6 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="max-w-sm mx-auto">
           <AlertDialogHeader>
