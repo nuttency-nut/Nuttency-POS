@@ -95,24 +95,32 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         animation: 180,
         easing: "cubic-bezier(0.2, 0, 0, 1)",
         handle: ".category-drag-handle",
-        draggable: "> .category-sortable-item",
+        draggable: ".category-sortable-item",
         filter: ".category-actions",
         preventOnFilter: false,
         ghostClass: "category-sortable-ghost",
         chosenClass: "category-sortable-chosen",
         dragClass: "category-sortable-drag",
-        fallbackOnBody: false,
+        fallbackOnBody: true,
         forceFallback: false,
+        invertSwap: true,
         delayOnTouchOnly: true,
-        delay: 120,
+        delay: 100,
         touchStartThreshold: 4,
         fallbackTolerance: 4,
         swapThreshold: 0.65,
         onStart: (evt) => {
           const categoryId = (evt.item as HTMLElement).dataset.categoryId ?? null;
           setDraggingCategoryId(categoryId);
+          evt.item.classList.add("category-sorting-item");
+        },
+        onClone: (evt) => {
+          evt.clone.querySelectorAll("[data-parent-id]").forEach((nestedList) => {
+            nestedList.remove();
+          });
         },
         onEnd: async (evt) => {
+          evt.item.classList.remove("category-sorting-item");
           setDraggingCategoryId(null);
 
           const movedId = (evt.item as HTMLElement).dataset.categoryId;

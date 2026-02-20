@@ -242,8 +242,8 @@
   border: 1px dashed hsl(var(--primary) / 0.5);
 }
 
-/* Prevent nested children from being rendered inside drag mirror/ghost */
-.category-sortable-item.category-sortable-chosen > [data-parent-id],
+/* Keep nested children out of dragged node visuals */
+.category-sortable-item.category-sorting-item > [data-parent-id],
 .category-sortable-item.category-sortable-drag > [data-parent-id],
 .category-sortable-item.category-sortable-ghost > [data-parent-id] {
   display: none !important;
