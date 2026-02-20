@@ -10,7 +10,7 @@ import {
 } from "@/hooks/useCategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,21 +95,25 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         animation: 180,
         easing: "cubic-bezier(0.2, 0, 0, 1)",
         handle: ".category-drag-handle",
-        draggable: ".category-sortable-item",
+        draggable: "> .category-sortable-item",
         ghostClass: "category-sortable-ghost",
         chosenClass: "category-sortable-chosen",
         dragClass: "category-sortable-drag",
-        fallbackOnBody: true,
-        forceFallback: true,
+        fallbackOnBody: false,
+        forceFallback: false,
+        delayOnTouchOnly: true,
+        delay: 120,
+        touchStartThreshold: 4,
+        fallbackTolerance: 4,
         swapThreshold: 0.65,
         onStart: (evt) => {
           const categoryId = (evt.item as HTMLElement).dataset.categoryId ?? null;
           setDraggingCategoryId(categoryId);
         },
         onEnd: async (evt) => {
-          const movedId = (evt.item as HTMLElement).dataset.categoryId;
           setDraggingCategoryId(null);
 
+          const movedId = (evt.item as HTMLElement).dataset.categoryId;
           if (!movedId || evt.oldIndex == null || evt.newIndex == null || evt.oldIndex === evt.newIndex) {
             return;
           }
@@ -134,7 +138,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
               orderedIds,
             });
           } catch {
-            // Keep UI responsive; query invalidation in hook will restore server order.
+            // Ignore here; query invalidation in hooks will sync UI back.
           }
         },
       });
@@ -219,6 +223,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
           onClick={() => onSelectCategory?.(category.id)}
         >
           <button
+            type="button"
             className="category-drag-handle h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing hover:bg-muted/70"
             onClick={(e) => e.stopPropagation()}
             aria-label={`Kéo sắp xếp ${category.name}`}
@@ -238,7 +243,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="category-actions h-7 w-7"
               onClick={(e) => {
                 e.stopPropagation();
                 openEdit(category);
@@ -249,7 +254,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-destructive"
+              className="category-actions h-7 w-7 text-destructive"
               onClick={(e) => {
                 e.stopPropagation();
                 openDelete(category);
