@@ -10,7 +10,7 @@ import {
 } from "@/hooks/useCategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -231,7 +231,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
             type="button"
             className="category-drag-handle h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing hover:bg-muted/70"
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Kéo sắp xếp ${category.name}`}
+            aria-label={`KÃƒÂ©o sÃ¡ÂºÂ¯p xÃ¡ÂºÂ¿p ${category.name}`}
           >
             <GripVertical className="w-4 h-4" />
           </button>
@@ -288,7 +288,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Danh mục</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Danh mÃ¡Â»Â¥c</h3>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openCreate}>
           <Plus className="w-4 h-4" />
         </Button>
@@ -302,7 +302,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         onClick={() => onSelectCategory?.(null)}
       >
         <FolderOpen className="w-4 h-4" />
-        <span className={cn("text-sm", !selectedCategoryId ? "font-semibold" : "font-medium")}>Tất cả</span>
+        <span className={cn("text-sm", !selectedCategoryId ? "font-semibold" : "font-medium")}>TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£</span>
       </div>
 
       {isLoading ? (
@@ -317,22 +317,23 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm mx-auto">
+          <DialogDescription className="sr-only">Nhap thong tin de tao moi hoac chinh sua danh muc san pham.</DialogDescription>
           <DialogHeader>
-            <DialogTitle>{editingCategory ? "Sửa danh mục" : "Thêm danh mục"}</DialogTitle>
+            <DialogTitle>{editingCategory ? "SÃ¡Â»Â­a danh mÃ¡Â»Â¥c" : "ThÃƒÂªm danh mÃ¡Â»Â¥c"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Tên danh mục</label>
-              <Input placeholder="VD: Đồ uống, Thức ăn..." value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              <label className="text-sm font-medium mb-1.5 block">TÃƒÂªn danh mÃ¡Â»Â¥c</label>
+              <Input placeholder="VD: Ã„ÂÃ¡Â»â€œ uÃ¡Â»â€˜ng, ThÃ¡Â»Â©c Ã„Æ’n..." value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Danh mục cha</label>
+              <label className="text-sm font-medium mb-1.5 block">Danh mÃ¡Â»Â¥c cha</label>
               <Select value={parentId || "none"} onValueChange={(value) => setParentId(value === "none" ? null : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Không có" />
+                  <SelectValue placeholder="KhÃƒÂ´ng cÃƒÂ³" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Không có (gốc)</SelectItem>
+                  <SelectItem value="none">KhÃƒÂ´ng cÃƒÂ³ (gÃ¡Â»â€˜c)</SelectItem>
                   {allParentOptions.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -344,10 +345,10 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Hủy
+              HÃ¡Â»Â§y
             </Button>
             <Button onClick={handleSave} disabled={!name.trim() || createCategory.isPending || updateCategory.isPending}>
-              {editingCategory ? "Lưu" : "Thêm"}
+              {editingCategory ? "LÃ†Â°u" : "ThÃƒÂªm"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -356,15 +357,15 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="max-w-sm mx-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa danh mục?</AlertDialogTitle>
+            <AlertDialogTitle>XÃƒÂ³a danh mÃ¡Â»Â¥c?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xóa danh mục "{deletingCategory?.name}"? Các sản phẩm trong danh mục này sẽ không bị xóa.
+              BÃ¡ÂºÂ¡n cÃƒÂ³ chÃ¡ÂºÂ¯c muÃ¡Â»â€˜n xÃƒÂ³a danh mÃ¡Â»Â¥c "{deletingCategory?.name}"? CÃƒÂ¡c sÃ¡ÂºÂ£n phÃ¡ÂºÂ©m trong danh mÃ¡Â»Â¥c nÃƒÂ y sÃ¡ÂºÂ½ khÃƒÂ´ng bÃ¡Â»â€¹ xÃƒÂ³a.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>HÃ¡Â»Â§y</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Xóa
+              XÃƒÂ³a
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

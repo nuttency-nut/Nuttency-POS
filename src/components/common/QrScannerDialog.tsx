@@ -8,7 +8,7 @@ import {
   MultiFormatReader,
   RGBLuminanceSource,
 } from "@zxing/library";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 
@@ -227,6 +227,9 @@ export default function QrScannerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm mx-auto">
+        <DialogDescription className="sr-only">
+          Quét mã QR hoặc mã vạch sản phẩm bằng camera thiết bị.
+        </DialogDescription>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

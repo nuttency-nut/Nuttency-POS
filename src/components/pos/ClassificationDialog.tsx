@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Product, ClassificationGroup } from "@/hooks/useProducts";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -38,6 +39,7 @@ export default function ClassificationDialog({
   onClose,
   onConfirm,
 }: ClassificationDialogProps) {
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [qty, setQty] = useState(1);
   const [selections, setSelections] = useState<SelectedClassifications>({});
   const [note, setNote] = useState("");
@@ -96,9 +98,16 @@ export default function ClassificationDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogContent
+        ref={contentRef}
         className="max-w-[360px] rounded-2xl p-0 gap-0"
-        onOpenAutoFocus={(event) => event.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          contentRef.current?.focus();
+        }}
       >
+        <DialogDescription className="sr-only">
+          Chọn biến thể, ghi chú và số lượng trước khi thêm sản phẩm vào giỏ hàng.
+        </DialogDescription>
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
