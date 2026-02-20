@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -30,6 +30,12 @@ function formatPrice(price: number) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(price);
+}
+
+function formatNumberWithDots(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 type PaymentMethod = "cash" | "transfer" | "momo";
@@ -66,6 +72,7 @@ export default function CheckoutSheet({
   const [cashReceived, setCashReceived] = useState("");
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [loyaltyPointsToUse, setLoyaltyPointsToUse] = useState(0);
+  const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("0");
   const [orderNote, setOrderNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -79,11 +86,42 @@ export default function CheckoutSheet({
   const loyaltyDiscount = useLoyaltyPoints ? loyaltyPointsToUse * pointValue : 0;
   const finalAmount = totalPrice - loyaltyDiscount;
 
-  const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, "")) || 0;
+  const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
   const changeAmount = paymentMethod === "cash" ? cashReceivedNum - finalAmount : 0;
 
   // Points earned: 1 point per 10,000 VND spent
   const pointsEarned = useLoyalty ? Math.floor(finalAmount / 10000) : 0;
+
+  const clampLoyaltyPoints = (value: number) => Math.min(maxPointsUsable, Math.max(0, value));
+
+  const normalizeLoyaltyInput = (raw: string) => {
+    if (raw === "") {
+      setLoyaltyPointsInput("");
+      setLoyaltyPointsToUse(0);
+      return;
+    }
+
+    const parsed = parseInt(raw.replace(/\D/g, ""), 10);
+    const next = Number.isNaN(parsed) ? 0 : clampLoyaltyPoints(parsed);
+    setLoyaltyPointsToUse(next);
+    setLoyaltyPointsInput(String(next));
+  };
+
+  const handleCashReceivedChange = (rawValue: string) => {
+    const digits = rawValue.replace(/\D/g, "");
+    if (!digits) {
+      setCashReceived("");
+      return;
+    }
+
+    const parsed = parseInt(digits, 10);
+    if (Number.isNaN(parsed)) {
+      setCashReceived("");
+      return;
+    }
+
+    setCashReceived(formatNumberWithDots(parsed));
+  };
 
   useEffect(() => {
     if (!open) {
@@ -95,6 +133,7 @@ export default function CheckoutSheet({
       setCashReceived("");
       setUseLoyaltyPoints(false);
       setLoyaltyPointsToUse(0);
+      setLoyaltyPointsInput("0");
       setOrderNote("");
     }
   }, [open]);
@@ -102,6 +141,7 @@ export default function CheckoutSheet({
   useEffect(() => {
     setLoyaltyPointsToUse(0);
     setUseLoyaltyPoints(false);
+    setLoyaltyPointsInput("0");
   }, [foundCustomer]);
 
   const searchCustomer = async () => {
@@ -113,6 +153,7 @@ export default function CheckoutSheet({
         .select("*")
         .eq("phone", customerPhone)
         .maybeSingle();
+
       if (data) {
         setFoundCustomer(data);
         setCustomerName(data.name);
@@ -126,10 +167,12 @@ export default function CheckoutSheet({
 
   const handleSubmit = async () => {
     if (items.length === 0) return;
+
     if (useLoyalty && (!customerName.trim() || !customerPhone.trim())) {
       toast.error("Vui lòng nhập tên và SĐT khách hàng");
       return;
     }
+
     if (paymentMethod === "cash" && cashReceivedNum < finalAmount) {
       toast.error("Số tiền nhận chưa đủ");
       return;
@@ -142,11 +185,9 @@ export default function CheckoutSheet({
       if (useLoyalty) {
         if (foundCustomer) {
           customerId = foundCustomer.id;
-          // Update points
           const newPoints =
-            foundCustomer.loyalty_points -
-            (useLoyaltyPoints ? loyaltyPointsToUse : 0) +
-            pointsEarned;
+            foundCustomer.loyalty_points - (useLoyaltyPoints ? loyaltyPointsToUse : 0) + pointsEarned;
+
           await supabase
             .from("customers")
             .update({
@@ -155,7 +196,6 @@ export default function CheckoutSheet({
             })
             .eq("id", foundCustomer.id);
         } else {
-          // Create new customer
           const { data: newCust, error: custErr } = await supabase
             .from("customers")
             .insert({
@@ -165,12 +205,12 @@ export default function CheckoutSheet({
             })
             .select("id")
             .single();
+
           if (custErr) throw custErr;
           customerId = newCust.id;
         }
       }
 
-      // Create order
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -189,7 +229,6 @@ export default function CheckoutSheet({
 
       if (orderError) throw orderError;
 
-      // Create order items
       const orderItems = items.map((item) => ({
         order_id: order.id,
         product_id: item.productId,
@@ -201,10 +240,7 @@ export default function CheckoutSheet({
         note: item.note || null,
       }));
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
-
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
 
       onSuccess(order.order_number);
@@ -225,12 +261,13 @@ export default function CheckoutSheet({
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="bottom" className="rounded-t-3xl max-h-[90vh] flex flex-col p-0">
         <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted"
+          >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <SheetTitle className="text-base font-bold text-foreground flex-1">
-            Thanh toán
-          </SheetTitle>
+          <SheetTitle className="text-base font-bold text-foreground flex-1">Thanh toán</SheetTitle>
           <span className="text-sm font-bold text-primary">{formatPrice(totalPrice)}</span>
         </SheetHeader>
 
@@ -290,7 +327,62 @@ export default function CheckoutSheet({
               )}
             </div>
 
-            {/* 2. Payment method */}
+            {/* 2. Loyalty points usage (moved above payment method) */}
+            {useLoyalty && foundCustomer && foundCustomer.loyalty_points > 0 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    const next = !useLoyaltyPoints;
+                    setUseLoyaltyPoints(next);
+                    if (next) {
+                      setLoyaltyPointsToUse(maxPointsUsable);
+                      setLoyaltyPointsInput(String(maxPointsUsable));
+                    } else {
+                      setLoyaltyPointsToUse(0);
+                      setLoyaltyPointsInput("0");
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
+                    useLoyaltyPoints
+                      ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
+                      : "bg-card border-border text-muted-foreground"
+                  )}
+                >
+                  <Star className="w-4 h-4" />
+                  Dùng điểm tích lũy ({foundCustomer.loyalty_points} điểm)
+                  {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
+                </button>
+
+                {useLoyaltyPoints && (
+                  <div className="flex items-center gap-2 pl-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={maxPointsUsable}
+                      value={loyaltyPointsInput}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setLoyaltyPointsInput(raw);
+                        if (raw === "") {
+                          setLoyaltyPointsToUse(0);
+                          return;
+                        }
+                        const parsed = parseInt(raw.replace(/\D/g, ""), 10);
+                        setLoyaltyPointsToUse(Number.isNaN(parsed) ? 0 : clampLoyaltyPoints(parsed));
+                      }}
+                      onBlur={() => normalizeLoyaltyInput(loyaltyPointsInput)}
+                      className="h-9 rounded-lg text-sm w-24"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3. Payment method */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground">Phương thức thanh toán</p>
               <div className="grid grid-cols-3 gap-2">
@@ -311,20 +403,19 @@ export default function CheckoutSheet({
                 ))}
               </div>
 
-              {/* Cash received */}
               {paymentMethod === "cash" && (
                 <div className="space-y-1.5">
                   <Input
                     placeholder="Tiền nhận từ khách"
                     value={cashReceived}
-                    onChange={(e) => setCashReceived(e.target.value)}
+                    onChange={(e) => handleCashReceivedChange(e.target.value)}
                     className="h-9 rounded-lg text-sm"
                     inputMode="numeric"
                   />
                   {cashReceivedNum > 0 && (
-                    <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted text-sm">
-                      <span className="text-muted-foreground">Tiền thối</span>
-                      <span className={cn("font-bold", changeAmount >= 0 ? "text-green-600" : "text-destructive")}>
+                    <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
+                      <span className="font-medium text-foreground">Tiền thối</span>
+                      <span className={cn("font-extrabold", changeAmount >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive")}>
                         {changeAmount >= 0 ? formatPrice(changeAmount) : "Chưa đủ"}
                       </span>
                     </div>
@@ -332,47 +423,6 @@ export default function CheckoutSheet({
                 </div>
               )}
             </div>
-
-            {/* 3. Loyalty points usage */}
-            {useLoyalty && foundCustomer && foundCustomer.loyalty_points > 0 && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    setUseLoyaltyPoints(!useLoyaltyPoints);
-                    if (!useLoyaltyPoints) setLoyaltyPointsToUse(maxPointsUsable);
-                  }}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
-                    useLoyaltyPoints
-                      ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
-                      : "bg-card border-border text-muted-foreground"
-                  )}
-                >
-                  <Star className="w-4 h-4" />
-                  Dùng điểm tích lũy ({foundCustomer.loyalty_points} điểm)
-                  {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
-                </button>
-                {useLoyaltyPoints && (
-                  <div className="flex items-center gap-2 pl-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={maxPointsUsable}
-                      value={loyaltyPointsToUse}
-                      onChange={(e) =>
-                        setLoyaltyPointsToUse(
-                          Math.min(maxPointsUsable, Math.max(0, parseInt(e.target.value) || 0))
-                        )
-                      }
-                      className="h-9 rounded-lg text-sm w-24"
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* 4. Order note */}
             <div className="space-y-1.5">
@@ -417,4 +467,3 @@ export default function CheckoutSheet({
     </Sheet>
   );
 }
-

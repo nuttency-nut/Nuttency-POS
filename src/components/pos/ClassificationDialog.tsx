@@ -95,7 +95,10 @@ export default function ClassificationDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-[360px] rounded-2xl p-0 gap-0">
+      <DialogContent
+        className="max-w-[360px] rounded-2xl p-0 gap-0"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
