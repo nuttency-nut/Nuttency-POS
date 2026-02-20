@@ -172,6 +172,13 @@
   .glass-strong {
     @apply bg-card/95 backdrop-blur-2xl border border-border/60;
   }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Sileo toast tuning for mobile app frame */

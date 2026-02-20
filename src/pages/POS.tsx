@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProducts, Product } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
 import { useAuth } from "@/hooks/useAuth";
@@ -149,8 +148,8 @@ export default function POS() {
           </div>
 
           {activeCategories.length > 0 && (
-            <ScrollArea className="w-full">
-              <div className="flex gap-2 px-4 pb-2">
+            <div className="w-full overflow-x-auto no-scrollbar">
+              <div className="flex gap-2 px-4 pb-2 min-w-max">
                 <button
                   onClick={() => setSelectedCategory(null)}
                   className={cn(
@@ -177,7 +176,7 @@ export default function POS() {
                   </button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           )}
         </div>
 

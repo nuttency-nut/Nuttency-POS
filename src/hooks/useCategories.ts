@@ -89,3 +89,36 @@ export function useDeleteCategory() {
   });
 }
 
+export function useReorderCategories() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      parentId,
+      orderedIds,
+    }: {
+      parentId: string | null;
+      orderedIds: string[];
+    }) => {
+      const updates = orderedIds.map((id, index) =>
+        supabase
+          .from("categories")
+          .update({
+            parent_id: parentId,
+            sort_order: index + 1,
+          })
+          .eq("id", id)
+      );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+    onError: (error) => {
+      toast.error("Lỗi: " + error.message);
+    },
+  });
+}
+

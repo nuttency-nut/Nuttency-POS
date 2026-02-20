@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, LogOut, Moon, RefreshCw, Shield, Sun, User } from "lucide-react";
+import { Camera, Loader2, LogOut, Moon, RefreshCw, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +46,8 @@ export default function AppSettings() {
   const navigate = useNavigate();
 
   const [isDark, setIsDark] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([]);
   const [loadingRoleUsers, setLoadingRoleUsers] = useState(false);
@@ -53,6 +55,7 @@ export default function AppSettings() {
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
@@ -63,6 +66,21 @@ export default function AppSettings() {
     setIsDark(dark);
   }, []);
 
+  useEffect(() => {
+    const loadAvatar = async () => {
+      if (!user?.id) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      setAvatarUrl(data?.avatar_url ?? null);
+    };
+
+    void loadAvatar();
+  }, [user?.id]);
   const toggleTheme = () => {
     const nextDark = !isDark;
     setIsDark(nextDark);
@@ -76,6 +94,52 @@ export default function AppSettings() {
     navigate("/auth");
   };
 
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Vui long chon file anh");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Anh khong duoc vuot qua 5MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "png";
+      const filePath = `avatars/${user.id}-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
+      const nextAvatarUrl = urlData.publicUrl;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: nextAvatarUrl })
+        .eq("user_id", user.id);
+      if (profileError) throw profileError;
+
+      setAvatarUrl(nextAvatarUrl);
+      toast.success("Da cap nhat anh dai dien");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Co loi xay ra";
+      toast.error(`Loi tai anh: ${message}`);
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  };
   const normalizeAndSortUsers = useCallback(
     (rows: Array<{ user_id: string; email: string | null; full_name: string | null; role: AppRole }>) => {
       const users = rows.map((u) => ({
@@ -250,9 +314,31 @@ export default function AppSettings() {
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <User className="w-6 h-6 text-primary" />
-            </div>
+            <button
+              type="button"
+              onClick={() => !uploadingAvatar && avatarInputRef.current?.click()}
+              className="relative w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-6 h-6 text-primary" />
+              )}
+              <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center">
+                {uploadingAvatar ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                ) : (
+                  <Camera className="w-3 h-3 text-primary" />
+                )}
+              </span>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+            </button>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground truncate">{user?.email}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -266,7 +352,7 @@ export default function AppSettings() {
 
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
-          <button onClick={toggleTheme} className="flex items-center justify-between w-full">
+          <button onClick={toggleTheme} className="flex items-center justify-between w-full group">
             <div className="flex items-center gap-3">
               {isDark ? (
                 <Moon className="w-5 h-5 text-muted-foreground" />
@@ -275,10 +361,16 @@ export default function AppSettings() {
               )}
               <span className="font-medium text-foreground">{isDark ? "Chế độ tối" : "Chế độ sáng"}</span>
             </div>
-            <div className={`w-11 h-6 rounded-full transition-colors ${isDark ? "bg-primary" : "bg-muted"} relative`}>
+            <div
+              className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
+                isDark
+                  ? "bg-gradient-to-r from-slate-700 to-slate-900 border-slate-500/40"
+                  : "bg-gradient-to-r from-amber-100 to-orange-200 border-orange-300/50"
+              }`}
+            >
               <div
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-card shadow-sm transition-transform ${
-                  isDark ? "translate-x-5.5 left-0.5" : "left-0.5"
+                className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 ${
+                  isDark ? "translate-x-6.5 left-0.5" : "left-0.5"
                 }`}
               />
             </div>
@@ -289,7 +381,7 @@ export default function AppSettings() {
       <Button
         variant="outline"
         onClick={handleSignOut}
-        className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/5"
+        className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/25 bg-card hover:bg-destructive/5 shadow-sm hover:shadow-md active:translate-y-[1px] active:shadow-sm transition-all"
       >
         <LogOut className="w-4 h-4" />
         Đăng xuất
@@ -400,3 +492,5 @@ export default function AppSettings() {
     </AppLayout>
   );
 }
+
+

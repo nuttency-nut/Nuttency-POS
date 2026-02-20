@@ -1,11 +1,18 @@
 import { useState } from "react";
-import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory, Category } from "@/hooks/useCategories";
+import {
+  useCategories,
+  useCreateCategory,
+  useUpdateCategory,
+  useDeleteCategory,
+  useReorderCategories,
+  Category,
+} from "@/hooks/useCategories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, FolderOpen, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderOpen, ChevronRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CategoryManagerProps {
@@ -18,6 +25,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
+  const reorderCategories = useReorderCategories();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -25,9 +33,18 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
 
-  const rootCategories = categories.filter((c) => !c.parent_id);
-  const getChildren = (parentId: string) => categories.filter((c) => c.parent_id === parentId);
+  const getSiblings = (parent: string | null) =>
+    categories
+      .filter((c) => c.parent_id === parent)
+      .sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        return a.name.localeCompare(b.name, "vi");
+      });
+
+  const rootCategories = getSiblings(null);
+  const getChildren = (catParentId: string) => getSiblings(catParentId);
 
   const openCreate = () => {
     setEditingCategory(null);
@@ -67,9 +84,34 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
     }
   };
 
+  const handleDrop = async (targetCategory: Category) => {
+    if (!draggingCategoryId || draggingCategoryId === targetCategory.id) return;
+
+    const dragged = categories.find((c) => c.id === draggingCategoryId);
+    if (!dragged) return;
+    if (dragged.parent_id !== targetCategory.parent_id) return;
+
+    const siblings = getSiblings(targetCategory.parent_id);
+    const fromIndex = siblings.findIndex((c) => c.id === dragged.id);
+    const toIndex = siblings.findIndex((c) => c.id === targetCategory.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const next = [...siblings];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+
+    await reorderCategories.mutateAsync({
+      parentId: targetCategory.parent_id,
+      orderedIds: next.map((c) => c.id),
+    });
+
+    setDraggingCategoryId(null);
+  };
+
   const renderCategory = (cat: Category, level: number = 0) => {
     const children = getChildren(cat.id);
     const isSelected = selectedCategoryId === cat.id;
+    const isDragging = draggingCategoryId === cat.id;
 
     return (
       <div key={cat.id}>
@@ -77,10 +119,28 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
           className={cn(
             "flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all cursor-pointer",
             isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted active:bg-muted/80",
+            isDragging && "opacity-60",
             level > 0 && "ml-6"
           )}
           onClick={() => onSelectCategory?.(cat.id)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => void handleDrop(cat)}
         >
+          <button
+            className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing hover:bg-muted/70"
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              setDraggingCategoryId(cat.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", cat.id);
+            }}
+            onDragEnd={() => setDraggingCategoryId(null)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Kéo sắp xếp ${cat.name}`}
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
           {children.length > 0 ? (
             <ChevronRight className={cn("w-4 h-4 transition-transform text-muted-foreground", isSelected && "rotate-90")} />
           ) : (
@@ -92,6 +152,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
               variant="ghost"
               size="icon"
               className="h-7 w-7"
+              draggable={false}
               onClick={(e) => {
                 e.stopPropagation();
                 openEdit(cat);
@@ -103,6 +164,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-destructive"
+              draggable={false}
               onClick={(e) => {
                 e.stopPropagation();
                 openDelete(cat);
