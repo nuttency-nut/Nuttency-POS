@@ -241,3 +241,10 @@
   opacity: 0.35;
   border: 1px dashed hsl(var(--primary) / 0.5);
 }
+
+/* Prevent nested children from being rendered inside drag mirror/ghost */
+.category-sortable-item.category-sortable-chosen > [data-parent-id],
+.category-sortable-item.category-sortable-drag > [data-parent-id],
+.category-sortable-item.category-sortable-ghost > [data-parent-id] {
+  display: none !important;
+}

@@ -96,6 +96,8 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         easing: "cubic-bezier(0.2, 0, 0, 1)",
         handle: ".category-drag-handle",
         draggable: "> .category-sortable-item",
+        filter: ".category-actions",
+        preventOnFilter: false,
         ghostClass: "category-sortable-ghost",
         chosenClass: "category-sortable-chosen",
         dragClass: "category-sortable-drag",
