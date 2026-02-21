@@ -8,7 +8,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import CheckoutSheet from "./CheckoutSheet";
 
 export interface CartItem {
@@ -75,7 +74,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
               <SheetTitle className="text-base font-bold text-foreground">Giỏ hàng ({totalQty})</SheetTitle>
             </SheetHeader>
 
-            <ScrollArea className="flex-1 px-4">
+            <div className="flex-1 overflow-y-auto no-scrollbar px-4">
               <div className="space-y-3 pb-4">
                 {items.map((item) => (
                   <div key={item.id} className="flex items-start gap-3 p-3 rounded-xl bg-card border border-border/50">
@@ -121,7 +120,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
 
             <div className="border-t border-border p-4 safe-bottom">
               <div className="flex items-center justify-between mb-3">
