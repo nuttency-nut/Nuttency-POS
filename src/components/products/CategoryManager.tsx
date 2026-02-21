@@ -288,7 +288,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Danh mÃ¡Â»Â¥c</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Danh mục</h3>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openCreate}>
           <Plus className="w-4 h-4" />
         </Button>
@@ -302,7 +302,7 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
         onClick={() => onSelectCategory?.(null)}
       >
         <FolderOpen className="w-4 h-4" />
-        <span className={cn("text-sm", !selectedCategoryId ? "font-semibold" : "font-medium")}>TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£</span>
+        <span className={cn("text-sm", !selectedCategoryId ? "font-semibold" : "font-medium")}>Thư mục</span>
       </div>
 
       {isLoading ? (
@@ -317,23 +317,23 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm mx-auto">
-          <DialogDescription className="sr-only">Nhap thong tin de tao moi hoac chinh sua danh muc san pham.</DialogDescription>
+          <DialogDescription className="sr-only">Nhập thông tin để tạo mới hoặc chỉnh sửa danh mục sản phẩm.</DialogDescription>
           <DialogHeader>
-            <DialogTitle>{editingCategory ? "SÃ¡Â»Â­a danh mÃ¡Â»Â¥c" : "ThÃƒÂªm danh mÃ¡Â»Â¥c"}</DialogTitle>
+            <DialogTitle>{editingCategory ? "Sửa danh mục" : "Thêm danh mục"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">TÃƒÂªn danh mÃ¡Â»Â¥c</label>
-              <Input placeholder="VD: Ã„ÂÃ¡Â»â€œ uÃ¡Â»â€˜ng, ThÃ¡Â»Â©c Ã„Æ’n..." value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+              <label className="text-sm font-medium mb-1.5 block">Tên danh mục</label>
+              <Input placeholder="VD: Đồ uống, Thức ăn..." value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Danh mÃ¡Â»Â¥c cha</label>
+              <label className="text-sm font-medium mb-1.5 block">Danh mục cha</label>
               <Select value={parentId || "none"} onValueChange={(value) => setParentId(value === "none" ? null : value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="KhÃƒÂ´ng cÃƒÂ³" />
+                  <SelectValue placeholder="Không có" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">KhÃƒÂ´ng cÃƒÂ³ (gÃ¡Â»â€˜c)</SelectItem>
+                  <SelectItem value="none">Không có (gốc)</SelectItem>
                   {allParentOptions.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name}
@@ -357,15 +357,15 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="max-w-sm mx-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>XÃƒÂ³a danh mÃ¡Â»Â¥c?</AlertDialogTitle>
+            <AlertDialogTitle>Xóa danh mục?</AlertDialogTitle>
             <AlertDialogDescription>
-              BÃ¡ÂºÂ¡n cÃƒÂ³ chÃ¡ÂºÂ¯c muÃ¡Â»â€˜n xÃƒÂ³a danh mÃ¡Â»Â¥c "{deletingCategory?.name}"? CÃƒÂ¡c sÃ¡ÂºÂ£n phÃ¡ÂºÂ©m trong danh mÃ¡Â»Â¥c nÃƒÂ y sÃ¡ÂºÂ½ khÃƒÂ´ng bÃ¡Â»â€¹ xÃƒÂ³a.
+              Bạn có chắc muốn xóa danh mục "{deletingCategory?.name}"? Các sản phẩm trong danh mục này sẽ không bị xóa.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>HÃ¡Â»Â§y</AlertDialogCancel>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              XÃƒÂ³a
+              Xóa
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

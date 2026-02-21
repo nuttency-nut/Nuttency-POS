@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+﻿import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
 import { useProducts, Product } from "@/hooks/useProducts";
@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
-import CheckoutSheet from "@/components/pos/CheckoutSheet";
 import ProductSearch from "@/components/products/ProductSearch";
 
 interface FlyAnimation {
@@ -26,19 +25,19 @@ export default function POS() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
-  const [showCheckout, setShowCheckout] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { data: products = [], isLoading } = useProducts();
   const { data: categories = [] } = useCategories();
   const { user } = useAuth();
 
-  const filtered = products.filter((p) => {
-    if (!p.is_active) return false;
-    if (selectedCategory && p.category_id !== selectedCategory) return false;
+  const filtered = products.filter((product) => {
+    if (!product.is_active) return false;
+    if (selectedCategory && product.category_id !== selectedCategory) return false;
     if (!search) return true;
+
     const q = search.toLowerCase();
-    return p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q));
+    return product.name.toLowerCase().includes(q) || (product.barcode && product.barcode.toLowerCase().includes(q));
   });
 
   const triggerFlyAnimation = useCallback((product: Product) => {
@@ -77,6 +76,7 @@ export default function POS() {
       groups.forEach((group) => {
         const selectedIds = selections[group.id] || [];
         if (selectedIds.length === 0) return;
+
         const selectedOptions = (group.product_classification_options || []).filter((opt) => selectedIds.includes(opt.id));
         const optionNames = selectedOptions.map((opt) => opt.name);
         extraPrice += selectedOptions.reduce((sum, opt) => sum + (opt.extra_price || 0), 0);
@@ -127,17 +127,12 @@ export default function POS() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const handleCheckout = useCallback(() => {
-    setShowCheckout(true);
-  }, []);
-
   const handleCheckoutSuccess = useCallback((orderNumber: string) => {
     setCartItems([]);
-    setShowCheckout(false);
     toast.success(`Đơn hàng ${orderNumber} đã tạo thành công!`);
   }, []);
 
-  const activeCategories = categories.filter((c) => c.is_active);
+  const activeCategories = categories.filter((category) => category.is_active);
 
   return (
     <AppLayout title="Bán hàng">
@@ -161,18 +156,18 @@ export default function POS() {
                 >
                   Tất cả
                 </button>
-                {activeCategories.map((cat) => (
+                {activeCategories.map((category) => (
                   <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
                     className={cn(
                       "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
-                      selectedCategory === cat.id
+                      selectedCategory === category.id
                         ? "bg-primary text-primary-foreground"
                         : "bg-card text-muted-foreground border border-border"
                     )}
                   >
-                    {cat.name}
+                    {category.name}
                   </button>
                 ))}
               </div>
@@ -210,14 +205,12 @@ export default function POS() {
         })}
       </AnimatePresence>
 
-      <Cart items={cartItems} onUpdateQty={handleUpdateQty} onRemove={handleRemove} onCheckout={handleCheckout} />
-
       {user && (
-        <CheckoutSheet
-          open={showCheckout}
-          onClose={() => setShowCheckout(false)}
+        <Cart
           items={cartItems}
-          onSuccess={handleCheckoutSuccess}
+          onUpdateQty={handleUpdateQty}
+          onRemove={handleRemove}
+          onCheckoutSuccess={handleCheckoutSuccess}
           userId={user.id}
         />
       )}

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -17,11 +17,13 @@ import {
   UserPlus,
   ArrowLeft,
   Check,
+  QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CartItem } from "./Cart";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import QrScannerDialog from "@/components/common/QrScannerDialog";
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("vi-VN", {
@@ -45,6 +47,7 @@ interface CheckoutSheetProps {
   items: CartItem[];
   onSuccess: (orderNumber: string) => void;
   userId: string;
+  embedded?: boolean;
 }
 
 interface CustomerInfo {
@@ -73,6 +76,7 @@ export default function CheckoutSheet({
   items,
   onSuccess,
   userId,
+  embedded = false,
 }: CheckoutSheetProps) {
   const [useLoyalty, setUseLoyalty] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -84,18 +88,52 @@ export default function CheckoutSheet({
   const [cashReceived, setCashReceived] = useState("");
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("0");
+
   const [useDiscountCode, setUseDiscountCode] = useState(false);
   const [discountCodeInput, setDiscountCodeInput] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   const [orderNote, setOrderNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const totalPrice = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
   // 1 point = 1000 VND
   const pointValue = 1000;
+
+  const normalizedDiscountCode = discountCodeInput.trim().toUpperCase();
+  const selectedPromoRule = useDiscountCode ? PROMO_RULES[normalizedDiscountCode] : undefined;
+  const discountCodeError =
+    useDiscountCode
+      ? normalizedDiscountCode === ""
+        ? "Bắt buộc"
+        : !selectedPromoRule
+          ? "Mã không hợp lệ"
+          : null
+      : null;
+
+  const discountCodeAmount = (() => {
+    if (!useDiscountCode || discountCodeError || !selectedPromoRule) return 0;
+
+    if (selectedPromoRule.type === "fixed") {
+      return Math.min(totalPrice, selectedPromoRule.value);
+    }
+
+    const calculated = Math.floor((totalPrice * selectedPromoRule.value) / 100);
+    const capped = selectedPromoRule.maxDiscount
+      ? Math.min(calculated, selectedPromoRule.maxDiscount)
+      : calculated;
+
+    return Math.min(totalPrice, capped);
+  })();
+
+  // Priority: discount code first, then loyalty points.
+  const amountAfterDiscountCode = Math.max(0, totalPrice - discountCodeAmount);
+
   const maxPointsUsable = foundCustomer
-    ? Math.min(foundCustomer.loyalty_points, Math.floor(totalPrice / pointValue))
+    ? Math.min(foundCustomer.loyalty_points, Math.floor(amountAfterDiscountCode / pointValue))
     : 0;
+
   const loyaltyInputDigits = loyaltyPointsInput.replace(/\D/g, "");
   const loyaltyInputParsed = loyaltyInputDigits ? parseInt(loyaltyInputDigits, 10) : 0;
   const loyaltyPointsError =
@@ -108,31 +146,11 @@ export default function CheckoutSheet({
             ? `Tối đa ${formatNumberWithDots(maxPointsUsable)}`
             : null
       : null;
-  const loyaltyPointsToUse =
-    useLoyaltyPoints && !loyaltyPointsError ? loyaltyInputParsed : 0;
-  const loyaltyDiscount = loyaltyPointsToUse * pointValue;
-  const amountAfterLoyalty = Math.max(0, totalPrice - loyaltyDiscount);
 
-  const normalizedDiscountCode = discountCodeInput.trim().toUpperCase();
-  const selectedPromoRule = useDiscountCode ? PROMO_RULES[normalizedDiscountCode] : undefined;
-  const discountCodeError =
-    useDiscountCode
-      ? normalizedDiscountCode === ""
-        ? "Bắt buộc"
-        : !selectedPromoRule
-          ? "Mã không hợp lệ"
-          : null
-      : null;
-  const discountCodeAmount = (() => {
-    if (!useDiscountCode || discountCodeError || !selectedPromoRule) return 0;
-    if (selectedPromoRule.type === "fixed") {
-      return Math.min(amountAfterLoyalty, selectedPromoRule.value);
-    }
-    const calculated = Math.floor((amountAfterLoyalty * selectedPromoRule.value) / 100);
-    const capped = selectedPromoRule.maxDiscount ? Math.min(calculated, selectedPromoRule.maxDiscount) : calculated;
-    return Math.min(amountAfterLoyalty, capped);
-  })();
-  const finalAmount = Math.max(0, amountAfterLoyalty - discountCodeAmount);
+  const loyaltyPointsToUse = useLoyaltyPoints && !loyaltyPointsError ? loyaltyInputParsed : 0;
+  const loyaltyDiscount = loyaltyPointsToUse * pointValue;
+
+  const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
   const changeAmount = paymentMethod === "cash" ? cashReceivedNum - finalAmount : 0;
@@ -173,12 +191,17 @@ export default function CheckoutSheet({
       setCustomerName("");
       setCustomerPhone("");
       setFoundCustomer(null);
+
       setPaymentMethod("cash");
       setCashReceived("");
+
       setUseLoyaltyPoints(false);
       setLoyaltyPointsInput("0");
+
       setUseDiscountCode(false);
       setDiscountCodeInput("");
+      setScannerOpen(false);
+
       setOrderNote("");
     }
   }, [open]);
@@ -186,8 +209,6 @@ export default function CheckoutSheet({
   useEffect(() => {
     setUseLoyaltyPoints(false);
     setLoyaltyPointsInput("0");
-    setUseDiscountCode(false);
-    setDiscountCodeInput("");
   }, [foundCustomer]);
 
   useEffect(() => {
@@ -198,6 +219,7 @@ export default function CheckoutSheet({
 
   const searchCustomer = async () => {
     if (!customerPhone || customerPhone.length < 9) return;
+
     setSearchingCustomer(true);
     try {
       const { data } = await supabase
@@ -229,19 +251,21 @@ export default function CheckoutSheet({
       toast.error("Số tiền nhận chưa đủ");
       return;
     }
-    if (useLoyaltyPoints && loyaltyPointsError) {
-      toast.error("Số điểm dùng không hợp lệ");
-      return;
-    }
+
     if (useDiscountCode && discountCodeError) {
       toast.error("Mã giảm giá không hợp lệ");
       return;
     }
 
+    if (useLoyaltyPoints && loyaltyPointsError) {
+      toast.error("Số điểm dùng không hợp lệ");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Upsert customer if loyalty
       let customerId: string | null = null;
+
       if (useLoyalty) {
         if (foundCustomer) {
           customerId = foundCustomer.id;
@@ -256,7 +280,7 @@ export default function CheckoutSheet({
             })
             .eq("id", foundCustomer.id);
         } else {
-          const { data: newCust, error: custErr } = await supabase
+          const { data: newCustomer, error: customerError } = await supabase
             .from("customers")
             .insert({
               name: customerName,
@@ -266,8 +290,8 @@ export default function CheckoutSheet({
             .select("id")
             .single();
 
-          if (custErr) throw custErr;
-          customerId = newCust.id;
+          if (customerError) throw customerError;
+          customerId = newCustomer.id;
         }
       }
 
@@ -304,14 +328,14 @@ export default function CheckoutSheet({
       if (itemsError) throw itemsError;
 
       onSuccess(order.order_number);
-    } catch (err: any) {
-      toast.error("Lỗi khi tạo đơn hàng: " + (err.message || ""));
+    } catch (error: any) {
+      toast.error("Lỗi khi tạo đơn hàng: " + (error.message || ""));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const paymentMethods: { key: PaymentMethod; label: string; icon: React.ReactNode }[] = [
+  const paymentMethods: Array<{ key: PaymentMethod; label: string; icon: React.ReactNode }> = [
     { key: "cash", label: "Tiền mặt", icon: <Banknote className="w-4 h-4" /> },
     { key: "transfer", label: "Chuyển khoản", icon: <CreditCard className="w-4 h-4" /> },
     { key: "momo", label: "MoMo", icon: <Smartphone className="w-4 h-4" /> },
@@ -320,15 +344,11 @@ export default function CheckoutSheet({
   const canSubmit =
     !isSubmitting &&
     (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
-    (!useLoyaltyPoints || !loyaltyPointsError) &&
-    (!useDiscountCode || !discountCodeError);
+    (!useDiscountCode || !discountCodeError) &&
+    (!useLoyaltyPoints || !loyaltyPointsError);
 
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
-      >
+  const panelContent = (
+    <>
         <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
           <button
             onClick={onClose}
@@ -342,10 +362,10 @@ export default function CheckoutSheet({
 
         <div className="flex-1 px-4 overflow-y-auto no-scrollbar">
           <div className="space-y-4 pb-4 pt-1">
-            {/* 1. Loyalty / Tích điểm */}
+            {/* 1. Loyalty account */}
             <div className="space-y-2">
               <button
-                onClick={() => setUseLoyalty(!useLoyalty)}
+                onClick={() => setUseLoyalty((prev) => !prev)}
                 className={cn(
                   "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
                   useLoyalty
@@ -366,6 +386,7 @@ export default function CheckoutSheet({
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="h-9 rounded-lg text-sm"
                   />
+
                   <div className="flex gap-2">
                     <Input
                       placeholder="Số điện thoại"
@@ -374,10 +395,9 @@ export default function CheckoutSheet({
                       onBlur={searchCustomer}
                       className="h-9 rounded-lg text-sm flex-1"
                     />
-                    {searchingCustomer && (
-                      <span className="text-xs text-muted-foreground self-center">Đang tìm...</span>
-                    )}
+                    {searchingCustomer && <span className="text-xs text-muted-foreground self-center">Đang tìm...</span>}
                   </div>
+
                   {foundCustomer && (
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted text-xs">
                       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
@@ -387,6 +407,7 @@ export default function CheckoutSheet({
                       </Badge>
                     </div>
                   )}
+
                   {!foundCustomer && customerPhone.length >= 9 && !searchingCustomer && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <UserPlus className="w-3 h-3" /> Khách hàng mới, sẽ tạo tài khoản tự động
@@ -396,131 +417,145 @@ export default function CheckoutSheet({
               )}
             </div>
 
-            {/* 2. Loyalty points usage (moved above payment method) */}
+            {/* 2. Discount and points */}
             <div className="space-y-2">
-                <div className={cn("grid gap-2", useLoyalty ? "grid-cols-2" : "grid-cols-1")}>
+              <div className={cn("grid gap-2", useLoyalty ? "grid-cols-2" : "grid-cols-1")}>
+                <button
+                  onClick={() => {
+                    const next = !useDiscountCode;
+                    setUseDiscountCode(next);
+                    if (!next) setDiscountCodeInput("");
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
+                    useDiscountCode
+                      ? "bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400"
+                      : "bg-card border-border text-muted-foreground"
+                  )}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Dùng mã giảm giá
+                  {useDiscountCode && <Check className="w-4 h-4 ml-auto" />}
+                </button>
+
+                {useLoyalty && (
                   <button
                     onClick={() => {
-                      const next = !useDiscountCode;
-                      setUseDiscountCode(next);
-                      if (!next) {
-                        setDiscountCodeInput("");
+                      if (!foundCustomer || foundCustomer.loyalty_points <= 0) return;
+                      const next = !useLoyaltyPoints;
+                      setUseLoyaltyPoints(next);
+                      if (next) {
+                        setLoyaltyPointsInput(String(maxPointsUsable));
+                      } else {
+                        setLoyaltyPointsInput("0");
                       }
                     }}
                     className={cn(
                       "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
-                      useDiscountCode
-                        ? "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-400"
-                        : "bg-card border-border text-muted-foreground"
+                      useLoyaltyPoints
+                        ? "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400"
+                        : "bg-card border-border text-muted-foreground",
+                      (!foundCustomer || foundCustomer.loyalty_points <= 0) && "opacity-60 cursor-not-allowed"
                     )}
                   >
-                    <CreditCard className="w-4 h-4" />
-                    Dùng mã giảm giá
-                    {useDiscountCode && <Check className="w-4 h-4 ml-auto" />}
+                    <Star className="w-4 h-4" />
+                    Dùng điểm
+                    {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
                   </button>
+                )}
+              </div>
 
-                  {useLoyalty && (
-                    <button
-                      onClick={() => {
-                        if (!foundCustomer || foundCustomer.loyalty_points <= 0) return;
-                        const next = !useLoyaltyPoints;
-                        setUseLoyaltyPoints(next);
-                        if (next) {
-                          setLoyaltyPointsInput(String(maxPointsUsable));
-                        } else {
-                          setLoyaltyPointsInput("0");
-                        }
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors text-sm font-medium",
-                        useLoyaltyPoints
-                          ? "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400"
-                          : "bg-card border-border text-muted-foreground",
-                        (!foundCustomer || foundCustomer.loyalty_points <= 0) && "opacity-60 cursor-not-allowed"
-                      )}
-                    >
-                      <Star className="w-4 h-4" />
-                      {foundCustomer ? `Dùng điểm (${foundCustomer.loyalty_points})` : "Dùng điểm tích lũy"}
-                      {useLoyaltyPoints && <Check className="w-4 h-4 ml-auto" />}
-                    </button>
+              {(useDiscountCode || useLoyaltyPoints) && (
+                <div
+                  className={cn(
+                    "pl-2 grid gap-2",
+                    useDiscountCode && useLoyaltyPoints ? "grid-cols-2" : "grid-cols-1"
                   )}
-                </div>
-
-                {(useLoyaltyPoints || useDiscountCode) && (
-                  <div
-                    className={cn(
-                      "pl-2 grid gap-2",
-                      useLoyaltyPoints && useDiscountCode ? "grid-cols-2" : "grid-cols-1"
-                    )}
-                  >
-                    {useLoyaltyPoints && (
-                      <div className="space-y-1">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={maxPointsUsable}
-                          value={loyaltyPointsInput}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            setLoyaltyPointsInput(raw);
-                          }}
-                          onBlur={() => normalizeLoyaltyInput(loyaltyPointsInput)}
-                          className={cn(
-                            "h-9 rounded-lg text-sm w-full",
-                            loyaltyPointsError && "border-destructive focus-visible:ring-destructive"
-                          )}
-                        />
-                        {loyaltyPointsError ? (
-                          <span className="text-xs text-destructive">{loyaltyPointsError}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            = giảm {formatPrice(loyaltyPointsToUse * pointValue)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {useDiscountCode && (
-                      <div className="space-y-1">
+                >
+                  {useDiscountCode && (
+                    <div className="space-y-1">
+                      <div className="relative">
                         <Input
                           value={discountCodeInput}
                           onChange={(e) => setDiscountCodeInput(e.target.value.toUpperCase())}
                           placeholder="Nhập mã giảm giá"
                           className={cn(
-                            "h-9 rounded-lg text-sm w-full uppercase",
+                            "h-9 rounded-lg text-sm w-full uppercase pr-10",
                             discountCodeError && "border-destructive focus-visible:ring-destructive"
                           )}
                         />
-                        {discountCodeError ? (
-                          <span className="text-xs text-destructive">{discountCodeError}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            = giảm {formatPrice(discountCodeAmount)}
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setScannerOpen(true)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
+                          aria-label="Quét QR hoặc barcode mã giảm giá"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {discountCodeError ? (
+                        <span className="text-xs text-destructive">{discountCodeError}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">= giảm {formatPrice(discountCodeAmount)}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {useLoyaltyPoints && (
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={maxPointsUsable}
+                        value={loyaltyPointsInput}
+                        onChange={(e) => setLoyaltyPointsInput(e.target.value)}
+                        onBlur={() => normalizeLoyaltyInput(loyaltyPointsInput)}
+                        className={cn(
+                          "h-9 rounded-lg text-sm w-full",
+                          loyaltyPointsError && "border-destructive focus-visible:ring-destructive"
+                        )}
+                      />
+
+                      {loyaltyPointsError ? (
+                        <span className="text-xs text-destructive">{loyaltyPointsError}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">= giảm {formatPrice(loyaltyDiscount)}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* 3. Payment method */}
+            {/* 3. Order note (moved above payment method) */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-foreground">Ghi chú đơn hàng</p>
+              <Textarea
+                placeholder="Ghi chú cho đơn hàng..."
+                value={orderNote}
+                onChange={(e) => setOrderNote(e.target.value)}
+                className="min-h-[60px] rounded-lg text-sm resize-none"
+              />
+            </div>
+
+            {/* 4. Payment method */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground">Phương thức thanh toán</p>
               <div className="grid grid-cols-3 gap-2">
-                {paymentMethods.map((pm) => (
+                {paymentMethods.map((payment) => (
                   <button
-                    key={pm.key}
-                    onClick={() => setPaymentMethod(pm.key)}
+                    key={payment.key}
+                    onClick={() => setPaymentMethod(payment.key)}
                     className={cn(
                       "flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-medium transition-colors",
-                      paymentMethod === pm.key
+                      paymentMethod === payment.key
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-card text-foreground border-border"
                     )}
                   >
-                    {pm.icon}
-                    {pm.label}
+                    {payment.icon}
+                    {payment.label}
                   </button>
                 ))}
               </div>
@@ -534,6 +569,7 @@ export default function CheckoutSheet({
                     className="h-9 rounded-lg text-sm"
                     inputMode="numeric"
                   />
+
                   {cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
                       <span className="font-medium text-foreground">Tiền thối</span>
@@ -545,52 +581,80 @@ export default function CheckoutSheet({
                 </div>
               )}
             </div>
-
-            {/* 4. Order note */}
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-foreground">Ghi chú đơn hàng</p>
-              <Textarea
-                placeholder="Ghi chú cho đơn hàng..."
-                value={orderNote}
-                onChange={(e) => setOrderNote(e.target.value)}
-                className="min-h-[60px] rounded-lg text-sm resize-none"
-              />
-            </div>
           </div>
         </div>
 
-        {/* Summary & Submit */}
+        {/* Summary */}
         <div className="border-t border-border p-4 safe-bottom space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Tổng cộng</span>
             <span className="text-white font-semibold">{formatPrice(totalPrice)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Mã giảm giá</span>
-            <span className="text-orange-400 font-semibold">
-              {discountCodeAmount > 0 ? `-${formatPrice(discountCodeAmount)}` : formatPrice(0)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Giảm điểm</span>
-            <span className="inline-flex items-center gap-1 text-yellow-400 font-semibold">
-              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-              {loyaltyDiscount > 0 ? `-${formatPrice(loyaltyDiscount)}` : formatPrice(0)}
-            </span>
-          </div>
+
+          {discountCodeAmount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Mã giảm giá</span>
+              <span className="text-orange-400 font-semibold">-{formatPrice(discountCodeAmount)}</span>
+            </div>
+          )}
+
+          {loyaltyDiscount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Giảm điểm</span>
+              <span className="inline-flex items-center gap-1 text-yellow-400 font-semibold">
+                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                -{formatPrice(loyaltyDiscount)}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-1">
             <span className="text-base font-bold text-foreground">Thanh toán</span>
             <span className="text-base font-bold text-white">{formatPrice(finalAmount)}</span>
           </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="w-full h-12 rounded-xl text-base font-bold"
-          >
+
+          <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
             {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
           </Button>
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div className="h-full flex flex-col">{panelContent}</div>
+        <QrScannerDialog
+          open={scannerOpen}
+          onOpenChange={setScannerOpen}
+          onDetected={(code) => {
+            setDiscountCodeInput(code.toUpperCase());
+            setUseDiscountCode(true);
+          }}
+          title="Quét mã giảm giá"
+        />
+      </>
+    );
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <SheetContent
+        side="bottom"
+        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
+      >
+        {panelContent}
       </SheetContent>
+
+      <QrScannerDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={(code) => {
+          setDiscountCodeInput(code.toUpperCase());
+          setUseDiscountCode(true);
+        }}
+        title="Quét mã giảm giá"
+      />
     </Sheet>
   );
 }
