@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/components/ui/sonner";
 import { ShoppingBag, Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import logo from "../logo_4kk.png";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -63,13 +64,11 @@ export default function Auth() {
       >
         {/* Logo */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <ShoppingBag className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img src={logo} alt="Logo" className="w-8 h-8 object-contain" />
           <div>
-            <h1 className="text-2xl font-bold text-foreground">SalesPro</h1>
+            <h1 className="text-2xl font-bold text-foreground">NUT POS</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Quản lý bán hàng thông minh
+              Quản lý bán hàng F&B
             </p>
           </div>
         </div>
