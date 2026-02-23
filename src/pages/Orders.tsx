@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
@@ -59,19 +59,22 @@ const STATUS_META: Record<
 > = {
   pending: {
     label: "Chờ xử lý",
-    chipClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700",
+    chipClass:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700",
     dotColor: "bg-amber-500",
     icon: <Clock3 className="w-3.5 h-3.5" />,
   },
   completed: {
     label: "Hoàn thành",
-    chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-700",
+    chipClass:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-700",
     dotColor: "bg-emerald-500",
     icon: <CircleCheckBig className="w-3.5 h-3.5" />,
   },
   cancelled: {
     label: "Đã hủy",
-    chipClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
+    chipClass:
+      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
     dotColor: "bg-rose-500",
     icon: <CircleX className="w-3.5 h-3.5" />,
   },
@@ -154,7 +157,7 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
 
-  const { data: orders = [], isLoading, isRefetching } = useQuery({
+  const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders-management"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -176,7 +179,6 @@ export default function Orders() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders-management"] });
       toast.success("Đã cập nhật trạng thái đơn hàng");
     },
     onError: (error: Error) => {
@@ -220,72 +222,149 @@ export default function Orders() {
   ];
 
   useEffect(() => {
-    const refreshOrders = () => {
-      // Refetch ngay lập tức để UI bắt thay đổi nhanh hơn.
-      queryClient.refetchQueries({ queryKey: ["orders-management"], type: "active" });
-    };
-
     const channel = supabase
       .channel("orders-management-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload: any) => {
+        const newRow = payload.new;
+        const oldRow = payload.old;
+
         queryClient.setQueryData<OrderRow[]>(["orders-management"], (current) => {
           if (!current) return current;
 
+          if (payload.eventType === "DELETE" && oldRow?.id) {
+            return current.filter((o) => o.id !== oldRow.id);
+          }
+
+          if (!newRow?.id) return current;
+
+          const idx = current.findIndex((o) => o.id === newRow.id);
+          if (idx === -1) {
+            const inserted: OrderRow = {
+              id: newRow.id,
+              order_number: newRow.order_number || "",
+              customer_name: newRow.customer_name || "Khách lẻ",
+              customer_phone: newRow.customer_phone ?? null,
+              total_amount: Number(newRow.total_amount || 0),
+              payment_method: (newRow.payment_method as string) || "cash",
+              status: (newRow.status as string) || "pending",
+              created_at: newRow.created_at || new Date().toISOString(),
+              note: newRow.note ?? null,
+              loyalty_points_used: Number(newRow.loyalty_points_used || 0),
+              order_items: [],
+            };
+            return [inserted, ...current].sort(
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+          }
+
           const next = [...current];
-          const eventType = payload.eventType;
-          const newRow = payload.new as Partial<OrderRow> | null;
-          const oldRow = payload.old as Partial<OrderRow> | null;
-
-          if (eventType === "INSERT" && newRow?.id) {
-            const exists = next.some((o) => o.id === newRow.id);
-            if (!exists) {
-              next.unshift({
-                id: newRow.id,
-                order_number: newRow.order_number || "",
-                customer_name: newRow.customer_name || "Khách lẻ",
-                customer_phone: newRow.customer_phone ?? null,
-                total_amount: Number(newRow.total_amount || 0),
-                payment_method: (newRow.payment_method as string) || "cash",
-                status: (newRow.status as string) || "pending",
-                created_at: newRow.created_at || new Date().toISOString(),
-                note: newRow.note ?? null,
-                loyalty_points_used: Number(newRow.loyalty_points_used || 0),
-                order_items: [],
-              });
-            }
-            return next;
-          }
-
-          if (eventType === "UPDATE" && newRow?.id) {
-            const idx = next.findIndex((o) => o.id === newRow.id);
-            if (idx >= 0) {
-              next[idx] = {
-                ...next[idx],
-                ...newRow,
-                total_amount: Number(newRow.total_amount ?? next[idx].total_amount),
-                loyalty_points_used: Number(newRow.loyalty_points_used ?? next[idx].loyalty_points_used),
-              } as OrderRow;
-            }
-            return next;
-          }
-
-          if (eventType === "DELETE" && oldRow?.id) {
-            return next.filter((o) => o.id !== oldRow.id);
-          }
+          next[idx] = {
+            ...next[idx],
+            ...newRow,
+            total_amount: Number(newRow.total_amount ?? next[idx].total_amount),
+            loyalty_points_used: Number(newRow.loyalty_points_used ?? next[idx].loyalty_points_used),
+          } as OrderRow;
 
           return next;
         });
 
-        // Refetch nền để lấy đầy đủ relation order_items/new fields.
-        refreshOrders();
+        if (selectedOrder?.id === (newRow?.id || oldRow?.id)) {
+          if (payload.eventType === "DELETE") {
+            setSelectedOrder(null);
+          } else {
+            setSelectedOrder((prev) => {
+              if (!prev || prev.id !== newRow.id) return prev;
+              return {
+                ...prev,
+                ...newRow,
+                total_amount: Number(newRow.total_amount ?? prev.total_amount),
+                loyalty_points_used: Number(newRow.loyalty_points_used ?? prev.loyalty_points_used),
+              };
+            });
+          }
+        }
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, refreshOrders)
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, (payload: any) => {
+        const newRow = payload.new;
+        const oldRow = payload.old;
+        const targetOrderId = payload.eventType === "DELETE" ? oldRow?.order_id : newRow?.order_id;
+
+        if (!targetOrderId) return;
+
+        queryClient.setQueryData<OrderRow[]>(["orders-management"], (current) => {
+          if (!current) return current;
+
+          return current.map((order) => {
+            if (order.id !== targetOrderId) return order;
+
+            const items = [...order.order_items];
+
+            if (payload.eventType === "DELETE" && oldRow?.id) {
+              return { ...order, order_items: items.filter((it) => it.id !== oldRow.id) };
+            }
+
+            if (!newRow?.id) return order;
+
+            const itemIdx = items.findIndex((it) => it.id === newRow.id);
+            const mappedItem: OrderItem = {
+              id: newRow.id,
+              product_name: newRow.product_name || "",
+              qty: Number(newRow.qty || 0),
+              unit_price: Number(newRow.unit_price || 0),
+              subtotal: Number(newRow.subtotal || 0),
+              classification_labels: newRow.classification_labels ?? null,
+              note: newRow.note ?? null,
+            };
+
+            if (itemIdx === -1) {
+              items.push(mappedItem);
+            } else {
+              items[itemIdx] = { ...items[itemIdx], ...mappedItem };
+            }
+
+            return { ...order, order_items: items };
+          });
+        });
+
+        if (selectedOrder?.id === targetOrderId) {
+          setSelectedOrder((prev) => {
+            if (!prev || prev.id !== targetOrderId) return prev;
+
+            const items = [...prev.order_items];
+
+            if (payload.eventType === "DELETE" && oldRow?.id) {
+              return { ...prev, order_items: items.filter((it) => it.id !== oldRow.id) };
+            }
+
+            if (!newRow?.id) return prev;
+
+            const itemIdx = items.findIndex((it) => it.id === newRow.id);
+            const mappedItem: OrderItem = {
+              id: newRow.id,
+              product_name: newRow.product_name || "",
+              qty: Number(newRow.qty || 0),
+              unit_price: Number(newRow.unit_price || 0),
+              subtotal: Number(newRow.subtotal || 0),
+              classification_labels: newRow.classification_labels ?? null,
+              note: newRow.note ?? null,
+            };
+
+            if (itemIdx === -1) {
+              items.push(mappedItem);
+            } else {
+              items[itemIdx] = { ...items[itemIdx], ...mappedItem };
+            }
+
+            return { ...prev, order_items: items };
+          });
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, selectedOrder?.id]);
 
   return (
     <AppLayout title="Đơn hàng">
@@ -384,7 +463,7 @@ export default function Orders() {
                       <p className="text-base font-semibold text-foreground truncate">{order.order_number}</p>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">
                         {order.customer_name}
-                        {order.customer_phone ? ` – ${order.customer_phone}` : ""}
+                        {order.customer_phone ? ` • ${order.customer_phone}` : ""}
                       </p>
                     </div>
                     <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border ${meta.chipClass}`}>
@@ -394,7 +473,9 @@ export default function Orders() {
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">{formatTime(order.created_at)} - {new Date(order.created_at).toLocaleDateString("vi-VN")}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatTime(order.created_at)} • {new Date(order.created_at).toLocaleDateString("vi-VN")}
+                    </p>
                     <div className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                       <CreditCard className="h-3.5 w-3.5" />
                       {getPaymentLabel(order.payment_method)}
@@ -504,7 +585,7 @@ export default function Orders() {
                                   ))}
                                 </div>
                               )}
-                              {item.note && <p className="text-xs text-muted-foreground italic mt-1">?? {item.note}</p>}
+                              {item.note && <p className="text-xs text-muted-foreground italic mt-1">📝 {item.note}</p>}
                             </div>
                             <div className="text-right shrink-0">
                               <p className="text-sm font-semibold text-foreground">{formatPrice(item.subtotal)}</p>
@@ -550,12 +631,6 @@ export default function Orders() {
           })()}
         </SheetContent>
       </Sheet>
-
-      {isRefetching && (
-        <div className="fixed right-4 bottom-24 z-40 text-xs px-2 py-1 rounded-md bg-card border border-border text-muted-foreground">
-          Đang cập nhật...
-        </div>
-      )}
     </AppLayout>
   );
 }
