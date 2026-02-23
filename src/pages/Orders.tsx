@@ -58,19 +58,19 @@ const STATUS_META: Record<
   }
 > = {
   pending: {
-    label: "Ch? x? l�",
+    label: "Chờ xử lý",
     chipClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700",
     dotColor: "bg-amber-500",
     icon: <Clock3 className="w-3.5 h-3.5" />,
   },
   completed: {
-    label: "Ho�n th�nh",
+    label: "Hoàn thành",
     chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-700",
     dotColor: "bg-emerald-500",
     icon: <CircleCheckBig className="w-3.5 h-3.5" />,
   },
   cancelled: {
-    label: "�� h?y",
+    label: "Đã hủy",
     chipClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
     dotColor: "bg-rose-500",
     icon: <CircleX className="w-3.5 h-3.5" />,
@@ -105,7 +105,7 @@ function formatTime(dateString: string) {
 function getStatusMeta(status: string) {
   return (
     STATUS_META[status] || {
-      label: status || "Kh�ng x�c d?nh",
+      label: status || "Không xác định",
       chipClass: "bg-muted text-muted-foreground border-border",
       dotColor: "bg-muted-foreground",
       icon: <Clock3 className="w-3.5 h-3.5" />,
@@ -116,9 +116,9 @@ function getStatusMeta(status: string) {
 function getPaymentLabel(method: string) {
   switch (method) {
     case "cash":
-      return "Ti?n m?t";
+      return "Tiền mặt";
     case "transfer":
-      return "Chuy?n kho?n";
+      return "Chuyển khoản";
     case "momo":
       return "MoMo";
     default:
@@ -177,10 +177,10 @@ export default function Orders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders-management"] });
-      toast.success("�� c?p nh?t tr?ng th�i don h�ng");
+      toast.success("Đã cập nhật trạng thái đơn hàng");
     },
     onError: (error: Error) => {
-      toast.error(`C?p nh?t tr?ng th�i th?t b?i: ${error.message}`);
+      toast.error(`Cập nhật trạng thái đơn hàng thất bại: ${error.message}`);
     },
   });
 
@@ -326,7 +326,7 @@ export default function Orders() {
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">{formatTime(order.created_at)} � {new Date(order.created_at).toLocaleDateString("vi-VN")}</p>
+                    <p className="text-sm text-muted-foreground">{formatTime(order.created_at)} - {new Date(order.created_at).toLocaleDateString("vi-VN")}</p>
                     <div className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                       <CreditCard className="h-3.5 w-3.5" />
                       {getPaymentLabel(order.payment_method)}
@@ -334,7 +334,7 @@ export default function Orders() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">T?ng ti?n</span>
+                    <span className="text-sm text-muted-foreground">Tổng tiền</span>
                     <span className="text-base font-bold text-foreground">{formatPrice(order.total_amount)}</span>
                   </div>
 
@@ -372,7 +372,7 @@ export default function Orders() {
 
                 <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4 space-y-4">
                   <div className="rounded-xl border border-border p-4 bg-card space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kh�ch h�ng</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Khách hàng</h4>
                     <p className="text-sm font-semibold text-foreground">{selectedOrder.customer_name}</p>
                     {selectedOrder.customer_phone && (
                       <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
@@ -383,11 +383,11 @@ export default function Orders() {
                   </div>
 
                   <div className="rounded-xl border border-border p-4 bg-card space-y-3">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Thanh to�n</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Thanh toán</h4>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
                         <CreditCard className="h-3.5 w-3.5" />
-                        Phuong th?c
+                        Phương thức
                       </span>
                       <span className="text-sm font-medium text-foreground">{getPaymentLabel(selectedOrder.payment_method)}</span>
                     </div>
@@ -395,7 +395,7 @@ export default function Orders() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
                           <Star className="h-3.5 w-3.5" />
-                          �i?m d� d�ng
+                          Điểm đã dùng
                         </span>
                         <span className="text-sm font-medium text-foreground">{selectedOrder.loyalty_points_used}</span>
                       </div>
