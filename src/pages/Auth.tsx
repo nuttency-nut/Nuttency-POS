@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/components/ui/sonner";
 import { ShoppingBag, Eye, EyeOff, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import logo from "../logo_4kk.png";
+import logo from "../../logo_4kk.png";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
