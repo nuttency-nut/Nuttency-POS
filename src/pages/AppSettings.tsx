@@ -508,7 +508,7 @@ export default function AppSettings() {
           generalContent
         )}
 
-        <p className="text-center text-xs text-muted-foreground pt-2">SalesPro v1.0 • Quản lý bán hàng thông minh</p>
+        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 • Quản lý bán hàng F&B</p>
       </div>
     </AppLayout>
   );

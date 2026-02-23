@@ -62,24 +62,193 @@ export interface ProductFormValues {
   classification_groups: ClassificationGroupForm[];
 }
 
+type GroupLinkRow = {
+  id: string;
+  product_id: string;
+  sort_order: number;
+  classification_group_catalog: {
+    id: string;
+    name: string;
+    allow_multiple: boolean;
+  } | null;
+  product_classification_option_links: Array<{
+    id: string;
+    sort_order: number;
+    classification_option_catalog: {
+      id: string;
+      name: string;
+      extra_price: number;
+    } | null;
+  }>;
+};
+
+async function fetchGroupLinksByProductIds(productIds: string[]) {
+  if (productIds.length === 0) {
+    return [] as GroupLinkRow[];
+  }
+
+  const { data, error } = await supabase
+    .from("product_classification_group_links" as any)
+    .select(
+      "id,product_id,sort_order,classification_group_catalog(id,name,allow_multiple),product_classification_option_links(id,sort_order,classification_option_catalog(id,name,extra_price))"
+    )
+    .in("product_id", productIds);
+
+  if (error) throw error;
+  return (data || []) as GroupLinkRow[];
+}
+
+function mapLinksToGroups(productId: string, links: GroupLinkRow[]): ClassificationGroup[] {
+  return links
+    .filter((link) => link.product_id === productId && link.classification_group_catalog)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((link) => ({
+      id: link.id,
+      product_id: link.product_id,
+      name: link.classification_group_catalog!.name,
+      allow_multiple: link.classification_group_catalog!.allow_multiple,
+      sort_order: link.sort_order,
+      product_classification_options: (link.product_classification_option_links || [])
+        .filter((optLink) => !!optLink.classification_option_catalog)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((optLink) => ({
+          id: optLink.id,
+          group_id: link.id,
+          name: optLink.classification_option_catalog!.name,
+          extra_price: optLink.classification_option_catalog!.extra_price || 0,
+          sort_order: optLink.sort_order,
+        })),
+    }));
+}
+
+async function upsertClassificationForProduct(productId: string, groups: ClassificationGroupForm[]) {
+  // Delete existing links first; catalog stays shared.
+  const { data: oldLinks, error: oldLinksError } = await supabase
+    .from("product_classification_group_links" as any)
+    .select("id")
+    .eq("product_id", productId);
+  if (oldLinksError) throw oldLinksError;
+
+  const oldLinkIds = (oldLinks || []).map((l: { id: string }) => l.id);
+  if (oldLinkIds.length > 0) {
+    const { error: deleteOptionLinksError } = await supabase
+      .from("product_classification_option_links" as any)
+      .delete()
+      .in("group_link_id", oldLinkIds);
+    if (deleteOptionLinksError) throw deleteOptionLinksError;
+  }
+
+  const { error: deleteGroupLinksError } = await supabase
+    .from("product_classification_group_links" as any)
+    .delete()
+    .eq("product_id", productId);
+  if (deleteGroupLinksError) throw deleteGroupLinksError;
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    const validOptions = group.options.filter((o) => o.name.trim());
+    if (!group.name.trim() || validOptions.length === 0) continue;
+
+    // 1) upsert/find group catalog
+    const { data: existingGroupCatalog, error: findGroupCatalogError } = await supabase
+      .from("classification_group_catalog" as any)
+      .select("id")
+      .eq("name", group.name.trim())
+      .eq("allow_multiple", group.allow_multiple)
+      .maybeSingle();
+    if (findGroupCatalogError) throw findGroupCatalogError;
+
+    let groupCatalogId = existingGroupCatalog?.id as string | undefined;
+    if (!groupCatalogId) {
+      const { data: createdGroupCatalog, error: createGroupCatalogError } = await supabase
+        .from("classification_group_catalog" as any)
+        .insert({
+          name: group.name.trim(),
+          allow_multiple: group.allow_multiple,
+        })
+        .select("id")
+        .single();
+      if (createGroupCatalogError) throw createGroupCatalogError;
+      groupCatalogId = createdGroupCatalog.id;
+    }
+
+    // 2) create product-group link
+    const { data: groupLink, error: createGroupLinkError } = await supabase
+      .from("product_classification_group_links" as any)
+      .insert({
+        product_id: productId,
+        group_catalog_id: groupCatalogId,
+        sort_order: i,
+      })
+      .select("id")
+      .single();
+    if (createGroupLinkError) throw createGroupLinkError;
+
+    // 3) upsert/find option catalog + create link
+    for (let j = 0; j < validOptions.length; j++) {
+      const option = validOptions[j];
+      const optionName = option.name.trim();
+      const optionPrice = option.extra_price || 0;
+
+      const { data: existingOptionCatalog, error: findOptionCatalogError } = await supabase
+        .from("classification_option_catalog" as any)
+        .select("id")
+        .eq("group_catalog_id", groupCatalogId)
+        .eq("name", optionName)
+        .eq("extra_price", optionPrice)
+        .maybeSingle();
+      if (findOptionCatalogError) throw findOptionCatalogError;
+
+      let optionCatalogId = existingOptionCatalog?.id as string | undefined;
+      if (!optionCatalogId) {
+        const { data: createdOptionCatalog, error: createOptionCatalogError } = await supabase
+          .from("classification_option_catalog" as any)
+          .insert({
+            group_catalog_id: groupCatalogId,
+            name: optionName,
+            extra_price: optionPrice,
+          })
+          .select("id")
+          .single();
+        if (createOptionCatalogError) throw createOptionCatalogError;
+        optionCatalogId = createdOptionCatalog.id;
+      }
+
+      const { error: createOptionLinkError } = await supabase
+        .from("product_classification_option_links" as any)
+        .insert({
+          group_link_id: groupLink.id,
+          option_catalog_id: optionCatalogId,
+          sort_order: j,
+        });
+      if (createOptionLinkError) throw createOptionLinkError;
+    }
+  }
+}
+
 export function useProducts(categoryId?: string | null) {
   return useQuery({
     queryKey: ["products", categoryId],
     queryFn: async () => {
       let query = supabase
         .from("products")
-        .select(
-          "*, product_classification_groups(*, product_classification_options(*)), categories(id, name)"
-        )
+        .select("*, categories(id, name)")
         .order("created_at", { ascending: false });
 
       if (categoryId) {
         query = query.eq("category_id", categoryId);
       }
 
-      const { data, error } = await query;
+      const { data: products, error } = await query;
       if (error) throw error;
-      return data as Product[];
+
+      const productRows = (products || []) as Product[];
+      const links = await fetchGroupLinksByProductIds(productRows.map((p) => p.id));
+
+      return productRows.map((product) => ({
+        ...product,
+        product_classification_groups: mapLinksToGroups(product.id, links),
+      }));
     },
   });
 }
@@ -89,15 +258,20 @@ export function useProduct(id: string | null) {
     queryKey: ["product", id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await supabase
+
+      const { data: product, error } = await supabase
         .from("products")
-        .select(
-          "*, product_classification_groups(*, product_classification_options(*)), categories(id, name)"
-        )
+        .select("*, categories(id, name)")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
-      return data as Product | null;
+      if (!product) return null;
+
+      const links = await fetchGroupLinksByProductIds([id]);
+      return {
+        ...(product as Product),
+        product_classification_groups: mapLinksToGroups(id, links),
+      } as Product;
     },
     enabled: !!id,
   });
@@ -108,6 +282,7 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: async (values: ProductFormValues) => {
       const { classification_groups, ...productData } = values;
+
       const { data: product, error } = await supabase
         .from("products")
         .insert({
@@ -126,39 +301,7 @@ export function useCreateProduct() {
         .single();
       if (error) throw error;
 
-      for (let i = 0; i < classification_groups.length; i++) {
-        const group = classification_groups[i];
-        if (!group.name.trim() || group.options.filter((o) => o.name.trim()).length === 0) continue;
-
-        const { data: groupData, error: groupError } = await supabase
-          .from("product_classification_groups")
-          .insert({
-            product_id: product.id,
-            name: group.name.trim(),
-            allow_multiple: group.allow_multiple,
-            sort_order: i,
-          })
-          .select()
-          .single();
-        if (groupError) throw groupError;
-
-        const optionRows = group.options
-          .filter((o) => o.name.trim())
-          .map((option, index) => ({
-            group_id: groupData.id,
-            name: option.name.trim(),
-            extra_price: option.extra_price || 0,
-            sort_order: index,
-          }));
-
-        if (optionRows.length > 0) {
-          const { error: optionError } = await supabase
-            .from("product_classification_options")
-            .insert(optionRows);
-          if (optionError) throw optionError;
-        }
-      }
-
+      await upsertClassificationForProduct(product.id, classification_groups);
       return product;
     },
     onSuccess: () => {
@@ -177,6 +320,7 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => {
       const { classification_groups, ...productData } = values;
+
       const { error } = await supabase
         .from("products")
         .update({
@@ -194,41 +338,7 @@ export function useUpdateProduct() {
         .eq("id", id);
       if (error) throw error;
 
-      await supabase.from("product_classification_groups").delete().eq("product_id", id);
-
-      for (let i = 0; i < classification_groups.length; i++) {
-        const group = classification_groups[i];
-        if (!group.name.trim() || group.options.filter((o) => o.name.trim()).length === 0) continue;
-
-        const { data: groupData, error: groupError } = await supabase
-          .from("product_classification_groups")
-          .insert({
-            product_id: id,
-            name: group.name.trim(),
-            allow_multiple: group.allow_multiple,
-            sort_order: i,
-          })
-          .select()
-          .single();
-        if (groupError) throw groupError;
-
-        const optionRows = group.options
-          .filter((o) => o.name.trim())
-          .map((option, index) => ({
-            group_id: groupData.id,
-            name: option.name.trim(),
-            extra_price: option.extra_price || 0,
-            sort_order: index,
-          }));
-
-        if (optionRows.length > 0) {
-          const { error: optionError } = await supabase
-            .from("product_classification_options")
-            .insert(optionRows);
-          if (optionError) throw optionError;
-        }
-      }
-
+      await upsertClassificationForProduct(id, classification_groups);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });

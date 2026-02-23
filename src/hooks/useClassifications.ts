@@ -23,7 +23,7 @@ export function useClassificationGroupNames() {
     queryKey: ["classification-group-names"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("product_classification_groups")
+        .from("classification_group_catalog" as any)
         .select("name");
       if (error) throw error;
       const unique = [...new Set((data || []).map((d) => d.name))];

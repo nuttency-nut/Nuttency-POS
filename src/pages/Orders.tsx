@@ -430,7 +430,7 @@ export default function Orders() {
         <div className="space-y-3">
           <div className="rounded-xl border border-border bg-card p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc ngày</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc</p>
               <button
                 type="button"
                 onClick={() => {
