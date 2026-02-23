@@ -161,7 +161,7 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 min-h-[72px]">
+    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-1.5 min-h-[72px]">
       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
@@ -405,25 +405,25 @@ export default function Orders() {
           <SummaryCard
             label="Tổng đơn"
             value={counts.all.toString()}
-            icon={<Package className="h-3.5 w-5 text-primary-foreground" />}
+            icon={<Package className="h-5 w-5 text-primary-foreground" />}
             accent="bg-primary"
           />
           <SummaryCard
             label="Chờ xử lý"
             value={counts.pending.toString()}
-            icon={<Clock3 className="h-3.5 w-5 text-amber-700" />}
+            icon={<Clock3 className="h-5 w-5 text-amber-700" />}
             accent="bg-amber-100"
           />
           <SummaryCard
             label="Đã hủy"
             value={counts.cancelled.toString()}
-            icon={<CircleX className="h-3.5 w-5 text-rose-700" />}
+            icon={<CircleX className="h-5 w-5 text-rose-700" />}
             accent="bg-rose-100"
           />
           <SummaryCard
             label="Đã nhập trả"
             value={counts.completed.toString()}
-            icon={<RotateCcw className="h-3.5 w-5 text-emerald-700" />}
+            icon={<RotateCcw className="h-5 w-5 text-emerald-700" />}
             accent="bg-emerald-100"
           />
           </div>
