@@ -154,11 +154,11 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}>{icon}</div>
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 min-h-[82px]">
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent}`}>{icon}</div>
       <div className="min-w-0">
-        <p className="text-xs text-muted-foreground truncate">{label}</p>
-        <p className="text-base sm:text-lg font-bold text-foreground leading-tight truncate">{value}</p>
+        <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
+        <p className="text-xl font-bold text-foreground leading-tight truncate mt-0.5">{value}</p>
       </div>
     </div>
   );
@@ -393,7 +393,7 @@ export default function Orders() {
   return (
     <AppLayout title="Đơn hàng">
       <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
           <SummaryCard
             label="Tổng đơn"
             value={counts.all.toString()}
@@ -421,25 +421,42 @@ export default function Orders() {
         </div>
 
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Từ ngày</label>
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="h-10 rounded-xl bg-card border-border"
-              />
+          <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc ngày</p>
+              <button
+                type="button"
+                onClick={() => {
+                  const today = getTodayLocalISO();
+                  setFromDate(today);
+                  setToDate(today);
+                }}
+                className="text-xs font-semibold text-primary"
+              >
+                Hôm nay
+              </button>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Đến ngày</label>
-              <Input
-                type="date"
-                value={toDate}
-                min={fromDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="h-10 rounded-xl bg-card border-border"
-              />
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Từ ngày</label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-10 rounded-lg bg-background border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Đến ngày</label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  min={fromDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-10 rounded-lg bg-background border-border"
+                />
+              </div>
             </div>
           </div>
 
