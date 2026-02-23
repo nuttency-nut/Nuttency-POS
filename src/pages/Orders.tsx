@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
@@ -150,7 +150,6 @@ function SummaryCard({
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
@@ -221,26 +220,69 @@ export default function Orders() {
   ];
 
   useEffect(() => {
-    const scheduleRefresh = () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-
-      refreshTimeoutRef.current = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["orders-management"] });
-      }, 120);
+    const refreshOrders = () => {
+      // Refetch ngay lập tức để UI bắt thay đổi nhanh hơn.
+      queryClient.refetchQueries({ queryKey: ["orders-management"], type: "active" });
     };
 
     const channel = supabase
       .channel("orders-management-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+        queryClient.setQueryData<OrderRow[]>(["orders-management"], (current) => {
+          if (!current) return current;
+
+          const next = [...current];
+          const eventType = payload.eventType;
+          const newRow = payload.new as Partial<OrderRow> | null;
+          const oldRow = payload.old as Partial<OrderRow> | null;
+
+          if (eventType === "INSERT" && newRow?.id) {
+            const exists = next.some((o) => o.id === newRow.id);
+            if (!exists) {
+              next.unshift({
+                id: newRow.id,
+                order_number: newRow.order_number || "",
+                customer_name: newRow.customer_name || "Khách lẻ",
+                customer_phone: newRow.customer_phone ?? null,
+                total_amount: Number(newRow.total_amount || 0),
+                payment_method: (newRow.payment_method as string) || "cash",
+                status: (newRow.status as string) || "pending",
+                created_at: newRow.created_at || new Date().toISOString(),
+                note: newRow.note ?? null,
+                loyalty_points_used: Number(newRow.loyalty_points_used || 0),
+                order_items: [],
+              });
+            }
+            return next;
+          }
+
+          if (eventType === "UPDATE" && newRow?.id) {
+            const idx = next.findIndex((o) => o.id === newRow.id);
+            if (idx >= 0) {
+              next[idx] = {
+                ...next[idx],
+                ...newRow,
+                total_amount: Number(newRow.total_amount ?? next[idx].total_amount),
+                loyalty_points_used: Number(newRow.loyalty_points_used ?? next[idx].loyalty_points_used),
+              } as OrderRow;
+            }
+            return next;
+          }
+
+          if (eventType === "DELETE" && oldRow?.id) {
+            return next.filter((o) => o.id !== oldRow.id);
+          }
+
+          return next;
+        });
+
+        // Refetch nền để lấy đầy đủ relation order_items/new fields.
+        refreshOrders();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, refreshOrders)
       .subscribe();
 
     return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
