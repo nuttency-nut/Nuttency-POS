@@ -14,7 +14,6 @@ import {
   Search,
   Star,
   StickyNote,
-  TrendingUp,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +97,20 @@ function formatDateTime(dateString: string) {
   }).format(new Date(dateString));
 }
 
+function getTodayLocalISO() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function startOfDay(dateISO: string) {
+  return new Date(`${dateISO}T00:00:00`);
+}
+
+function endOfDay(dateISO: string) {
+  return new Date(`${dateISO}T23:59:59.999`);
+}
+
 function formatTime(dateString: string) {
   return new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
@@ -156,6 +169,8 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
+  const [fromDate, setFromDate] = useState(getTodayLocalISO());
+  const [toDate, setToDate] = useState(getTodayLocalISO());
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["orders-management"],
@@ -186,9 +201,22 @@ export default function Orders() {
     },
   });
 
+  const dateFilteredOrders = useMemo(() => {
+    const from = fromDate ? startOfDay(fromDate) : null;
+    const to = toDate ? endOfDay(toDate) : null;
+
+    return orders.filter((order) => {
+      const createdAt = new Date(order.created_at);
+      if (from && createdAt < from) return false;
+      if (to && createdAt > to) return false;
+      return true;
+    });
+  }, [orders, fromDate, toDate]);
+
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return orders.filter((order) => {
+    return dateFilteredOrders
+      .filter((order) => {
       if (statusFilter !== "all" && order.status !== statusFilter) return false;
       if (!q) return true;
       return (
@@ -196,22 +224,18 @@ export default function Orders() {
         order.customer_name.toLowerCase().includes(q) ||
         (order.customer_phone || "").toLowerCase().includes(q)
       );
-    });
-  }, [orders, search, statusFilter]);
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [dateFilteredOrders, search, statusFilter]);
 
   const counts = useMemo(
     () => ({
-      all: orders.length,
-      pending: orders.filter((o) => o.status === "pending").length,
-      completed: orders.filter((o) => o.status === "completed").length,
-      cancelled: orders.filter((o) => o.status === "cancelled").length,
+      all: dateFilteredOrders.length,
+      pending: dateFilteredOrders.filter((o) => o.status === "pending").length,
+      completed: dateFilteredOrders.filter((o) => o.status === "completed").length,
+      cancelled: dateFilteredOrders.filter((o) => o.status === "cancelled").length,
     }),
-    [orders]
-  );
-
-  const totalRevenue = useMemo(
-    () => orders.filter((o) => o.status === "completed").reduce((sum, o) => sum + o.total_amount, 0),
-    [orders]
+    [dateFilteredOrders]
   );
 
   const tabs = [
@@ -369,18 +393,12 @@ export default function Orders() {
   return (
     <AppLayout title="Đơn hàng">
       <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-3">
           <SummaryCard
             label="Tổng đơn"
             value={counts.all.toString()}
             icon={<Package className="h-5 w-5 text-primary-foreground" />}
             accent="bg-primary"
-          />
-          <SummaryCard
-            label="Doanh thu"
-            value={formatPrice(totalRevenue)}
-            icon={<TrendingUp className="h-5 w-5 text-emerald-700" />}
-            accent="bg-emerald-100"
           />
           <SummaryCard
             label="Chờ xử lý"
@@ -394,9 +412,37 @@ export default function Orders() {
             icon={<CircleX className="h-5 w-5 text-rose-700" />}
             accent="bg-rose-100"
           />
+          <SummaryCard
+            label="Đã nhập trả"
+            value={counts.completed.toString()}
+            icon={<CircleCheckBig className="h-5 w-5 text-emerald-700" />}
+            accent="bg-emerald-100"
+          />
         </div>
 
         <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Từ ngày</label>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-10 rounded-xl bg-card border-border"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Đến ngày</label>
+              <Input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-10 rounded-xl bg-card border-border"
+              />
+            </div>
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
