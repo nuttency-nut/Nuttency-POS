@@ -161,11 +161,11 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-1.5 min-h-[72px]">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}>{icon}</div>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
-        <p className="text-lg font-bold text-foreground leading-tight truncate mt-0.5">{value}</p>
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 min-h-[60px]">
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${accent}`}>{icon}</div>
+      <div className="min-w-0 flex-1 flex items-center justify-between gap-2">
+        <p className="text-[13px] font-semibold text-muted-foreground truncate leading-tight">{label}</p>
+        <p className="text-lg font-bold text-foreground leading-none shrink-0">{value}</p>
       </div>
     </div>
   );
