@@ -14,6 +14,7 @@ import {
   Search,
   Star,
   StickyNote,
+  RotateCcw,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,6 +96,12 @@ function formatDateTime(dateString: string) {
     month: "2-digit",
     year: "numeric",
   }).format(new Date(dateString));
+}
+
+function formatDateOnly(dateISO: string) {
+  const [y, m, d] = dateISO.split("-");
+  if (!y || !m || !d) return dateISO;
+  return `${d}/${m}/${y}`;
 }
 
 function getTodayLocalISO() {
@@ -415,7 +422,7 @@ export default function Orders() {
           <SummaryCard
             label="Đã nhập trả"
             value={counts.completed.toString()}
-            icon={<CircleCheckBig className="h-5 w-5 text-emerald-700" />}
+            icon={<RotateCcw className="h-5 w-5 text-emerald-700" />}
             accent="bg-emerald-100"
           />
         </div>
@@ -440,22 +447,34 @@ export default function Orders() {
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Từ ngày</label>
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="h-10 rounded-lg bg-background border-border"
-                />
+                <label className="relative block">
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="h-10 rounded-lg bg-background border border-border px-3 flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{formatDateOnly(fromDate)}</span>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </label>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Đến ngày</label>
-                <Input
-                  type="date"
-                  value={toDate}
-                  min={fromDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="h-10 rounded-lg bg-background border-border"
-                />
+                <label className="relative block">
+                  <input
+                    type="date"
+                    value={toDate}
+                    min={fromDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="h-10 rounded-lg bg-background border border-border px-3 flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{formatDateOnly(toDate)}</span>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </label>
               </div>
             </div>
           </div>
