@@ -231,7 +231,6 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       description,
       image_url: imageUrl,
       classification_groups: classificationGroups,
-      variants: [],
     });
   };
 

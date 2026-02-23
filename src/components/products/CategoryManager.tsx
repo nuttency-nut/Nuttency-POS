@@ -345,10 +345,10 @@ export default function CategoryManager({ onSelectCategory, selectedCategoryId }
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              HÃ¡Â»Â§y
+              Hủy
             </Button>
             <Button onClick={handleSave} disabled={!name.trim() || createCategory.isPending || updateCategory.isPending}>
-              {editingCategory ? "LÃ†Â°u" : "ThÃƒÂªm"}
+              {editingCategory ? "Lưu" : "Thêm"}
             </Button>
           </DialogFooter>
         </DialogContent>

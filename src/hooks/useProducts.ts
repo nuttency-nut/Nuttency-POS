@@ -2,18 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 
-export interface ProductVariant {
-  id: string;
-  product_id: string;
-  name: string;
-  barcode: string | null;
-  cost_price: number;
-  selling_price: number;
-  sku: string | null;
-  is_active: boolean;
-  sort_order: number;
-}
-
 export interface ClassificationOption {
   id: string;
   group_id: string;
@@ -45,7 +33,6 @@ export interface Product {
   description: string | null;
   created_at: string;
   updated_at: string;
-  product_variants?: ProductVariant[];
   product_classification_groups?: ClassificationGroup[];
   categories?: { id: string; name: string } | null;
 }
@@ -73,14 +60,6 @@ export interface ProductFormValues {
   description: string;
   image_url: string | null;
   classification_groups: ClassificationGroupForm[];
-  variants: {
-    id?: string;
-    name: string;
-    barcode: string;
-    cost_price: number;
-    selling_price: number;
-    sku: string;
-  }[];
 }
 
 export function useProducts(categoryId?: string | null) {
@@ -90,7 +69,7 @@ export function useProducts(categoryId?: string | null) {
       let query = supabase
         .from("products")
         .select(
-          "*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)"
+          "*, product_classification_groups(*, product_classification_options(*)), categories(id, name)"
         )
         .order("created_at", { ascending: false });
 
@@ -113,7 +92,7 @@ export function useProduct(id: string | null) {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "*, product_variants(*), product_classification_groups(*, product_classification_options(*)), categories(id, name)"
+          "*, product_classification_groups(*, product_classification_options(*)), categories(id, name)"
         )
         .eq("id", id)
         .maybeSingle();
@@ -128,7 +107,7 @@ export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (values: ProductFormValues) => {
-      const { variants, classification_groups, ...productData } = values;
+      const { classification_groups, ...productData } = values;
       const { data: product, error } = await supabase
         .from("products")
         .insert({
@@ -180,20 +159,6 @@ export function useCreateProduct() {
         }
       }
 
-      if (variants.length > 0) {
-        const variantRows = variants.map((variant, index) => ({
-          product_id: product.id,
-          name: variant.name,
-          barcode: variant.barcode || null,
-          cost_price: variant.cost_price,
-          selling_price: variant.selling_price,
-          sku: variant.sku || null,
-          sort_order: index,
-        }));
-        const { error: variantError } = await supabase.from("product_variants").insert(variantRows);
-        if (variantError) throw variantError;
-      }
-
       return product;
     },
     onSuccess: () => {
@@ -211,7 +176,7 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, values }: { id: string; values: ProductFormValues }) => {
-      const { variants, classification_groups, ...productData } = values;
+      const { classification_groups, ...productData } = values;
       const { error } = await supabase
         .from("products")
         .update({
@@ -264,20 +229,6 @@ export function useUpdateProduct() {
         }
       }
 
-      await supabase.from("product_variants").delete().eq("product_id", id);
-      if (variants.length > 0) {
-        const variantRows = variants.map((variant, index) => ({
-          product_id: id,
-          name: variant.name,
-          barcode: variant.barcode || null,
-          cost_price: variant.cost_price,
-          selling_price: variant.selling_price,
-          sku: variant.sku || null,
-          sort_order: index,
-        }));
-        const { error: variantError } = await supabase.from("product_variants").insert(variantRows);
-        if (variantError) throw variantError;
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
