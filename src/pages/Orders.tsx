@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
@@ -150,6 +150,7 @@ function SummaryCard({
 
 export default function Orders() {
   const queryClient = useQueryClient();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
@@ -218,6 +219,31 @@ export default function Orders() {
     { key: "completed" as const, label: "Hoàn thành", count: counts.completed },
     { key: "cancelled" as const, label: "Đã hủy", count: counts.cancelled },
   ];
+
+  useEffect(() => {
+    const scheduleRefresh = () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+
+      refreshTimeoutRef.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["orders-management"] });
+      }, 120);
+    };
+
+    const channel = supabase
+      .channel("orders-management-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, scheduleRefresh)
+      .subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   return (
     <AppLayout title="Đơn hàng">
@@ -349,7 +375,7 @@ export default function Orders() {
       </div>
 
       <Sheet open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-        <SheetContent side="left" className="w-[92vw] max-w-lg p-0 flex flex-col">
+        <SheetContent side="left" className="w-[92vw] max-w-lg p-0 flex flex-col [&>button]:hidden">
           {selectedOrder && (() => {
             const meta = getStatusMeta(selectedOrder.status);
             return (
@@ -415,7 +441,7 @@ export default function Orders() {
                   </div>
 
                   <div className="rounded-xl border border-border bg-card overflow-hidden">
-                    <div className="px-4 py-3 border-b border-border bg-muted/30 inline-flex items-center gap-2">
+                    <div className="w-full px-4 py-3 border-b border-border bg-muted/30 flex items-center gap-2">
                       <ReceiptText className="w-4 h-4 text-muted-foreground" />
                       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Sản phẩm ({selectedOrder.order_items.length})
