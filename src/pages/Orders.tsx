@@ -58,19 +58,19 @@ const STATUS_META: Record<
   }
 > = {
   pending: {
-    label: "Ch? x? l˝",
+    label: "Ch? x? lÔøΩ",
     chipClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700",
     dotColor: "bg-amber-500",
     icon: <Clock3 className="w-3.5 h-3.5" />,
   },
   completed: {
-    label: "Ho‡n th‡nh",
+    label: "HoÔøΩn thÔøΩnh",
     chipClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-700",
     dotColor: "bg-emerald-500",
     icon: <CircleCheckBig className="w-3.5 h-3.5" />,
   },
   cancelled: {
-    label: "–„ h?y",
+    label: "ÔøΩÔøΩ h?y",
     chipClass: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
     dotColor: "bg-rose-500",
     icon: <CircleX className="w-3.5 h-3.5" />,
@@ -105,7 +105,7 @@ function formatTime(dateString: string) {
 function getStatusMeta(status: string) {
   return (
     STATUS_META[status] || {
-      label: status || "KhÙng x·c d?nh",
+      label: status || "KhÔøΩng xÔøΩc d?nh",
       chipClass: "bg-muted text-muted-foreground border-border",
       dotColor: "bg-muted-foreground",
       icon: <Clock3 className="w-3.5 h-3.5" />,
@@ -177,10 +177,10 @@ export default function Orders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders-management"] });
-      toast.success("–„ c?p nh?t tr?ng th·i don h‡ng");
+      toast.success("ÔøΩÔøΩ c?p nh?t tr?ng thÔøΩi don hÔøΩng");
     },
     onError: (error: Error) => {
-      toast.error(`C?p nh?t tr?ng th·i th?t b?i: ${error.message}`);
+      toast.error(`C?p nh?t tr?ng thÔøΩi th?t b?i: ${error.message}`);
     },
   });
 
@@ -213,18 +213,18 @@ export default function Orders() {
   );
 
   const tabs = [
-    { key: "all" as const, label: "T?t c?", count: counts.all },
-    { key: "pending" as const, label: "Ch? x? l˝", count: counts.pending },
-    { key: "completed" as const, label: "Ho‡n th‡nh", count: counts.completed },
-    { key: "cancelled" as const, label: "–„ h?y", count: counts.cancelled },
+    { key: "all" as const, label: "T·∫•t c·∫£", count: counts.all },
+    { key: "pending" as const, label: "Ch·ªù x·ª≠ l√Ω", count: counts.pending },
+    { key: "completed" as const, label: "Ho√†n th√†nh", count: counts.completed },
+    { key: "cancelled" as const, label: "ƒê√£ h·ªßy", count: counts.cancelled },
   ];
 
   return (
-    <AppLayout title="–on h‡ng">
+    <AppLayout title="ƒê∆°n h√†ng">
       <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <SummaryCard
-            label="T?ng don"
+            label="T·ªïng ƒë∆°n"
             value={counts.all.toString()}
             icon={<Package className="h-5 w-5 text-primary-foreground" />}
             accent="bg-primary"
@@ -236,13 +236,13 @@ export default function Orders() {
             accent="bg-emerald-100"
           />
           <SummaryCard
-            label="Ch? x? l˝"
+            label="Ch·ªù x·ª≠ l√Ω"
             value={counts.pending.toString()}
             icon={<Clock3 className="h-5 w-5 text-amber-700" />}
             accent="bg-amber-100"
           />
           <SummaryCard
-            label="–„ h?y"
+            label="ƒê√£ h·ªßy"
             value={counts.cancelled.toString()}
             icon={<CircleX className="h-5 w-5 text-rose-700" />}
             accent="bg-rose-100"
@@ -253,7 +253,7 @@ export default function Orders() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="TÏm m„ don, tÍn kh·ch, S–T..."
+              placeholder="T√¨m m√£ ƒë∆°n, t√™n kh√°ch, SƒêT..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-11 pl-10 rounded-xl bg-card border-border shadow-sm"
@@ -289,16 +289,16 @@ export default function Orders() {
         {isLoading ? (
           <div className="py-16 flex flex-col items-center text-muted-foreground">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
-            <p className="text-sm">–ang t?i don h‡ng...</p>
+            <p className="text-sm">ƒêang t·∫£i ƒë∆°n h√†ng...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="py-16 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
               <ClipboardList className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="font-semibold text-foreground mb-1">Chua cÛ don h‡ng</h3>
+            <h3 className="font-semibold text-foreground mb-1">Ch∆∞a c√≥ ƒë∆°n h√†ng</h3>
             <p className="text-sm text-muted-foreground max-w-[280px] mx-auto">
-              –on h‡ng s? hi?n th? ? d‚y sau khi b?n b·n h‡ng
+              ƒê∆°n h√†ng s·∫Ω hi·ªÉn th·ªã ƒë·∫ßy ƒë·ªß sau khi b·∫°n b√°n h√†ng
             </p>
           </div>
         ) : (
@@ -316,7 +316,7 @@ export default function Orders() {
                       <p className="text-base font-semibold text-foreground truncate">{order.order_number}</p>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">
                         {order.customer_name}
-                        {order.customer_phone ? ` ï ${order.customer_phone}` : ""}
+                        {order.customer_phone ? ` ‚Äì ${order.customer_phone}` : ""}
                       </p>
                     </div>
                     <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border ${meta.chipClass}`}>
@@ -326,7 +326,7 @@ export default function Orders() {
                   </div>
 
                   <div className="mt-3 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">{formatTime(order.created_at)} ï {new Date(order.created_at).toLocaleDateString("vi-VN")}</p>
+                    <p className="text-sm text-muted-foreground">{formatTime(order.created_at)} ÔøΩ {new Date(order.created_at).toLocaleDateString("vi-VN")}</p>
                     <div className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                       <CreditCard className="h-3.5 w-3.5" />
                       {getPaymentLabel(order.payment_method)}
@@ -372,7 +372,7 @@ export default function Orders() {
 
                 <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4 space-y-4">
                   <div className="rounded-xl border border-border p-4 bg-card space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kh·ch h‡ng</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">KhÔøΩch hÔøΩng</h4>
                     <p className="text-sm font-semibold text-foreground">{selectedOrder.customer_name}</p>
                     {selectedOrder.customer_phone && (
                       <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
@@ -383,7 +383,7 @@ export default function Orders() {
                   </div>
 
                   <div className="rounded-xl border border-border p-4 bg-card space-y-3">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Thanh to·n</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Thanh toÔøΩn</h4>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
                         <CreditCard className="h-3.5 w-3.5" />
@@ -395,7 +395,7 @@ export default function Orders() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
                           <Star className="h-3.5 w-3.5" />
-                          –i?m d„ d˘ng
+                          ÔøΩi?m dÔøΩ dÔøΩng
                         </span>
                         <span className="text-sm font-medium text-foreground">{selectedOrder.loyalty_points_used}</span>
                       </div>
@@ -406,7 +406,7 @@ export default function Orders() {
                         <div className="space-y-1">
                           <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
                             <StickyNote className="h-3.5 w-3.5" />
-                            Ghi ch˙
+                            Ghi ch√∫
                           </span>
                           <p className="text-sm text-foreground bg-muted/50 rounded-lg px-3 py-2">{selectedOrder.note}</p>
                         </div>
@@ -418,7 +418,7 @@ export default function Orders() {
                     <div className="px-4 py-3 border-b border-border bg-muted/30 inline-flex items-center gap-2">
                       <ReceiptText className="w-4 h-4 text-muted-foreground" />
                       <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        S?n ph?m ({selectedOrder.order_items.length})
+                        S·∫£n ph·∫©m ({selectedOrder.order_items.length})
                       </h4>
                     </div>
                     <div className="divide-y divide-border">
@@ -453,7 +453,7 @@ export default function Orders() {
 
                 <div className="border-t border-border p-5 space-y-4 bg-card">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">T?ng thanh to·n</span>
+                    <span className="text-sm font-medium text-muted-foreground">T·ªïng thanh to√°n</span>
                     <span className="text-xl font-bold text-foreground">{formatPrice(selectedOrder.total_amount)}</span>
                   </div>
 
@@ -465,14 +465,14 @@ export default function Orders() {
                         disabled={updateStatus.isPending}
                         onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
                       >
-                        –·nh d?u h?y
+                        ƒê√°nh d·∫•u h·ªßy
                       </Button>
                       <Button
                         className="h-11 rounded-xl"
                         disabled={updateStatus.isPending}
                         onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "completed" })}
                       >
-                        Ho‡n th‡nh
+                        Ho√†n th√†nh
                       </Button>
                     </div>
                   )}
@@ -485,7 +485,7 @@ export default function Orders() {
 
       {isRefetching && (
         <div className="fixed right-4 bottom-24 z-40 text-xs px-2 py-1 rounded-md bg-card border border-border text-muted-foreground">
-          –ang c?p nh?t...
+          ƒêang c·∫≠p nh·∫≠t...
         </div>
       )}
     </AppLayout>
