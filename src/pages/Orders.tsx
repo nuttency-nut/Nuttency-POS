@@ -161,11 +161,11 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 min-h-[82px]">
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent}`}>{icon}</div>
+    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 min-h-[72px]">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${accent}`}>{icon}</div>
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
-        <p className="text-xl font-bold text-foreground leading-tight truncate mt-0.5">{value}</p>
+        <p className="text-lg font-bold text-foreground leading-tight truncate mt-0.5">{value}</p>
       </div>
     </div>
   );
@@ -399,8 +399,9 @@ export default function Orders() {
 
   return (
     <AppLayout title="Đơn hàng">
-      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+      <div className="h-full min-h-0 flex flex-col overflow-hidden p-4 gap-3">
+        <div className="shrink-0 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
           <SummaryCard
             label="Tổng đơn"
             value={counts.all.toString()}
@@ -425,12 +426,12 @@ export default function Orders() {
             icon={<RotateCcw className="h-5 w-5 text-emerald-700" />}
             accent="bg-emerald-100"
           />
-        </div>
+          </div>
 
-        <div className="space-y-3">
-          <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+          <div className="space-y-2.5">
+            <div className="rounded-xl border border-border bg-card p-2.5 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc ngày</p>
               <button
                 type="button"
                 onClick={() => {
@@ -454,7 +455,7 @@ export default function Orders() {
                     onChange={(e) => setFromDate(e.target.value)}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
-                  <div className="h-10 rounded-lg bg-background border border-border px-3 flex items-center justify-between text-sm">
+                  <div className="h-9 rounded-lg bg-background border border-border px-2.5 flex items-center justify-between text-sm">
                     <span className="font-medium text-foreground">{formatDateOnly(fromDate)}</span>
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -470,51 +471,53 @@ export default function Orders() {
                     onChange={(e) => setToDate(e.target.value)}
                     className="absolute inset-0 opacity-0 cursor-pointer"
                   />
-                  <div className="h-10 rounded-lg bg-background border border-border px-3 flex items-center justify-between text-sm">
+                  <div className="h-9 rounded-lg bg-background border border-border px-2.5 flex items-center justify-between text-sm">
                     <span className="font-medium text-foreground">{formatDateOnly(toDate)}</span>
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </label>
               </div>
             </div>
-          </div>
+            </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Tìm mã đơn, tên khách, SĐT..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-11 pl-10 rounded-xl bg-card border-border shadow-sm"
-            />
-          </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Tìm mã đơn, tên khách, SĐT..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-10 pl-10 rounded-xl bg-card border-border shadow-sm"
+              />
+            </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                  statusFilter === tab.key
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-card text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground"
-                }`}
-              >
-                {tab.label}
-                <span
-                  className={`text-xs font-semibold px-1.5 py-0.5 rounded-md ${
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                     statusFilter === tab.key
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-card text-muted-foreground border border-border hover:bg-accent hover:text-accent-foreground"
                   }`}
                 >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
+                  {tab.label}
+                  <span
+                    className={`text-xs font-semibold px-1.5 py-0.5 rounded-md ${
+                      statusFilter === tab.key
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         {isLoading ? (
           <div className="py-16 flex flex-col items-center text-muted-foreground">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
@@ -577,6 +580,7 @@ export default function Orders() {
             })}
           </div>
         )}
+        </div>
       </div>
 
       <Sheet open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
