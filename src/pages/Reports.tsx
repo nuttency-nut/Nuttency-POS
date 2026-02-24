@@ -1,19 +1,292 @@
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { BarChart3 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  BarChart3,
+  Calendar,
+  CreditCard,
+  Package,
+  Receipt,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
+
+type ReportOrderItem = {
+  product_name: string;
+  qty: number;
+  subtotal: number;
+};
+
+type ReportOrder = {
+  id: string;
+  total_amount: number;
+  status: string;
+  payment_method: string;
+  created_at: string;
+  order_items: ReportOrderItem[];
+};
+
+function getTodayLocalISO() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function startOfDay(dateISO: string) {
+  return `${dateISO}T00:00:00`;
+}
+
+function endOfDay(dateISO: string) {
+  return `${dateISO}T23:59:59.999`;
+}
+
+function formatDateOnly(dateISO: string) {
+  const [y, m, d] = dateISO.split("-");
+  if (!y || !m || !d) return dateISO;
+  return `${d}/${m}/${y}`;
+}
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function getPaymentLabel(method: string) {
+  switch (method) {
+    case "cash":
+      return "Ti?n m?t";
+    case "transfer":
+      return "Chuy?n kho?n";
+    case "momo":
+      return "MoMo";
+    default:
+      return method;
+  }
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">{icon}</span>
+      </div>
+      <p className="text-lg font-bold leading-none text-foreground">{value}</p>
+    </div>
+  );
+}
 
 export default function Reports() {
+  const [fromDate, setFromDate] = useState(getTodayLocalISO());
+  const [toDate, setToDate] = useState(getTodayLocalISO());
+
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ["reports-data", fromDate, toDate],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id,total_amount,status,payment_method,created_at,order_items(product_name,qty,subtotal)")
+        .gte("created_at", startOfDay(fromDate))
+        .lte("created_at", endOfDay(toDate))
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      if (error) throw error;
+      return (data || []) as unknown as ReportOrder[];
+    },
+  });
+
+  const report = useMemo(() => {
+    const completedOrders = orders.filter((o) => o.status === "completed");
+    const cancelledOrders = orders.filter((o) => o.status === "cancelled");
+    const pendingOrders = orders.filter((o) => o.status === "pending");
+
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
+
+    const paymentMap = new Map<string, { count: number; amount: number }>();
+    completedOrders.forEach((order) => {
+      const key = order.payment_method || "other";
+      const prev = paymentMap.get(key) || { count: 0, amount: 0 };
+      paymentMap.set(key, {
+        count: prev.count + 1,
+        amount: prev.amount + Number(order.total_amount || 0),
+      });
+    });
+
+    const productMap = new Map<string, { qty: number; amount: number }>();
+    completedOrders.forEach((order) => {
+      (order.order_items || []).forEach((item) => {
+        const key = item.product_name || "S?n ph?m";
+        const prev = productMap.get(key) || { qty: 0, amount: 0 };
+        productMap.set(key, {
+          qty: prev.qty + Number(item.qty || 0),
+          amount: prev.amount + Number(item.subtotal || 0),
+        });
+      });
+    });
+
+    const topProducts = Array.from(productMap.entries())
+      .map(([name, stat]) => ({ name, ...stat }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    return {
+      totalOrders: orders.length,
+      completedOrders: completedOrders.length,
+      pendingOrders: pendingOrders.length,
+      cancelledOrders: cancelledOrders.length,
+      totalRevenue,
+      avgOrderValue,
+      paymentStats: Array.from(paymentMap.entries()).map(([method, stat]) => ({ method, ...stat })),
+      topProducts,
+    };
+  }, [orders]);
+
   return (
-    <AppLayout title="BÃ¡o cÃ¡o">
-      <div className="p-4">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-            <BarChart3 className="w-8 h-8 text-muted-foreground" />
+    <AppLayout title="Báo cáo">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">B? l?c ngày</p>
+            <button
+              type="button"
+              onClick={() => {
+                const today = getTodayLocalISO();
+                setFromDate(today);
+                setToDate(today);
+              }}
+              className="text-xs font-semibold text-primary"
+            >
+              Hôm nay
+            </button>
           </div>
-          <h3 className="font-semibold text-foreground mb-1">ChÆ°a cÃ³ dá»¯ liá»‡u</h3>
-          <p className="text-sm text-muted-foreground max-w-[240px]">
-            BÃ¡o cÃ¡o sáº½ hiá»ƒn thá»‹ sau khi cÃ³ Ä‘Æ¡n hÃ ng
-          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-xs text-muted-foreground">T? ngày</span>
+              <label className="relative block">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="h-9 rounded-lg border border-border bg-background px-2.5 flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{formatDateOnly(fromDate)}</span>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </label>
+            </label>
+
+            <label className="space-y-1">
+              <span className="text-xs text-muted-foreground">Ð?n ngày</span>
+              <label className="relative block">
+                <input
+                  type="date"
+                  value={toDate}
+                  min={fromDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="h-9 rounded-lg border border-border bg-background px-2.5 flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{formatDateOnly(toDate)}</span>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </label>
+            </label>
+          </div>
         </div>
+
+        {isLoading ? (
+          <div className="py-16 flex flex-col items-center text-muted-foreground">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+            <p className="text-sm">Ðang t?i báo cáo...</p>
+          </div>
+        ) : report.totalOrders === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+              <BarChart3 className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1">Chua có d? li?u</h3>
+            <p className="text-sm text-muted-foreground max-w-[240px]">
+              Báo cáo s? hi?n th? sau khi có don hàng trong kho?ng th?i gian b?n ch?n.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2.5">
+              <StatCard label="T?ng don" value={report.totalOrders.toString()} icon={<Receipt className="h-4 w-4 text-primary" />} />
+              <StatCard label="Hoàn thành" value={report.completedOrders.toString()} icon={<TrendingUp className="h-4 w-4 text-emerald-500" />} />
+              <StatCard label="Ch? x? lý" value={report.pendingOrders.toString()} icon={<Package className="h-4 w-4 text-amber-500" />} />
+              <StatCard label="Ðã h?y" value={report.cancelledOrders.toString()} icon={<BarChart3 className="h-4 w-4 text-rose-500" />} />
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">Doanh thu</span>
+                <Wallet className="h-4 w-4 text-primary" />
+              </div>
+              <p className="text-2xl font-bold text-foreground">{formatPrice(report.totalRevenue)}</p>
+              <p className="text-xs text-muted-foreground">
+                Trung bình don hoàn thành: <span className="font-semibold text-foreground">{formatPrice(report.avgOrderValue)}</span>
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Phuong th?c thanh toán</h3>
+              {report.paymentStats.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chua có don hoàn thành.</p>
+              ) : (
+                <div className="space-y-2">
+                  {report.paymentStats.map((payment) => (
+                    <div key={payment.method} className="rounded-lg border border-border bg-background px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                          {getPaymentLabel(payment.method)}
+                        </span>
+                        <span className="text-sm font-semibold text-foreground">{formatPrice(payment.amount)}</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{payment.count} don</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Top s?n ph?m</h3>
+              {report.topProducts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chua có d? li?u s?n ph?m.</p>
+              ) : (
+                <div className="space-y-2">
+                  {report.topProducts.map((product, idx) => (
+                    <div key={`${product.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">{product.qty} lu?t bán</p>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{formatPrice(product.amount)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </AppLayout>
   );
