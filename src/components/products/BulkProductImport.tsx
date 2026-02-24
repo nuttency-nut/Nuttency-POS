@@ -20,7 +20,24 @@ interface BulkProductImportProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const COLUMN_MAP: Record<string, keyof BulkProductRow> = {
+type RawImportRow = {
+  name: string;
+  barcode: string;
+  cost_price: number;
+  selling_price: number;
+  unit: string;
+  category_name: string;
+  min_stock: number;
+  description: string;
+  is_active: boolean;
+  image_url: string;
+  classification_group_name: string;
+  classification_option_name: string;
+  classification_extra_price: number;
+  _lineNo: number;
+};
+
+const COLUMN_MAP: Record<string, keyof RawImportRow> = {
   "Tên sản phẩm": "name",
   Barcode: "barcode",
   "Giá vốn": "cost_price",
@@ -31,33 +48,197 @@ const COLUMN_MAP: Record<string, keyof BulkProductRow> = {
   "Mô tả": "description",
   "Trạng thái": "is_active",
   "Link ảnh": "image_url",
-  "Phân loại": "classifications",
+  "Nhóm phân loại": "classification_group_name",
+  "Tên phân loại": "classification_option_name",
+  "Giá phân loại": "classification_extra_price",
 };
 
 const REQUIRED_COLS = ["Tên sản phẩm"];
 
 function generateTemplate() {
   const headers = Object.keys(COLUMN_MAP);
-  const sampleRow = [
-    "Cà phê sữa đá",
-    "CF001",
-    15000,
-    29000,
-    "ly",
-    "Đồ uống",
-    10,
-    "Cà phê pha phin truyền thống",
-    "Có",
-    "",
-    "Size:S:0|Size:M:5000|Size:L:10000|Topping:Trân châu:8000",
+  const sampleRows = [
+    [
+      "Cà phê sữa đá",
+      "CF001",
+      15000,
+      29000,
+      "ly",
+      "Đồ uống",
+      10,
+      "Cà phê pha phin truyền thống",
+      "Có",
+      "",
+      "Size",
+      "M",
+      5000,
+    ],
+    [
+      "Cà phê sữa đá",
+      "CF001",
+      15000,
+      29000,
+      "ly",
+      "Đồ uống",
+      10,
+      "Cà phê pha phin truyền thống",
+      "Có",
+      "",
+      "Size",
+      "L",
+      10000,
+    ],
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
   ws["!cols"] = headers.map((header) => ({ wch: Math.max(header.length + 4, 16) }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Sản phẩm");
   XLSX.writeFile(wb, "mau-import-san-pham.xlsx");
+}
+
+function normalizeText(value: string | undefined) {
+  return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function composeProductKey(row: RawImportRow) {
+  if (row.barcode?.trim()) return `barcode:${row.barcode.trim().toLowerCase()}`;
+  return `name:${normalizeText(row.name)}|category:${normalizeText(row.category_name)}|unit:${normalizeText(row.unit)}`;
+}
+
+function composeBaseSignature(row: RawImportRow) {
+  return [
+    normalizeText(row.name),
+    normalizeText(row.barcode),
+    String(row.cost_price || 0),
+    String(row.selling_price || 0),
+    normalizeText(row.unit),
+    normalizeText(row.category_name),
+    String(row.min_stock || 0),
+    normalizeText(row.description),
+    row.is_active ? "1" : "0",
+    normalizeText(row.image_url),
+  ].join("|");
+}
+
+function parseSheetRows(jsonRows: Array<Record<string, unknown>>) {
+  const parseErrors: string[] = [];
+  const rawRows: RawImportRow[] = [];
+
+  for (let i = 0; i < jsonRows.length; i++) {
+    const raw = jsonRows[i];
+    const row: Partial<RawImportRow> = { _lineNo: i + 2 };
+
+    for (const [header, fieldKey] of Object.entries(COLUMN_MAP)) {
+      const value = raw[header];
+      if (value === undefined || value === null || value === "") continue;
+
+      switch (fieldKey) {
+        case "cost_price":
+        case "selling_price":
+        case "min_stock":
+        case "classification_extra_price":
+          row[fieldKey] = Number(value) || 0;
+          break;
+        case "is_active": {
+          const lower = String(value).toLowerCase();
+          row[fieldKey] = lower !== "không" && lower !== "no" && lower !== "false" && String(value) !== "0";
+          break;
+        }
+        default:
+          (row as Record<string, unknown>)[fieldKey] = String(value);
+          break;
+      }
+    }
+
+    if (!row.name?.trim()) {
+      parseErrors.push(`Dòng ${i + 2}: thiếu \"Tên sản phẩm\"`);
+      continue;
+    }
+
+    rawRows.push({
+      name: row.name || "",
+      barcode: row.barcode || "",
+      cost_price: row.cost_price || 0,
+      selling_price: row.selling_price || 0,
+      unit: row.unit || "cái",
+      category_name: row.category_name || "",
+      min_stock: row.min_stock || 0,
+      description: row.description || "",
+      is_active: row.is_active !== false,
+      image_url: row.image_url || "",
+      classification_group_name: row.classification_group_name || "",
+      classification_option_name: row.classification_option_name || "",
+      classification_extra_price: row.classification_extra_price || 0,
+      _lineNo: row._lineNo || i + 2,
+    });
+  }
+
+  return { rawRows, parseErrors };
+}
+
+function consolidateRows(rawRows: RawImportRow[]) {
+  const groupMap = new Map<
+    string,
+    {
+      base: RawImportRow;
+      baseSignature: string;
+      classificationSet: Set<string>;
+      lines: number[];
+    }
+  >();
+
+  const errors: string[] = [];
+
+  for (const row of rawRows) {
+    const key = composeProductKey(row);
+    const signature = composeBaseSignature(row);
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        base: row,
+        baseSignature: signature,
+        classificationSet: new Set<string>(),
+        lines: [row._lineNo],
+      });
+    } else {
+      const grouped = groupMap.get(key)!;
+      grouped.lines.push(row._lineNo);
+      if (grouped.baseSignature !== signature) {
+        errors.push(
+          `Dòng ${row._lineNo}: thông tin sản phẩm không đồng nhất với các dòng cùng sản phẩm (${grouped.lines.join(", ")}).`
+        );
+        continue;
+      }
+    }
+
+    const target = groupMap.get(key)!;
+    if (row.classification_group_name.trim() || row.classification_option_name.trim()) {
+      if (!row.classification_group_name.trim() || !row.classification_option_name.trim()) {
+        errors.push(`Dòng ${row._lineNo}: phải nhập đủ \"Nhóm phân loại\" và \"Tên phân loại\".`);
+      } else {
+        const classificationToken = `${row.classification_group_name.trim()}:${row.classification_option_name.trim()}:${row.classification_extra_price || 0}`;
+        target.classificationSet.add(classificationToken);
+      }
+    }
+  }
+
+  const rows: BulkProductRow[] = Array.from(groupMap.values()).map(({ base, classificationSet }) => ({
+    name: base.name,
+    barcode: base.barcode,
+    cost_price: base.cost_price,
+    selling_price: base.selling_price,
+    unit: base.unit,
+    category_name: base.category_name,
+    min_stock: base.min_stock,
+    description: base.description,
+    is_active: base.is_active,
+    image_url: base.image_url,
+    classifications: Array.from(classificationSet).join("|"),
+  }));
+
+  return { rows, errors };
 }
 
 export default function BulkProductImport({ open, onOpenChange }: BulkProductImportProps) {
@@ -96,51 +277,19 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
         return;
       }
 
-      const parsedRows: BulkProductRow[] = [];
-      const parseErrors: string[] = [];
+      const { rawRows, parseErrors } = parseSheetRows(jsonRows);
+      const { rows: consolidatedRows, errors: consolidateErrors } = consolidateRows(rawRows);
 
-      for (let i = 0; i < jsonRows.length; i++) {
-        const raw = jsonRows[i];
-        const row: Partial<BulkProductRow> = {};
+      const nextErrors = [...parseErrors, ...consolidateErrors];
 
-        for (const [header, fieldKey] of Object.entries(COLUMN_MAP)) {
-          const value = raw[header];
-          if (value === undefined || value === null || value === "") continue;
-
-          switch (fieldKey) {
-            case "cost_price":
-            case "selling_price":
-            case "min_stock":
-              row[fieldKey] = Number(value) || 0;
-              break;
-            case "is_active": {
-              const lower = String(value).toLowerCase();
-              row[fieldKey] = lower !== "không" && lower !== "no" && lower !== "false" && String(value) !== "0";
-              break;
-            }
-            default:
-              (row as Record<string, unknown>)[fieldKey] = String(value);
-              break;
-          }
-        }
-
-        if (!row.name?.trim()) {
-          parseErrors.push(`Dòng ${i + 2}: thiếu "Tên sản phẩm"`);
-          continue;
-        }
-
-        parsedRows.push(row as BulkProductRow);
-      }
-
-      const barcodes = parsedRows.map((row) => row.barcode?.trim()).filter(Boolean) as string[];
+      const barcodes = consolidatedRows.map((row) => row.barcode?.trim()).filter(Boolean) as string[];
       if (barcodes.length > 0) {
-        const { data: existing } = await supabase
-          .from("products")
-          .select("id, barcode")
-          .in("barcode", barcodes);
+        const { data: existing } = await supabase.from("products").select("id, barcode").in("barcode", barcodes);
 
-        const existedMap = new Map((existing || []).map((item: { id: string; barcode: string }) => [item.barcode, item.id]));
-        parsedRows.forEach((row) => {
+        const existedMap = new Map(
+          (existing || []).map((item: { id: string; barcode: string }) => [item.barcode, item.id])
+        );
+        consolidatedRows.forEach((row) => {
           const existedId = row.barcode?.trim() ? existedMap.get(row.barcode.trim()) : undefined;
           if (existedId) {
             row._status = "update";
@@ -150,13 +299,13 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
           }
         });
       } else {
-        parsedRows.forEach((row) => {
+        consolidatedRows.forEach((row) => {
           row._status = "new";
         });
       }
 
-      setRows(parsedRows);
-      setErrors(parseErrors);
+      setRows(consolidatedRows);
+      setErrors(nextErrors);
       setStep("preview");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không đọc được file";
@@ -186,7 +335,7 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
             Import sản phẩm từ Excel
           </DialogTitle>
           <DialogDescription>
-            Upload file Excel để thêm hoặc cập nhật sản phẩm hàng loạt.
+            File Excel nhập theo nhiều dòng phân loại, hệ thống sẽ tự gom thành một sản phẩm.
           </DialogDescription>
         </DialogHeader>
 
@@ -237,9 +386,10 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                <strong>Phân loại:</strong> Nhóm:Tùy chọn:Giá thêm, cách nhau bởi "|".
-                <br />
-                Ví dụ: <code className="bg-muted px-1 rounded">Size:S:0|Size:M:5000|Topping:Trân châu:8000</code>
+                Mỗi dòng là một phân loại của cùng sản phẩm. Muốn thêm nhiều phân loại thì lặp lại dòng sản phẩm, chỉ thay 3 cột:
+                <code className="bg-muted px-1 rounded ml-1">Nhóm phân loại</code>,
+                <code className="bg-muted px-1 rounded ml-1">Tên phân loại</code>,
+                <code className="bg-muted px-1 rounded ml-1">Giá phân loại</code>.
               </p>
             </div>
 
@@ -285,7 +435,7 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
             )}
 
             <ScrollArea className="flex-1 min-h-0 border rounded-lg">
-              <div className="min-w-[720px]">
+              <div className="min-w-[760px]">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/70 sticky top-0">
                     <tr>
@@ -293,11 +443,9 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
                       <th className="p-2 text-left font-medium">Trạng thái</th>
                       <th className="p-2 text-left font-medium">Tên sản phẩm</th>
                       <th className="p-2 text-left font-medium">Barcode</th>
-                      <th className="p-2 text-right font-medium">Giá vốn</th>
                       <th className="p-2 text-right font-medium">Giá bán</th>
-                      <th className="p-2 text-left font-medium">Đơn vị</th>
                       <th className="p-2 text-left font-medium">Danh mục</th>
-                      <th className="p-2 text-left font-medium">Phân loại</th>
+                      <th className="p-2 text-left font-medium">Phân loại đã gom</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -317,11 +465,9 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
                         </td>
                         <td className="p-2 font-medium max-w-[180px] truncate">{row.name}</td>
                         <td className="p-2 text-muted-foreground">{row.barcode || "-"}</td>
-                        <td className="p-2 text-right">{Number(row.cost_price || 0).toLocaleString("vi-VN")}</td>
                         <td className="p-2 text-right">{Number(row.selling_price || 0).toLocaleString("vi-VN")}</td>
-                        <td className="p-2">{row.unit || "cái"}</td>
                         <td className="p-2">{row.category_name || "-"}</td>
-                        <td className="p-2 max-w-[160px] truncate text-muted-foreground">{row.classifications || "-"}</td>
+                        <td className="p-2 max-w-[260px] truncate text-muted-foreground">{row.classifications || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -337,7 +483,7 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
               <RotateCw className="w-6 h-6 text-primary animate-spin" />
             </div>
             <p className="font-medium text-foreground">Đang import sản phẩm...</p>
-            <p className="text-sm text-muted-foreground">{rows.length} dòng dữ liệu</p>
+            <p className="text-sm text-muted-foreground">{rows.length} sản phẩm sau khi gom</p>
           </div>
         )}
 
