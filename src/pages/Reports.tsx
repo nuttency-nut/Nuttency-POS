@@ -1,13 +1,18 @@
 ﻿import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import {
   BarChart3,
   CreditCard,
+  Download,
   Package,
-  Receipt,
+  RefreshCw,
+  ShoppingCart,
+  TrendingDown,
   TrendingUp,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -23,6 +28,8 @@ type ReportOrder = {
   status: string;
   payment_method: string;
   created_at: string;
+  customer_name: string | null;
+  customer_phone: string | null;
   order_items: ReportOrderItem[];
 };
 
@@ -32,6 +39,13 @@ function formatPrice(value: number) {
     currency: "VND",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatCompact(value: number) {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return value.toString();
 }
 
 function getPaymentLabel(method: string) {
@@ -47,35 +61,67 @@ function getPaymentLabel(method: string) {
   }
 }
 
-function StatCard({
-  label,
+function toLocalDateKey(dateString: string) {
+  const date = new Date(dateString);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function shiftDateKey(dateKey: string, days: number) {
+  const d = new Date(`${dateKey}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function getTrendPercent(today: number, yesterday: number) {
+  if (yesterday <= 0) return today > 0 ? 100 : 0;
+  return ((today - yesterday) / yesterday) * 100;
+}
+
+function KpiCard({
+  title,
   value,
+  trend,
   icon,
 }: {
-  label: string;
+  title: string;
   value: string;
+  trend: number;
   icon: React.ReactNode;
 }) {
+  const isUp = trend >= 0;
+  const TrendIcon = isUp ? TrendingUp : TrendingDown;
+
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">{icon}</span>
+    <div className="rounded-xl border border-border bg-card px-4 py-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <p className="text-sm font-semibold text-muted-foreground">{title}</p>
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">{icon}</span>
       </div>
-      <p className="text-lg font-bold leading-none text-foreground">{value}</p>
+
+      <p className="text-3xl leading-none font-extrabold tracking-tight text-foreground">{value}</p>
+
+      <div className={`mt-3 inline-flex items-center gap-1.5 text-sm font-semibold ${isUp ? "text-emerald-600" : "text-rose-500"}`}>
+        <TrendIcon className="h-4 w-4" />
+        <span>{isUp ? "+" : ""}{trend.toFixed(1)}%</span>
+        <span className="font-medium text-muted-foreground ml-1">so với hôm qua</span>
+      </div>
     </div>
   );
 }
 
 export default function Reports() {
-  const { data: orders = [], isLoading } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data: orders = [], isLoading, isFetching } = useQuery({
     queryKey: ["reports-data"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id,total_amount,status,payment_method,created_at,order_items(product_name,qty,subtotal)")
+        .select("id,total_amount,status,payment_method,created_at,customer_name,customer_phone,order_items(product_name,qty,subtotal)")
         .order("created_at", { ascending: false })
-        .limit(1000);
+        .limit(2000);
 
       if (error) throw error;
       return (data || []) as unknown as ReportOrder[];
@@ -83,12 +129,31 @@ export default function Reports() {
   });
 
   const report = useMemo(() => {
-    const completedOrders = orders.filter((o) => o.status === "completed");
-    const cancelledOrders = orders.filter((o) => o.status === "cancelled");
-    const pendingOrders = orders.filter((o) => o.status === "pending");
+    const todayKey = toLocalDateKey(new Date().toISOString());
+    const yesterdayKey = shiftDateKey(todayKey, -1);
 
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-    const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
+    const completedOrders = orders.filter((o) => o.status === "completed");
+
+    const ordersToday = orders.filter((o) => toLocalDateKey(o.created_at) === todayKey);
+    const ordersYesterday = orders.filter((o) => toLocalDateKey(o.created_at) === yesterdayKey);
+
+    const completedToday = completedOrders.filter((o) => toLocalDateKey(o.created_at) === todayKey);
+    const completedYesterday = completedOrders.filter((o) => toLocalDateKey(o.created_at) === yesterdayKey);
+
+    const revenueToday = completedToday.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const revenueYesterday = completedYesterday.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+    const uniqueCustomerToday = new Set(
+      ordersToday.map((o) => o.customer_phone || (o.customer_name || "Khách lẻ").toLowerCase())
+    ).size;
+    const uniqueCustomerYesterday = new Set(
+      ordersYesterday.map((o) => o.customer_phone || (o.customer_name || "Khách lẻ").toLowerCase())
+    ).size;
+
+    const avgToday = completedToday.length > 0 ? revenueToday / completedToday.length : 0;
+    const avgYesterday = completedYesterday.length > 0
+      ? completedYesterday.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) / completedYesterday.length
+      : 0;
 
     const paymentMap = new Map<string, { count: number; amount: number }>();
     completedOrders.forEach((order) => {
@@ -117,21 +182,75 @@ export default function Reports() {
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
 
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
     return {
-      totalOrders: orders.length,
-      completedOrders: completedOrders.length,
-      pendingOrders: pendingOrders.length,
-      cancelledOrders: cancelledOrders.length,
+      kpi: {
+        revenue: revenueToday,
+        revenueTrend: getTrendPercent(revenueToday, revenueYesterday),
+        orders: ordersToday.length,
+        ordersTrend: getTrendPercent(ordersToday.length, ordersYesterday.length),
+        customers: uniqueCustomerToday,
+        customersTrend: getTrendPercent(uniqueCustomerToday, uniqueCustomerYesterday),
+        avgValue: avgToday,
+        avgValueTrend: getTrendPercent(avgToday, avgYesterday),
+      },
       totalRevenue,
-      avgOrderValue,
       paymentStats: Array.from(paymentMap.entries()).map(([method, stat]) => ({ method, ...stat })),
       topProducts,
+      totalOrders: orders.length,
     };
   }, [orders]);
 
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["reports-data"] });
+  };
+
+  const handleExport = () => {
+    const lines = [
+      ["Báo cáo tổng quan"],
+      ["Tổng đơn", report.totalOrders.toString()],
+      ["Doanh thu", report.totalRevenue.toString()],
+      [],
+      ["Phương thức", "Số đơn", "Doanh thu"],
+      ...report.paymentStats.map((p) => [getPaymentLabel(p.method), p.count.toString(), p.amount.toString()]),
+      [],
+      ["Top sản phẩm", "Số lượng", "Doanh thu"],
+      ...report.topProducts.map((p) => [p.name, p.qty.toString(), p.amount.toString()]),
+    ];
+
+    const csv = lines.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bao-cao-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <AppLayout title="Báo cáo">
-      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-3">
+    <AppLayout
+      title="Báo cáo"
+      headerRight={
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9 rounded-xl gap-1.5" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Xuất báo cáo</span>
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={handleRefresh}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      }
+    >
+      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
+        <div className="px-0.5">
+          <p className="text-sm text-muted-foreground">Tổng quan hoạt động kinh doanh</p>
+        </div>
+
         {isLoading ? (
           <div className="py-16 flex flex-col items-center text-muted-foreground">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
@@ -143,28 +262,15 @@ export default function Reports() {
               <BarChart3 className="w-8 h-8 text-muted-foreground" />
             </div>
             <h3 className="font-semibold text-foreground mb-1">Chưa có dữ liệu</h3>
-            <p className="text-sm text-muted-foreground max-w-[240px]">
-              Báo cáo sẽ hiển thị sau khi có đơn hàng.
-            </p>
+            <p className="text-sm text-muted-foreground max-w-[240px]">Báo cáo sẽ hiển thị sau khi có đơn hàng.</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label="Tổng đơn" value={report.totalOrders.toString()} icon={<Receipt className="h-4 w-4 text-primary" />} />
-              <StatCard label="Hoàn thành" value={report.completedOrders.toString()} icon={<TrendingUp className="h-4 w-4 text-emerald-500" />} />
-              <StatCard label="Chờ xử lý" value={report.pendingOrders.toString()} icon={<Package className="h-4 w-4 text-amber-500" />} />
-              <StatCard label="Đã hủy" value={report.cancelledOrders.toString()} icon={<BarChart3 className="h-4 w-4 text-rose-500" />} />
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">Doanh thu</span>
-                <Wallet className="h-4 w-4 text-primary" />
-              </div>
-              <p className="text-2xl font-bold text-foreground">{formatPrice(report.totalRevenue)}</p>
-              <p className="text-xs text-muted-foreground">
-                Trung bình đơn hoàn thành: <span className="font-semibold text-foreground">{formatPrice(report.avgOrderValue)}</span>
-              </p>
+            <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
+              <KpiCard title="Doanh thu" value={formatCompact(report.kpi.revenue)} trend={report.kpi.revenueTrend} icon={<Wallet className="h-5 w-5" />} />
+              <KpiCard title="Đơn hàng" value={report.kpi.orders.toString()} trend={report.kpi.ordersTrend} icon={<ShoppingCart className="h-5 w-5" />} />
+              <KpiCard title="Khách hàng" value={report.kpi.customers.toString()} trend={report.kpi.customersTrend} icon={<Users className="h-5 w-5" />} />
+              <KpiCard title="Giá trị TB" value={formatCompact(report.kpi.avgValue)} trend={report.kpi.avgValueTrend} icon={<Package className="h-5 w-5" />} />
             </div>
 
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
