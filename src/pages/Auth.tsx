@@ -64,7 +64,11 @@ export default function Auth() {
       >
         {/* Logo */}
         <div className="text-center space-y-3">
-          <img src={logo} alt="Logo" className="w-8 h-8 object-contain" />
+          <img 
+            src={logo} 
+            alt="Logo" 
+            className="w-8 h-8 object-contain mx-auto" 
+          />
           <div>
             <h1 className="text-2xl font-bold text-foreground">NUT POS</h1>
             <p className="text-muted-foreground text-sm mt-1">

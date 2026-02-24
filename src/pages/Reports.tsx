@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import {
   BarChart3,
-  Calendar,
   CreditCard,
   Package,
   Receipt,
@@ -27,26 +26,6 @@ type ReportOrder = {
   order_items: ReportOrderItem[];
 };
 
-function getTodayLocalISO() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-}
-
-function startOfDay(dateISO: string) {
-  return `${dateISO}T00:00:00`;
-}
-
-function endOfDay(dateISO: string) {
-  return `${dateISO}T23:59:59.999`;
-}
-
-function formatDateOnly(dateISO: string) {
-  const [y, m, d] = dateISO.split("-");
-  if (!y || !m || !d) return dateISO;
-  return `${d}/${m}/${y}`;
-}
-
 function formatPrice(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -58,9 +37,9 @@ function formatPrice(value: number) {
 function getPaymentLabel(method: string) {
   switch (method) {
     case "cash":
-      return "Ti?n m?t";
+      return "Tiền mặt";
     case "transfer":
-      return "Chuy?n kho?n";
+      return "Chuyển khoản";
     case "momo":
       return "MoMo";
     default:
@@ -89,17 +68,12 @@ function StatCard({
 }
 
 export default function Reports() {
-  const [fromDate, setFromDate] = useState(getTodayLocalISO());
-  const [toDate, setToDate] = useState(getTodayLocalISO());
-
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["reports-data", fromDate, toDate],
+    queryKey: ["reports-data"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id,total_amount,status,payment_method,created_at,order_items(product_name,qty,subtotal)")
-        .gte("created_at", startOfDay(fromDate))
-        .lte("created_at", endOfDay(toDate))
         .order("created_at", { ascending: false })
         .limit(1000);
 
@@ -129,7 +103,7 @@ export default function Reports() {
     const productMap = new Map<string, { qty: number; amount: number }>();
     completedOrders.forEach((order) => {
       (order.order_items || []).forEach((item) => {
-        const key = item.product_name || "S?n ph?m";
+        const key = item.product_name || "Sản phẩm";
         const prev = productMap.get(key) || { qty: 0, amount: 0 };
         productMap.set(key, {
           qty: prev.qty + Number(item.qty || 0),
@@ -156,82 +130,30 @@ export default function Reports() {
   }, [orders]);
 
   return (
-    <AppLayout title="B�o c�o">
+    <AppLayout title="Báo cáo">
       <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-3">
-        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">B? l?c ng�y</p>
-            <button
-              type="button"
-              onClick={() => {
-                const today = getTodayLocalISO();
-                setFromDate(today);
-                setToDate(today);
-              }}
-              className="text-xs font-semibold text-primary"
-            >
-              H�m nay
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-xs text-muted-foreground">T? ng�y</span>
-              <label className="relative block">
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <div className="h-9 rounded-lg border border-border bg-background px-2.5 flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">{formatDateOnly(fromDate)}</span>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </label>
-            </label>
-
-            <label className="space-y-1">
-              <span className="text-xs text-muted-foreground">�?n ng�y</span>
-              <label className="relative block">
-                <input
-                  type="date"
-                  value={toDate}
-                  min={fromDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <div className="h-9 rounded-lg border border-border bg-background px-2.5 flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">{formatDateOnly(toDate)}</span>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </label>
-            </label>
-          </div>
-        </div>
-
         {isLoading ? (
           <div className="py-16 flex flex-col items-center text-muted-foreground">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
-            <p className="text-sm">�ang t?i b�o c�o...</p>
+            <p className="text-sm">Đang tải báo cáo...</p>
           </div>
         ) : report.totalOrders === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
               <BarChart3 className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="font-semibold text-foreground mb-1">Chua c� d? li?u</h3>
+            <h3 className="font-semibold text-foreground mb-1">Chưa có dữ liệu</h3>
             <p className="text-sm text-muted-foreground max-w-[240px]">
-              B�o c�o s? hi?n th? sau khi c� don h�ng trong kho?ng th?i gian b?n ch?n.
+              Báo cáo sẽ hiển thị sau khi có đơn hàng.
             </p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2.5">
-              <StatCard label="T?ng don" value={report.totalOrders.toString()} icon={<Receipt className="h-4 w-4 text-primary" />} />
-              <StatCard label="Ho�n th�nh" value={report.completedOrders.toString()} icon={<TrendingUp className="h-4 w-4 text-emerald-500" />} />
-              <StatCard label="Ch? x? l�" value={report.pendingOrders.toString()} icon={<Package className="h-4 w-4 text-amber-500" />} />
-              <StatCard label="�� h?y" value={report.cancelledOrders.toString()} icon={<BarChart3 className="h-4 w-4 text-rose-500" />} />
+              <StatCard label="Tổng đơn" value={report.totalOrders.toString()} icon={<Receipt className="h-4 w-4 text-primary" />} />
+              <StatCard label="Hoàn thành" value={report.completedOrders.toString()} icon={<TrendingUp className="h-4 w-4 text-emerald-500" />} />
+              <StatCard label="Chờ xử lý" value={report.pendingOrders.toString()} icon={<Package className="h-4 w-4 text-amber-500" />} />
+              <StatCard label="Đã hủy" value={report.cancelledOrders.toString()} icon={<BarChart3 className="h-4 w-4 text-rose-500" />} />
             </div>
 
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
@@ -241,14 +163,14 @@ export default function Reports() {
               </div>
               <p className="text-2xl font-bold text-foreground">{formatPrice(report.totalRevenue)}</p>
               <p className="text-xs text-muted-foreground">
-                Trung b�nh don ho�n th�nh: <span className="font-semibold text-foreground">{formatPrice(report.avgOrderValue)}</span>
+                Trung bình đơn hoàn thành: <span className="font-semibold text-foreground">{formatPrice(report.avgOrderValue)}</span>
               </p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Phuong th?c thanh to�n</h3>
+              <h3 className="text-sm font-semibold text-foreground">Phương thức thanh toán</h3>
               {report.paymentStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chua c� don ho�n th�nh.</p>
+                <p className="text-sm text-muted-foreground">Chưa có đơn hoàn thành.</p>
               ) : (
                 <div className="space-y-2">
                   {report.paymentStats.map((payment) => (
@@ -260,7 +182,7 @@ export default function Reports() {
                         </span>
                         <span className="text-sm font-semibold text-foreground">{formatPrice(payment.amount)}</span>
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{payment.count} don</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{payment.count} đơn</p>
                     </div>
                   ))}
                 </div>
@@ -268,16 +190,16 @@ export default function Reports() {
             </div>
 
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Top s?n ph?m</h3>
+              <h3 className="text-sm font-semibold text-foreground">Top sản phẩm</h3>
               {report.topProducts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chua c� d? li?u s?n ph?m.</p>
+                <p className="text-sm text-muted-foreground">Chưa có dữ liệu sản phẩm.</p>
               ) : (
                 <div className="space-y-2">
                   {report.topProducts.map((product, idx) => (
                     <div key={`${product.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.qty} lu?t b�n</p>
+                        <p className="text-xs text-muted-foreground">{product.qty} lượt bán</p>
                       </div>
                       <p className="text-sm font-semibold text-foreground">{formatPrice(product.amount)}</p>
                     </div>
