@@ -1,14 +1,37 @@
-import { useState, useMemo } from "react";
+﻿import { useMemo, useState } from "react";
+import { ChevronDown, FileSpreadsheet, Plus, SlidersHorizontal } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
-import { Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import CategoryManager from "@/components/products/CategoryManager";
 import ProductList from "@/components/products/ProductList";
 import ProductSearch from "@/components/products/ProductSearch";
 import ProductForm from "@/components/products/ProductForm";
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, Product, ProductFormValues } from "@/hooks/useProducts";
+import BulkProductImport from "@/components/products/BulkProductImport";
+import {
+  Product,
+  ProductFormValues,
+  useCreateProduct,
+  useDeleteProduct,
+  useProducts,
+  useUpdateProduct,
+} from "@/hooks/useProducts";
 
 export default function Products() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -17,6 +40,7 @@ export default function Products() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const { data: products = [], isLoading } = useProducts(selectedCategoryId);
   const createProduct = useCreateProduct();
@@ -26,11 +50,7 @@ export default function Products() {
   const filteredProducts = useMemo(() => {
     if (!search.trim()) return products;
     const q = search.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.barcode?.toLowerCase().includes(q)
-    );
+    return products.filter((p) => p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q));
   }, [products, search]);
 
   const handleCreate = () => {
@@ -59,7 +79,6 @@ export default function Products() {
     setDeletingProduct(null);
   };
 
-  // Show product form full screen
   if (showForm) {
     return (
       <ProductForm
@@ -101,10 +120,26 @@ export default function Products() {
               </div>
             </SheetContent>
           </Sheet>
-          <Button size="sm" className="rounded-xl gap-1.5 h-9" onClick={handleCreate}>
-            <Plus className="w-4 h-4" />
-            Thêm
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="rounded-xl gap-1.5 h-9">
+                <Plus className="w-4 h-4" />
+                Thêm
+                <ChevronDown className="w-4 h-4 opacity-80" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={handleCreate}>
+                <Plus className="w-4 h-4 mr-2" />
+                Khai báo từng sản phẩm
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBulkImportOpen(true)}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Khai báo hàng loạt (Excel)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -114,11 +149,15 @@ export default function Products() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
-          <ProductList products={filteredProducts} isLoading={isLoading} onSelect={handleEdit} onDelete={setDeletingProduct} />
+          <ProductList
+            products={filteredProducts}
+            isLoading={isLoading}
+            onSelect={handleEdit}
+            onDelete={setDeletingProduct}
+          />
         </div>
       </div>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
         <AlertDialogContent className="max-w-sm mx-auto">
           <AlertDialogHeader>
@@ -138,6 +177,8 @@ export default function Products() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BulkProductImport open={bulkImportOpen} onOpenChange={setBulkImportOpen} />
     </AppLayout>
   );
 }
