@@ -78,6 +78,9 @@ export default function CheckoutSheet({
   userId,
   embedded = false,
 }: CheckoutSheetProps) {
+  const VCB_BANK_BIN = "970436";
+  const VCB_ACCOUNT_NUMBER = "1036448212";
+
   const [useLoyalty, setUseLoyalty] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -94,6 +97,7 @@ export default function CheckoutSheet({
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [orderNote, setOrderNote] = useState("");
+  const [transferContent, setTransferContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -151,6 +155,8 @@ export default function CheckoutSheet({
   const loyaltyDiscount = loyaltyPointsToUse * pointValue;
 
   const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
+  const normalizedTransferContent = transferContent.trim() || "THANH TOAN DON HANG";
+  const transferQrUrl = `https://img.vietqr.io/image/${VCB_BANK_BIN}-${VCB_ACCOUNT_NUMBER}-compact2.png?amount=${finalAmount}&addInfo=${encodeURIComponent(normalizedTransferContent)}`;
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
   const changeAmount = paymentMethod === "cash" ? cashReceivedNum - finalAmount : 0;
@@ -203,6 +209,7 @@ export default function CheckoutSheet({
       setScannerOpen(false);
 
       setOrderNote("");
+      setTransferContent("THANH TOAN DON HANG");
     }
   }, [open]);
 
@@ -578,6 +585,34 @@ export default function CheckoutSheet({
                       </span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {paymentMethod === "transfer" && (
+                <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+                  <div className="space-y-0.5 text-xs">
+                    <p className="text-muted-foreground">Ngân hàng</p>
+                    <p className="font-semibold text-foreground">Vietcombank (VCB) - STK {VCB_ACCOUNT_NUMBER}</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Nội dung chuyển khoản</p>
+                    <Input
+                      value={transferContent}
+                      onChange={(e) => setTransferContent(e.target.value)}
+                      placeholder="THANH TOAN DON HANG"
+                      className="h-9 rounded-lg text-sm"
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-background p-2">
+                    <img
+                      src={transferQrUrl}
+                      alt="QR chuyển khoản Vietcombank"
+                      className="mx-auto h-52 w-52 rounded-md object-contain"
+                      loading="lazy"
+                    />
+                  </div>
                 </div>
               )}
             </div>
