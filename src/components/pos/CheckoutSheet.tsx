@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -69,6 +69,12 @@ interface CustomerInfo {
   loyalty_points: number;
 }
 
+interface DraftOrderState {
+  id: string;
+  orderNumber: string;
+  status: string;
+}
+
 type PromoRule = {
   type: "percent" | "fixed";
   value: number;
@@ -110,6 +116,9 @@ export default function CheckoutSheet({
 
   const [orderNote, setOrderNote] = useState("");
   const [transferContent, setTransferContent] = useState(generateTransferContent());
+  const [draftOrder, setDraftOrder] = useState<DraftOrderState | null>(null);
+  const [isPreparingOrder, setIsPreparingOrder] = useState(false);
+  const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -222,6 +231,9 @@ export default function CheckoutSheet({
 
       setOrderNote("");
       setTransferContent(generateTransferContent());
+      setDraftOrder(null);
+      setIsPreparingOrder(false);
+      setIsDeletingDraft(false);
     }
   }, [open]);
 
@@ -235,6 +247,136 @@ export default function CheckoutSheet({
     setUseLoyaltyPoints(false);
     setLoyaltyPointsInput("0");
   }, [useLoyalty]);
+
+  const createDraftOrder = async () => {
+    if (items.length === 0 || isPreparingOrder || draftOrder) return;
+
+    setIsPreparingOrder(true);
+    try {
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: userId,
+          total_amount: finalAmount,
+          order_number: "",
+          customer_name: "Khách lẻ",
+          customer_phone: null,
+          payment_method: paymentMethod,
+          status: "pending",
+          transfer_content: null,
+          loyalty_points_used: 0,
+          customer_id: null,
+          note: null,
+        })
+        .select("id, order_number, status")
+        .single();
+
+      if (orderError) throw orderError;
+
+      const orderItems = items.map((item) => ({
+        order_id: order.id,
+        product_id: item.productId,
+        product_name: item.name,
+        unit_price: item.price,
+        qty: item.qty,
+        subtotal: item.price * item.qty,
+        classification_labels: item.classificationLabels,
+        note: item.note || null,
+      }));
+
+      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+      if (itemsError) throw itemsError;
+
+      const transferContentDefault = order.order_number || generateTransferContent();
+      setDraftOrder({
+        id: order.id,
+        orderNumber: order.order_number,
+        status: order.status || "pending",
+      });
+      setTransferContent(transferContentDefault);
+    } catch (error: any) {
+      toast.error("Không tạo được đơn tạm: " + (error.message || ""));
+    } finally {
+      setIsPreparingOrder(false);
+    }
+  };
+
+  const handleBackToCart = async () => {
+    if (!draftOrder || draftOrder.status !== "pending") {
+      onClose();
+      return;
+    }
+
+    setIsDeletingDraft(true);
+    try {
+      const { error } = await supabase.from("orders").delete().eq("id", draftOrder.id).eq("status", "pending");
+      if (error) throw error;
+      setDraftOrder(null);
+      onClose();
+    } catch (error: any) {
+      toast.error("Không thể hủy đơn tạm: " + (error.message || ""));
+    } finally {
+      setIsDeletingDraft(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || items.length === 0 || draftOrder || isPreparingOrder) return;
+    void createDraftOrder();
+  }, [open, items.length, draftOrder, isPreparingOrder]);
+
+  useEffect(() => {
+    if (!draftOrder?.id) return;
+
+    const channel = supabase
+      .channel(`checkout-order-${draftOrder.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${draftOrder.id}` },
+        (payload: any) => {
+          const row = payload.new as { status?: string };
+          if (!row?.status) return;
+          setDraftOrder((prev) => (prev ? { ...prev, status: row.status || prev.status } : prev));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [draftOrder?.id]);
+
+  useEffect(() => {
+    if (!draftOrder?.id || !open) return;
+
+    const timer = setTimeout(async () => {
+      const payload = {
+        total_amount: finalAmount,
+        payment_method: paymentMethod,
+        transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
+        note: orderNote || null,
+        customer_name: useLoyalty && customerName.trim() ? customerName.trim() : "Khách lẻ",
+        customer_phone: useLoyalty ? customerPhone.trim() || null : null,
+        loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
+      };
+
+      await supabase.from("orders").update(payload).eq("id", draftOrder.id).eq("status", "pending");
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [
+    open,
+    draftOrder?.id,
+    finalAmount,
+    paymentMethod,
+    normalizedTransferContent,
+    orderNote,
+    useLoyalty,
+    customerName,
+    customerPhone,
+    useLoyaltyPoints,
+    loyaltyPointsToUse,
+  ]);
 
   const searchCustomer = async () => {
     if (!customerPhone || customerPhone.length < 9) return;
@@ -259,10 +401,15 @@ export default function CheckoutSheet({
   };
 
   const handleSubmit = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || !draftOrder) return;
 
     if (useLoyalty && (!customerName.trim() || !customerPhone.trim())) {
       toast.error("Vui lòng nhập tên và SĐT khách hàng");
+      return;
+    }
+
+    if (paymentMethod === "transfer" && draftOrder.status !== "completed") {
+      toast.error("Đơn chưa nhận được xác nhận thanh toán từ ngân hàng");
       return;
     }
 
@@ -314,43 +461,29 @@ export default function CheckoutSheet({
         }
       }
 
+      const nextStatus = paymentMethod === "transfer" ? draftOrder.status : "completed";
       const { data: order, error: orderError } = await supabase
         .from("orders")
-        .insert({
-          user_id: userId,
+        .update({
           total_amount: finalAmount,
-          order_number: "",
           customer_name: useLoyalty ? customerName : "Khách lẻ",
           customer_phone: useLoyalty ? customerPhone : null,
           payment_method: paymentMethod,
-          status: paymentMethod === "transfer" ? "pending" : "completed",
+          status: nextStatus,
           transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
           customer_id: customerId,
           note: orderNote || null,
         })
-        .select("id, order_number")
+        .eq("id", draftOrder.id)
+        .select("id, order_number, status")
         .single();
 
       if (orderError) throw orderError;
 
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        product_name: item.name,
-        unit_price: item.price,
-        qty: item.qty,
-        subtotal: item.price * item.qty,
-        classification_labels: item.classificationLabels,
-        note: item.note || null,
-      }));
-
-      const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
-      if (itemsError) throw itemsError;
-
       onSuccess(order.order_number);
     } catch (error: any) {
-      toast.error("Lỗi khi tạo đơn hàng: " + (error.message || ""));
+      toast.error("Lỗi khi xác nhận đơn hàng: " + (error.message || ""));
     } finally {
       setIsSubmitting(false);
     }
@@ -363,7 +496,11 @@ export default function CheckoutSheet({
   ];
 
   const canSubmit =
+    !!draftOrder &&
+    !isPreparingOrder &&
+    !isDeletingDraft &&
     !isSubmitting &&
+    (paymentMethod !== "transfer" || draftOrder.status === "completed") &&
     (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
     (!useDiscountCode || !discountCodeError) &&
     (!useLoyaltyPoints || !loyaltyPointsError);
@@ -372,7 +509,8 @@ export default function CheckoutSheet({
     <>
         <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
           <button
-            onClick={onClose}
+            onClick={() => void handleBackToCart()}
+            disabled={isDeletingDraft || isSubmitting}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -380,6 +518,14 @@ export default function CheckoutSheet({
           <SheetTitle className="text-base font-bold text-foreground flex-1">Thanh toán</SheetTitle>
           <span className="text-sm font-bold text-primary">{formatPrice(totalPrice)}</span>
         </SheetHeader>
+
+        {draftOrder?.orderNumber && (
+          <div className="px-4 pb-2 text-xs text-muted-foreground">Mã đơn tạm: {draftOrder.orderNumber}</div>
+        )}
+
+        {isPreparingOrder && (
+          <div className="px-4 pb-2 text-xs text-muted-foreground">Đang tạo đơn tạm...</div>
+        )}
 
         <div className="flex-1 px-4 overflow-y-auto no-scrollbar">
           <div className="space-y-4 pb-4 pt-1">
@@ -627,6 +773,19 @@ export default function CheckoutSheet({
                       loading="lazy"
                     />
                   </div>
+
+                  <div
+                    className={cn(
+                      "rounded-lg border px-2.5 py-2 text-xs",
+                      draftOrder?.status === "completed"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                    )}
+                  >
+                    {draftOrder?.status === "completed"
+                      ? "Đã nhận webhook thanh toán. Có thể bấm Xác nhận thanh toán."
+                      : "Đang chờ webhook ngân hàng xác nhận giao dịch..."}
+                  </div>
                 </div>
               )}
             </div>
@@ -662,9 +821,17 @@ export default function CheckoutSheet({
             <span className="text-base font-bold text-white">{formatPrice(finalAmount)}</span>
           </div>
 
-          <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
-            {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
-          </Button>
+          {(paymentMethod !== "transfer" || draftOrder?.status === "completed") && (
+            <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
+              {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
+            </Button>
+          )}
+
+          {paymentMethod === "transfer" && draftOrder?.status !== "completed" && (
+            <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
+              Chờ xác nhận thanh toán từ webhook...
+            </div>
+          )}
         </div>
     </>
   );
@@ -687,7 +854,14 @@ export default function CheckoutSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          void handleBackToCart();
+        }
+      }}
+    >
       <SheetContent
         side="bottom"
         className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
