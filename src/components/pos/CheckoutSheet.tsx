@@ -51,6 +51,14 @@ function generateTransferContent() {
   return `TTDH${y}${m}${d}${hh}${mm}${ss}`;
 }
 
+function sanitizeTransferContent(raw: string) {
+  return raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
 type PaymentMethod = "cash" | "transfer" | "momo";
 
 interface CheckoutSheetProps {
@@ -115,7 +123,7 @@ export default function CheckoutSheet({
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [orderNote, setOrderNote] = useState("");
-  const [transferContent, setTransferContent] = useState(generateTransferContent());
+  const [transferContent, setTransferContent] = useState(sanitizeTransferContent(generateTransferContent()));
   const [draftOrder, setDraftOrder] = useState<DraftOrderState | null>(null);
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
@@ -176,7 +184,7 @@ export default function CheckoutSheet({
   const loyaltyDiscount = loyaltyPointsToUse * pointValue;
 
   const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
-  const normalizedTransferContent = transferContent.trim() || generateTransferContent();
+  const normalizedTransferContent = sanitizeTransferContent(transferContent) || sanitizeTransferContent(generateTransferContent());
   const transferQrUrl = `https://img.vietqr.io/image/${VCB_BANK_BIN}-${VCB_ACCOUNT_NUMBER}-compact2.png?amount=${finalAmount}&addInfo=${encodeURIComponent(normalizedTransferContent)}`;
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
@@ -230,7 +238,7 @@ export default function CheckoutSheet({
       setScannerOpen(false);
 
       setOrderNote("");
-      setTransferContent(generateTransferContent());
+      setTransferContent(sanitizeTransferContent(generateTransferContent()));
       setDraftOrder(null);
       setIsPreparingOrder(false);
       setIsDeletingDraft(false);
@@ -287,7 +295,7 @@ export default function CheckoutSheet({
       const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
 
-      const transferContentDefault = order.order_number || generateTransferContent();
+      const transferContentDefault = sanitizeTransferContent(order.order_number || generateTransferContent());
       setDraftOrder({
         id: order.id,
         orderNumber: order.order_number,
@@ -759,7 +767,7 @@ export default function CheckoutSheet({
                     <p className="text-xs text-muted-foreground">Nội dung chuyển khoản</p>
                     <Input
                       value={transferContent}
-                      onChange={(e) => setTransferContent(e.target.value)}
+                      onChange={(e) => setTransferContent(sanitizeTransferContent(e.target.value))}
                       placeholder="TTDH..."
                       className="h-9 rounded-lg text-sm"
                     />
