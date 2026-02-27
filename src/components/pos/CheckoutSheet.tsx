@@ -39,6 +39,18 @@ function formatNumberWithDots(value: number) {
   }).format(value);
 }
 
+function generateTransferContent() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const y = now.getFullYear();
+  const m = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  return `TTDH${y}${m}${d}${hh}${mm}${ss}`;
+}
+
 type PaymentMethod = "cash" | "transfer" | "momo";
 
 interface CheckoutSheetProps {
@@ -97,7 +109,7 @@ export default function CheckoutSheet({
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [orderNote, setOrderNote] = useState("");
-  const [transferContent, setTransferContent] = useState("");
+  const [transferContent, setTransferContent] = useState(generateTransferContent());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -155,7 +167,7 @@ export default function CheckoutSheet({
   const loyaltyDiscount = loyaltyPointsToUse * pointValue;
 
   const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
-  const normalizedTransferContent = transferContent.trim() || "THANH TOAN DON HANG";
+  const normalizedTransferContent = transferContent.trim() || generateTransferContent();
   const transferQrUrl = `https://img.vietqr.io/image/${VCB_BANK_BIN}-${VCB_ACCOUNT_NUMBER}-compact2.png?amount=${finalAmount}&addInfo=${encodeURIComponent(normalizedTransferContent)}`;
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
@@ -209,7 +221,7 @@ export default function CheckoutSheet({
       setScannerOpen(false);
 
       setOrderNote("");
-      setTransferContent("THANH TOAN DON HANG");
+      setTransferContent(generateTransferContent());
     }
   }, [open]);
 
@@ -311,6 +323,8 @@ export default function CheckoutSheet({
           customer_name: useLoyalty ? customerName : "Khách lẻ",
           customer_phone: useLoyalty ? customerPhone : null,
           payment_method: paymentMethod,
+          status: paymentMethod === "transfer" ? "pending" : "completed",
+          transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
           customer_id: customerId,
           note: orderNote || null,
@@ -600,7 +614,7 @@ export default function CheckoutSheet({
                     <Input
                       value={transferContent}
                       onChange={(e) => setTransferContent(e.target.value)}
-                      placeholder="THANH TOAN DON HANG"
+                      placeholder="TTDH..."
                       className="h-9 rounded-lg text-sm"
                     />
                   </div>

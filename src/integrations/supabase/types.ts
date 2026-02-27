@@ -143,9 +143,13 @@ export type Database = {
           loyalty_points_used: number
           note: string | null
           order_number: string
+          paid_at: string | null
+          payment_payload: Json | null
           payment_method: string
+          payment_transaction_id: string | null
           status: string
           total_amount: number
+          transfer_content: string | null
           updated_at: string
           user_id: string
         }
@@ -158,9 +162,13 @@ export type Database = {
           loyalty_points_used?: number
           note?: string | null
           order_number: string
+          paid_at?: string | null
+          payment_payload?: Json | null
           payment_method?: string
+          payment_transaction_id?: string | null
           status?: string
           total_amount?: number
+          transfer_content?: string | null
           updated_at?: string
           user_id: string
         }
@@ -173,9 +181,13 @@ export type Database = {
           loyalty_points_used?: number
           note?: string | null
           order_number?: string
+          paid_at?: string | null
+          payment_payload?: Json | null
           payment_method?: string
+          payment_transaction_id?: string | null
           status?: string
           total_amount?: number
+          transfer_content?: string | null
           updated_at?: string
           user_id?: string
         }
