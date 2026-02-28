@@ -111,7 +111,7 @@ export default function ClassificationDialog({
         }}
       >
         <DialogDescription className="sr-only">
-          Chá»n biáº¿n thá»ƒ, ghi chÃº vÃ  sá»‘ lÆ°á»£ng trÆ°á»›c khi thÃªm sáº£n pháº©m vÃ o giá» hÃ ng.
+          Chọn phân loại và số lượng cho sản phẩm trước khi thêm vào giỏ hàng.
         </DialogDescription>
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center gap-3">
@@ -144,7 +144,7 @@ export default function ClassificationDialog({
                     <span className="text-xs font-semibold text-foreground">{group.name}</span>
                     {group.allow_multiple && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        Chá»n nhiá»u
+                        Chọn nhiều
                       </Badge>
                     )}
                     {group.is_required && (
@@ -152,7 +152,7 @@ export default function ClassificationDialog({
                         variant="secondary"
                         className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border border-amber-200"
                       >
-                        Bat buoc
+                        Bắt buộc
                       </Badge>
                     )}
                   </div>
@@ -222,7 +222,7 @@ export default function ClassificationDialog({
         </DialogFooter>
         {!canConfirm && (
           <p className="px-4 pb-3 text-xs text-destructive">
-            Vui long chon day du cac phan loai bat buoc truoc khi them vao gio hang.
+            Vui lòng chọn đầy đủ các phân loại bắt buộc trước khi thêm vào giỏ hàng.
           </p>
         )}
       </DialogContent>
