@@ -15,6 +15,8 @@ import {
   Star,
   StickyNote,
   RotateCcw,
+  QrCode,
+  X,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/sonner";
+import QrScannerDialog from "@/components/common/QrScannerDialog";
 
 type OrderItem = {
   id: string;
@@ -174,6 +177,7 @@ function SummaryCard({
 export default function Orders() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [fromDate, setFromDate] = useState(getTodayLocalISO());
@@ -486,8 +490,28 @@ export default function Orders() {
                 placeholder="Tìm mã đơn, tên khách, SĐT..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-10 rounded-xl bg-card border-border shadow-sm"
+                className="h-10 pl-10 pr-16 rounded-xl bg-card border-border shadow-sm"
               />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="p-1 text-muted-foreground"
+                    aria-label="Xóa tìm kiếm"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  className="p-1 text-muted-foreground"
+                  aria-label="Quét QR hoặc barcode đơn hàng"
+                >
+                  <QrCode className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
@@ -535,45 +559,51 @@ export default function Orders() {
           </div>
         ) : (
           <div className="space-y-2">
+            <div className="grid grid-cols-[1.6fr_0.95fr_0.95fr_0.8fr_auto] gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="truncate">Đơn hàng</p>
+              <p className="truncate">Thời gian</p>
+              <p className="truncate">Thanh toán</p>
+              <p className="truncate text-right">Tổng tiền</p>
+              <p className="truncate text-right">Trạng thái</p>
+            </div>
             {filteredOrders.map((order) => {
               const meta = getStatusMeta(order.status);
               return (
                 <button
                   key={order.id}
                   onClick={() => setSelectedOrder(order)}
-                  className="w-full text-left rounded-xl border border-border bg-card p-4 shadow-sm hover:bg-accent/50 active:scale-[0.995] transition"
+                  className="w-full text-left rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm hover:bg-accent/50 active:scale-[0.995] transition"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="grid grid-cols-[1.6fr_0.95fr_0.95fr_0.8fr_auto] items-center gap-2">
                     <div className="min-w-0">
-                      <p className="text-base font-semibold text-foreground truncate">{order.order_number}</p>
-                      <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                      <p className="text-sm font-semibold text-foreground truncate">{order.order_number}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
                         {order.customer_name}
-                        {order.customer_phone ? ` • ${order.customer_phone}` : ""}
+                        {order.customer_phone ? ` · ${order.customer_phone}` : ""}
                       </p>
                     </div>
-                    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium border ${meta.chipClass}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${meta.dotColor}`} />
-                      {meta.label}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      {formatTime(order.created_at)} • {new Date(order.created_at).toLocaleDateString("vi-VN")}
-                    </p>
-                    <div className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <CreditCard className="h-3.5 w-3.5" />
-                      {getPaymentLabel(order.payment_method)}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-tight">{formatTime(order.created_at)}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {new Date(order.created_at).toLocaleDateString("vi-VN")}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Tổng tiền</span>
-                    <span className="text-base font-bold text-foreground">{formatPrice(order.total_amount)}</span>
-                  </div>
-
-                  <div className="mt-2 flex justify-end">
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <div className="min-w-0 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{getPaymentLabel(order.payment_method)}</span>
+                    </div>
+                    <p className="text-sm font-bold text-foreground text-right truncate">{formatPrice(order.total_amount)}</p>
+                    <div className="inline-flex justify-end">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium border ${meta.chipClass}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${meta.dotColor}`} />
+                        <span className="truncate max-w-[70px]">{meta.label}</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                 </button>
               );
@@ -582,6 +612,13 @@ export default function Orders() {
         )}
         </div>
       </div>
+
+      <QrScannerDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={(code) => setSearch(code)}
+        title="Quét mã QR / Barcode đơn hàng"
+      />
 
       <Sheet open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
         <SheetContent side="left" className="w-[92vw] max-w-lg p-0 flex flex-col [&>button]:hidden">
