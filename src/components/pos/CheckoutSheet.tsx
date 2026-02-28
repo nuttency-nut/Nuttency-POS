@@ -331,6 +331,47 @@ export default function CheckoutSheet({
     setLoyaltyPointsInput("0");
   }, [useLoyalty]);
 
+  useEffect(() => {
+    if (!open || !useLoyalty) return;
+
+    const phone = customerPhone.trim();
+    if (phone.length < 9) {
+      setFoundCustomer(null);
+      return;
+    }
+
+    let active = true;
+
+    const fetchCustomer = async () => {
+      setSearchingCustomer(true);
+      try {
+        const { data } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("phone", phone)
+          .maybeSingle();
+
+        if (!active) return;
+        if (data) {
+          setFoundCustomer(data);
+          if (!customerName.trim()) {
+            setCustomerName(data.name);
+          }
+        } else {
+          setFoundCustomer(null);
+        }
+      } finally {
+        if (active) setSearchingCustomer(false);
+      }
+    };
+
+    void fetchCustomer();
+
+    return () => {
+      active = false;
+    };
+  }, [open, useLoyalty, customerPhone, customerName]);
+
   const createDraftOrder = async () => {
     if (items.length === 0 || isPreparingOrder || draftOrder) return;
 
