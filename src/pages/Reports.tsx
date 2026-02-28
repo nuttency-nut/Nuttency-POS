@@ -20,8 +20,11 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,6 +35,12 @@ type ReportOrderItem = {
   product_name: string;
   qty: number;
   subtotal: number;
+  product_id?: string | null;
+  products?: {
+    categories?: {
+      name?: string | null;
+    } | null;
+  } | null;
 };
 
 type ReportOrder = {
@@ -163,7 +172,7 @@ export default function Reports() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id,total_amount,status,payment_method,created_at,customer_name,customer_phone,order_items(product_name,qty,subtotal)")
+        .select("id,total_amount,status,payment_method,created_at,customer_name,customer_phone,order_items(product_name,qty,subtotal,product_id,products(category_id,categories(name)))")
         .order("created_at", { ascending: false })
         .limit(2000);
 
@@ -210,14 +219,17 @@ export default function Reports() {
     });
 
     const productMap = new Map<string, { qty: number; amount: number }>();
+    const categoryMap = new Map<string, number>();
     completedOrders.forEach((order) => {
       (order.order_items || []).forEach((item) => {
         const key = item.product_name || "Sản phẩm";
         const prev = productMap.get(key) || { qty: 0, amount: 0 };
+        const categoryName = item.products?.categories?.name?.trim() || "Khác";
         productMap.set(key, {
           qty: prev.qty + Number(item.qty || 0),
           amount: prev.amount + Number(item.subtotal || 0),
         });
+        categoryMap.set(categoryName, (categoryMap.get(categoryName) || 0) + Number(item.subtotal || 0));
       });
     });
 
@@ -227,6 +239,15 @@ export default function Reports() {
       .slice(0, 5);
 
     const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const totalCategoryRevenue = Array.from(categoryMap.values()).reduce((sum, v) => sum + v, 0);
+    const categoryBreakdown = Array.from(categoryMap.entries())
+      .map(([name, amount]) => ({
+        name,
+        amount,
+        percent: totalCategoryRevenue > 0 ? (amount / totalCategoryRevenue) * 100 : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
 
     const now = new Date();
     const weekStart = getMonday(now);
@@ -297,6 +318,7 @@ export default function Reports() {
       totalRevenue,
       paymentStats: Array.from(paymentMap.entries()).map(([method, stat]) => ({ method, ...stat })),
       topProducts,
+      categoryBreakdown,
       totalOrders: orders.length,
       weeklyData,
       monthlyData,
@@ -483,6 +505,59 @@ export default function Reports() {
               </TabsContent>
             </Tabs>
 
+            <div className="rounded-xl border border-border bg-card p-3">
+              <h3 className="text-base font-semibold text-foreground">Doanh thu theo danh mục</h3>
+              <p className="text-sm text-muted-foreground mb-3">Phân bổ doanh thu 12 tháng theo nhóm sản phẩm</p>
+
+              {report.categoryBreakdown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chưa có dữ liệu danh mục.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_1fr] items-center">
+                  <div className="h-44 mx-auto w-full max-w-[220px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={report.categoryBreakdown}
+                          dataKey="amount"
+                          nameKey="name"
+                          innerRadius={52}
+                          outerRadius={80}
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {report.categoryBreakdown.map((_, idx) => {
+                            const colors = ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"];
+                            return <Cell key={`cell-${idx}`} fill={colors[idx % colors.length]} />;
+                          })}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => formatPrice(Number(value))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="space-y-2">
+                    {report.categoryBreakdown.map((item, idx) => {
+                      const colors = ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"];
+                      return (
+                        <div key={`${item.name}-${idx}`} className="flex items-center justify-between gap-3">
+                          <div className="inline-flex min-w-0 items-center gap-2">
+                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }} />
+                            <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
+                          </div>
+                          <div className="inline-flex shrink-0 items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">{item.percent.toFixed(0)}%</span>
+                            <span className="text-xs text-muted-foreground min-w-[52px] text-right">
+                              {formatCompact(item.amount)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
               <h3 className="text-sm font-semibold text-foreground">Phương thức thanh toán</h3>
               {report.paymentStats.length === 0 ? (
@@ -505,19 +580,38 @@ export default function Reports() {
               )}
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Top sản phẩm</h3>
+            <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+              <h3 className="text-base font-semibold text-foreground">Sản phẩm bán chạy</h3>
+              <p className="text-sm text-muted-foreground -mt-2">Top 5 sản phẩm 12 tháng gần nhất</p>
               {report.topProducts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Chưa có dữ liệu sản phẩm.</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {report.topProducts.map((product, idx) => (
-                    <div key={`${product.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.qty} lượt bán</p>
+                    <div key={`${product.name}-${idx}`} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex min-w-0 items-center gap-2">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
+                            {idx + 1}
+                          </span>
+                          <p className="truncate text-sm font-medium text-foreground">{product.name}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-foreground">{formatCompact(product.amount)}</p>
+                          <p className="text-xs text-muted-foreground">({product.qty} SP)</p>
+                        </div>
                       </div>
-                      <p className="text-sm font-semibold text-foreground">{formatPrice(product.amount)}</p>
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-[#0B1736]"
+                          style={{
+                            width: `${Math.max(
+                              8,
+                              (product.amount / Math.max(...report.topProducts.map((p) => p.amount), 1)) * 100
+                            )}%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
