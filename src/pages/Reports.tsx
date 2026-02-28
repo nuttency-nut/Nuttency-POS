@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTheme } from "next-themes";
 import {
   BarChart3,
   Download,
@@ -152,6 +153,22 @@ function KpiCard({
 export default function Reports() {
   const [chartTab, setChartTab] = useState<"revenue-week" | "orders-week" | "revenue-12m">("revenue-week");
   const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const chartColors = useMemo(
+    () => ({
+      current: isDark ? "#A5B4FC" : "#0B1736",
+      previous: isDark ? "#64748B" : "#AAB9C9",
+      line: isDark ? "#C7D2FE" : "#0B1736",
+      up: isDark ? "#4ADE80" : "#16A34A",
+      down: isDark ? "#FB7185" : "#EF4444",
+      donut: isDark
+        ? ["#E2E8F0", "#94A3B8", "#64748B", "#475569", "#334155"]
+        : ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"],
+    }),
+    [isDark]
+  );
 
   const { data: orders = [], isLoading, isFetching } = useQuery({
     queryKey: ["reports-data"],
@@ -410,17 +427,17 @@ export default function Reports() {
                           formatter={(value: number, name: string) => [formatPrice(Number(value)), name === "currentRevenue" ? "Tuần này" : "Tuần trước"]}
                           labelFormatter={(l) => `Ngày ${l}`}
                         />
-                        <Bar dataKey="previousRevenue" fill="#AAB9C9" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="previousRevenue" fill={chartColors.previous} radius={[6, 6, 0, 0]} />
                         <Bar
                           dataKey="currentRevenue"
-                          fill="#0B1736"
+                          fill={chartColors.current}
                           radius={[6, 6, 0, 0]}
                           label={({ x, y, width, payload }) => {
                             if (!payload || typeof payload.currentRevenue !== "number" || typeof payload.previousRevenue !== "number") {
                               return null;
                             }
                             const trend = getTrendPercent(payload.currentRevenue, payload.previousRevenue);
-                            const color = trend >= 0 ? "#16a34a" : "#ef4444";
+                            const color = trend >= 0 ? chartColors.up : chartColors.down;
                             return (
                               <text x={(x as number) + (width as number) / 2} y={(y as number) - 8} textAnchor="middle" fontSize={10} fill={color}>
                                 {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
@@ -448,17 +465,17 @@ export default function Reports() {
                           formatter={(value: number, name: string) => [Number(value), name === "currentOrders" ? "Tuần này" : "Tuần trước"]}
                           labelFormatter={(l) => `Ngày ${l}`}
                         />
-                        <Bar dataKey="previousOrders" fill="#AAB9C9" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="previousOrders" fill={chartColors.previous} radius={[6, 6, 0, 0]} />
                         <Bar
                           dataKey="currentOrders"
-                          fill="#0B1736"
+                          fill={chartColors.current}
                           radius={[6, 6, 0, 0]}
                           label={({ x, y, width, payload }) => {
                             if (!payload || typeof payload.currentOrders !== "number" || typeof payload.previousOrders !== "number") {
                               return null;
                             }
                             const trend = getTrendPercent(payload.currentOrders, payload.previousOrders);
-                            const color = trend >= 0 ? "#16a34a" : "#ef4444";
+                            const color = trend >= 0 ? chartColors.up : chartColors.down;
                             return (
                               <text x={(x as number) + (width as number) / 2} y={(y as number) - 8} textAnchor="middle" fontSize={10} fill={color}>
                                 {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
@@ -489,7 +506,7 @@ export default function Reports() {
                         <XAxis dataKey="label" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                         <YAxis tickFormatter={formatYAxisRevenue} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
                         <Tooltip formatter={(value: number) => [formatPrice(Number(value)), "Doanh thu"]} />
-                        <Line type="monotone" dataKey="revenue" stroke="#0B1736" strokeWidth={2.5} dot={false} />
+                        <Line type="monotone" dataKey="revenue" stroke={chartColors.line} strokeWidth={2.5} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -522,8 +539,7 @@ export default function Reports() {
                           stroke="none"
                         >
                           {report.categoryBreakdown.map((_, idx) => {
-                            const colors = ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"];
-                            return <Cell key={`cell-${idx}`} fill={colors[idx % colors.length]} />;
+                            return <Cell key={`cell-${idx}`} fill={chartColors.donut[idx % chartColors.donut.length]} />;
                           })}
                         </Pie>
                         <Tooltip formatter={(value: number) => formatPrice(Number(value))} />
@@ -533,11 +549,13 @@ export default function Reports() {
 
                   <div className="space-y-2 min-w-0">
                     {report.categoryBreakdown.map((item, idx) => {
-                      const colors = ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"];
                       return (
                         <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
                           <div className="inline-flex min-w-0 items-center gap-2 overflow-hidden">
-                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }} />
+                            <span
+                              className="h-3 w-3 shrink-0 rounded-full"
+                              style={{ backgroundColor: chartColors.donut[idx % chartColors.donut.length] }}
+                            />
                             <span className="truncate text-[clamp(11px,2.8vw,14px)] font-medium text-foreground">{item.name}</span>
                           </div>
                           <span className="text-[clamp(11px,2.8vw,14px)] font-semibold text-foreground">{item.percent.toFixed(0)}%</span>
@@ -575,8 +593,9 @@ export default function Reports() {
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-[#0B1736]"
+                          className="h-full rounded-full"
                           style={{
+                            backgroundColor: chartColors.line,
                             width: `${Math.max(
                               8,
                               (product.amount / Math.max(...report.topProducts.map((p) => p.amount), 1)) * 100
