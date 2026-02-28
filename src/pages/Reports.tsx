@@ -1,8 +1,9 @@
-﻿import { useMemo } from "react";
+﻿import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
   CreditCard,
@@ -15,6 +16,17 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type ReportOrderItem = {
   product_name: string;
@@ -33,6 +45,19 @@ type ReportOrder = {
   order_items: ReportOrderItem[];
 };
 
+type WeeklyDataPoint = {
+  label: string;
+  currentRevenue: number;
+  previousRevenue: number;
+  currentOrders: number;
+  previousOrders: number;
+};
+
+type MonthlyDataPoint = {
+  label: string;
+  revenue: number;
+};
+
 function formatPrice(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -43,6 +68,12 @@ function formatPrice(value: number) {
 
 function formatCompact(value: number) {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
+  return value.toString();
+}
+
+function formatYAxisRevenue(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return value.toString();
@@ -61,10 +92,13 @@ function getPaymentLabel(method: string) {
   }
 }
 
-function toLocalDateKey(dateString: string) {
+function toLocalDate(dateString: string) {
   const date = new Date(dateString);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+}
+
+function toLocalDateKey(dateString: string) {
+  return toLocalDate(dateString).toISOString().slice(0, 10);
 }
 
 function shiftDateKey(dateKey: string, days: number) {
@@ -77,6 +111,15 @@ function shiftDateKey(dateKey: string, days: number) {
 function getTrendPercent(today: number, yesterday: number) {
   if (yesterday <= 0) return today > 0 ? 100 : 0;
   return ((today - yesterday) / yesterday) * 100;
+}
+
+function getMonday(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 function KpiCard({
@@ -94,24 +137,25 @@ function KpiCard({
   const TrendIcon = isUp ? TrendingUp : TrendingDown;
 
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold text-muted-foreground">{title}</p>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">{icon}</span>
+    <div className="rounded-xl border border-border bg-card px-3 py-3">
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-muted-foreground truncate">{title}</p>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">{icon}</span>
       </div>
 
-      <p className="text-3xl leading-none font-extrabold tracking-tight text-foreground">{value}</p>
+      <p className="text-2xl leading-none font-extrabold tracking-tight text-foreground">{value}</p>
 
-      <div className={`mt-3 inline-flex items-center gap-1.5 text-sm font-semibold ${isUp ? "text-emerald-600" : "text-rose-500"}`}>
-        <TrendIcon className="h-4 w-4" />
+      <div className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold ${isUp ? "text-emerald-600" : "text-rose-500"}`}>
+        <TrendIcon className="h-3.5 w-3.5" />
         <span>{isUp ? "+" : ""}{trend.toFixed(1)}%</span>
-        <span className="font-medium text-muted-foreground ml-1">so với hôm qua</span>
+        <span className="font-medium text-muted-foreground ml-1 truncate">so với hôm qua</span>
       </div>
     </div>
   );
 }
 
 export default function Reports() {
+  const [chartTab, setChartTab] = useState<"revenue-week" | "orders-week" | "revenue-12m">("revenue-week");
   const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading, isFetching } = useQuery({
@@ -184,6 +228,61 @@ export default function Reports() {
 
     const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
+    const now = new Date();
+    const weekStart = getMonday(now);
+    const previousWeekStart = new Date(weekStart);
+    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+
+    const weekLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+    const weeklyData: WeeklyDataPoint[] = weekLabels.map((label, idx) => {
+      const currentDate = new Date(weekStart);
+      currentDate.setDate(currentDate.getDate() + idx);
+      const currentKey = toLocalDateKey(currentDate.toISOString());
+
+      const prevDate = new Date(previousWeekStart);
+      prevDate.setDate(prevDate.getDate() + idx);
+      const previousKey = toLocalDateKey(prevDate.toISOString());
+
+      const currentRevenue = completedOrders
+        .filter((o) => toLocalDateKey(o.created_at) === currentKey)
+        .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+      const previousRevenue = completedOrders
+        .filter((o) => toLocalDateKey(o.created_at) === previousKey)
+        .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+      const currentOrders = orders.filter((o) => toLocalDateKey(o.created_at) === currentKey).length;
+      const previousOrders = orders.filter((o) => toLocalDateKey(o.created_at) === previousKey).length;
+
+      return {
+        label,
+        currentRevenue,
+        previousRevenue,
+        currentOrders,
+        previousOrders,
+      };
+    });
+
+    const monthlyData: MonthlyDataPoint[] = [];
+    const monthBase = new Date(now.getFullYear(), now.getMonth(), 1);
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(monthBase);
+      d.setMonth(d.getMonth() - i);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+
+      const revenue = completedOrders
+        .filter((o) => {
+          const dt = toLocalDate(o.created_at);
+          return dt.getFullYear() === y && dt.getMonth() === m;
+        })
+        .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+      monthlyData.push({ label: `T${m + 1}`, revenue });
+    }
+
+    const thisMonth = monthlyData[monthlyData.length - 1]?.revenue || 0;
+    const lastMonth = monthlyData[monthlyData.length - 2]?.revenue || 0;
+
     return {
       kpi: {
         revenue: revenueToday,
@@ -199,6 +298,9 @@ export default function Reports() {
       paymentStats: Array.from(paymentMap.entries()).map(([method, stat]) => ({ method, ...stat })),
       topProducts,
       totalOrders: orders.length,
+      weeklyData,
+      monthlyData,
+      monthlyTrend: getTrendPercent(thisMonth, lastMonth),
     };
   }, [orders]);
 
@@ -266,12 +368,114 @@ export default function Reports() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               <KpiCard title="Doanh thu" value={formatCompact(report.kpi.revenue)} trend={report.kpi.revenueTrend} icon={<Wallet className="h-5 w-5" />} />
               <KpiCard title="Đơn hàng" value={report.kpi.orders.toString()} trend={report.kpi.ordersTrend} icon={<ShoppingCart className="h-5 w-5" />} />
               <KpiCard title="Khách hàng" value={report.kpi.customers.toString()} trend={report.kpi.customersTrend} icon={<Users className="h-5 w-5" />} />
               <KpiCard title="Giá trị TB" value={formatCompact(report.kpi.avgValue)} trend={report.kpi.avgValueTrend} icon={<Package className="h-5 w-5" />} />
             </div>
+
+            <Tabs value={chartTab} onValueChange={(v) => setChartTab(v as typeof chartTab)} className="w-full">
+              <TabsList className="h-10 p-1 bg-muted/70 rounded-lg">
+                <TabsTrigger value="revenue-week" className="text-xs px-3">Doanh thu Tuần</TabsTrigger>
+                <TabsTrigger value="orders-week" className="text-xs px-3">Đơn hàng Tuần</TabsTrigger>
+                <TabsTrigger value="revenue-12m" className="text-xs px-3">12 Tháng</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="revenue-week" className="mt-3">
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <h3 className="text-base font-semibold text-foreground">Doanh thu theo ngày trong tuần</h3>
+                  <p className="text-sm text-muted-foreground mb-3">Phân bố doanh thu đơn hàng theo từng ngày</p>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={report.weeklyData} margin={{ top: 12, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={formatYAxisRevenue} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [formatPrice(Number(value)), name === "currentRevenue" ? "Tuần này" : "Tuần trước"]}
+                          labelFormatter={(l) => `Ngày ${l}`}
+                        />
+                        <Bar dataKey="previousRevenue" fill="#AAB9C9" radius={[6, 6, 0, 0]} />
+                        <Bar
+                          dataKey="currentRevenue"
+                          fill="#0B1736"
+                          radius={[6, 6, 0, 0]}
+                          label={({ x, y, width, payload }) => {
+                            const trend = getTrendPercent(payload.currentRevenue, payload.previousRevenue);
+                            const color = trend >= 0 ? "#16a34a" : "#ef4444";
+                            return (
+                              <text x={(x as number) + (width as number) / 2} y={(y as number) - 8} textAnchor="middle" fontSize={10} fill={color}>
+                                {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
+                              </text>
+                            );
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="orders-week" className="mt-3">
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <h3 className="text-base font-semibold text-foreground">Đơn hàng theo ngày trong tuần</h3>
+                  <p className="text-sm text-muted-foreground mb-3">Phân bố đơn hàng theo từng ngày</p>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={report.weeklyData} margin={{ top: 12, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [Number(value), name === "currentOrders" ? "Tuần này" : "Tuần trước"]}
+                          labelFormatter={(l) => `Ngày ${l}`}
+                        />
+                        <Bar dataKey="previousOrders" fill="#AAB9C9" radius={[6, 6, 0, 0]} />
+                        <Bar
+                          dataKey="currentOrders"
+                          fill="#0B1736"
+                          radius={[6, 6, 0, 0]}
+                          label={({ x, y, width, payload }) => {
+                            const trend = getTrendPercent(payload.currentOrders, payload.previousOrders);
+                            const color = trend >= 0 ? "#16a34a" : "#ef4444";
+                            return (
+                              <text x={(x as number) + (width as number) / 2} y={(y as number) - 8} textAnchor="middle" fontSize={10} fill={color}>
+                                {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
+                              </text>
+                            );
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="revenue-12m" className="mt-3">
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold text-foreground">Doanh thu 12 tháng gần nhất</h3>
+                    <span className={`inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-semibold ${report.monthlyTrend >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                      {report.monthlyTrend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                      {report.monthlyTrend >= 0 ? "+" : ""}{report.monthlyTrend.toFixed(1)}%
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">Biểu đồ xu hướng doanh thu theo tháng</p>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={report.monthlyData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <YAxis tickFormatter={formatYAxisRevenue} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <Tooltip formatter={(value: number) => [formatPrice(Number(value)), "Doanh thu"]} />
+                        <Line type="monotone" dataKey="revenue" stroke="#0B1736" strokeWidth={2.5} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
 
             <div className="rounded-xl border border-border bg-card p-3 space-y-2">
               <h3 className="text-sm font-semibold text-foreground">Phương thức thanh toán</h3>
@@ -319,3 +523,4 @@ export default function Reports() {
     </AppLayout>
   );
 }
+
