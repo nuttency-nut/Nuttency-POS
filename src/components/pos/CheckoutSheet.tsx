@@ -739,20 +739,12 @@ export default function CheckoutSheet({
 
                   {useLoyaltyPoints && (
                     <div className="space-y-1">
-                      <div className="group flex items-center rounded-lg border border-border bg-background transition-colors focus-within:border-primary/50 hover:border-muted-foreground/40">
-                        <button
-                          type="button"
-                          className="px-3 h-9 text-xs font-medium text-muted-foreground whitespace-nowrap bg-transparent"
-                        >
-                          Nhập SSO xác nhận
-                        </button>
-                        <Input
-                          value={ssoCodeInput}
-                          onChange={(e) => setSsoCodeInput(e.target.value.toUpperCase())}
-                          placeholder="Nhập mã SSO"
-                          className="h-9 rounded-none border-0 bg-transparent text-sm w-full focus-visible:ring-0 focus-visible:outline-none"
-                        />
-                      </div>
+                      <Input
+                        value={ssoCodeInput}
+                        onChange={(e) => setSsoCodeInput(e.target.value.toUpperCase())}
+                        placeholder="Nhập mã SSO"
+                        className="h-9 rounded-lg text-sm w-full border-border bg-background focus-visible:ring-1 focus-visible:ring-primary/40"
+                      />
 
                       {loyaltyPointsError ? (
                         <span className="text-xs text-destructive">{loyaltyPointsError}</span>
