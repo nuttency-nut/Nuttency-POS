@@ -816,7 +816,12 @@ export default function CheckoutSheet({
                   {cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
                       <span className="font-medium text-foreground">Tiền thối</span>
-                      <span className={cn("font-extrabold", changeAmount >= 0 ? "text-white" : "text-destructive")}>
+                      <span
+                        className={cn(
+                          "font-extrabold",
+                          changeAmount >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-destructive"
+                        )}
+                      >
                         {changeAmount >= 0 ? formatPrice(changeAmount) : "Chưa đủ"}
                       </span>
                     </div>
@@ -858,7 +863,7 @@ export default function CheckoutSheet({
                     )}
                   >
                     {draftOrder?.status === "completed"
-                      ? "Thanh toán thành công. Có thể bấm Xác nhận thanh toán."
+                      ? "Thanh toán thành công"
                       : "Hệ thống chờ thanh toán"}
                   </div>
                 </div>
@@ -871,21 +876,21 @@ export default function CheckoutSheet({
         <div className="border-t border-border p-4 safe-bottom space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Tổng cộng</span>
-            <span className="text-white font-semibold">{formatPrice(totalPrice)}</span>
+            <span className="text-foreground font-semibold">{formatPrice(totalPrice)}</span>
           </div>
 
           {discountCodeAmount > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Mã giảm giá</span>
-              <span className="text-orange-400 font-semibold">-{formatPrice(discountCodeAmount)}</span>
+              <span className="text-orange-600 dark:text-orange-400 font-semibold">-{formatPrice(discountCodeAmount)}</span>
             </div>
           )}
 
           {loyaltyDiscount > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Giảm điểm</span>
-              <span className="inline-flex items-center gap-1 text-yellow-400 font-semibold">
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+              <span className="inline-flex items-center gap-1 text-yellow-600 dark:text-yellow-400 font-semibold">
+                <Star className="w-4 h-4 fill-yellow-600 text-yellow-600 dark:fill-yellow-400 dark:text-yellow-400" />
                 -{formatPrice(loyaltyDiscount)}
               </span>
             </div>
@@ -893,7 +898,7 @@ export default function CheckoutSheet({
 
           <div className="flex items-center justify-between pt-1">
             <span className="text-base font-bold text-foreground">Thanh toán</span>
-            <span className="text-base font-bold text-white">{formatPrice(finalAmount)}</span>
+            <span className="text-base font-bold text-foreground">{formatPrice(finalAmount)}</span>
           </div>
 
           {(paymentMethod !== "transfer" || draftOrder?.status === "completed") && (
@@ -904,7 +909,7 @@ export default function CheckoutSheet({
 
           {paymentMethod === "transfer" && draftOrder?.status !== "completed" && (
             <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
-              Chờ xác nhận thanh toán từ webhook...
+              Chờ thanh toán
             </div>
           )}
         </div>

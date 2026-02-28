@@ -110,9 +110,6 @@ export default function ClassificationDialog({
           contentRef.current?.focus();
         }}
       >
-        <DialogDescription className="sr-only">
-          Chọn phân loại và số lượng cho sản phẩm trước khi thêm vào giỏ hàng.
-        </DialogDescription>
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
