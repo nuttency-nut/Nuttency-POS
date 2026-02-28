@@ -840,6 +840,7 @@ export default function CheckoutSheet({
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       onBlur={searchCustomer}
+                      disabled={!!existingDraftOrder && !!existingCheckoutData?.customerPhone}
                       className="h-9 rounded-lg text-sm flex-1"
                     />
                     {searchingCustomer && <span className="text-xs text-muted-foreground self-center">Đang tìm...</span>}
