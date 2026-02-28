@@ -33,7 +33,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
   const [barcode, setBarcode] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
-  const [unit, setUnit] = useState("cÃ¡i");
+  const [unit, setUnit] = useState("cái");
   const [isActive, setIsActive] = useState(true);
   const [minStock, setMinStock] = useState("");
   const [description, setDescription] = useState("");
@@ -126,12 +126,12 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Vui lÃ²ng chá»n file áº£nh");
+      toast.error("Vui lòng chọn một tệp ảnh hợp lệ");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("áº¢nh khÃ´ng Ä‘Æ°á»£c vÆ°á»£t quÃ¡ 5MB");
+      toast.error("Ảnh không được vượt quá 5MB");
       return;
     }
 
@@ -149,10 +149,10 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
 
       const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
       setImageUrl(urlData.publicUrl);
-      toast.success("ÄÃ£ táº£i áº£nh lÃªn");
+      toast.success("Đã tải ảnh lên");
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "CÃ³ lá»—i xáº£y ra";
-      toast.error(`Lá»—i táº£i áº£nh: ${message}`);
+      const message = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -232,7 +232,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
   const handleSubmit = async () => {
     if (!isFormValid) {
       setSubmitAttempted(true);
-      toast.error("Vui lÃ²ng Ä‘iá»n Ä‘áº§y Ä‘á»§ thÃ´ng tin báº¯t buá»™c");
+      toast.error("Vui lòng điền đầy đủ thông tin bắt buộc");
       return;
     }
 
@@ -258,7 +258,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
           <button onClick={onCancel} className="flex items-center gap-1 text-sm text-muted-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold text-foreground">{product ? "Sá»­a sáº£n pháº©m" : "ThÃªm sáº£n pháº©m"}</h1>
+          <h1 className="text-lg font-bold text-foreground">{product ? "Sá»­a sáº£n pháº©m" : "Thêm sản phẩm mới"}</h1>
           <Button size="sm" className="rounded-xl h-9" onClick={handleSubmit} disabled={!isFormValid || isSaving}>
             {isSaving ? "Äang lÆ°u..." : "LÆ°u"}
           </Button>
@@ -268,7 +268,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
       <ScrollArea className="flex-1">
         <div className="p-4 pb-24 max-w-lg mx-auto space-y-6">
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">HÃ¬nh áº£nh sáº£n pháº©m</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Hình ảnh sản phẩm</h3>
             <div className="flex justify-center">
               <div
                 className="relative w-40 h-40 rounded-2xl border-2 border-dashed border-border bg-muted/30 overflow-hidden cursor-pointer group"
@@ -298,8 +298,8 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                     ) : (
                       <>
                         <Camera className="w-8 h-8" />
-                        <span className="text-xs">Táº£i áº£nh lÃªn</span>
-                        <span className="text-[10px] text-muted-foreground/60">Tá»‰ lá»‡ 1:1</span>
+                        <span className="text-xs">Tải ảnh lên</span>
+                        <span className="text-[10px] text-muted-foreground/60">Tỷ lệ 1:1</span>
                       </>
                     )}
                   </div>
@@ -310,30 +310,30 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">ThÃ´ng tin cÆ¡ báº£n</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Thông tin cơ bản</h3>
 
             <div>
               <label className="text-sm font-medium mb-1.5 block">
-                TÃªn sáº£n pháº©m <span className="text-destructive">*</span>
+                Tên sản phẩm <span className="text-destructive">*</span>
               </label>
               <Input
-                placeholder="VD: CÃ  phÃª sá»¯a Ä‘Ã¡"
+                placeholder="VD: Cà phê sữa đá"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={() => markFieldTouched("name")}
                 className={placeholderClass}
               />
-              {(submitAttempted || fieldTouched.name) && nameError && <p className="mt-1 text-xs text-destructive">Báº¯t buá»™c</p>}
+              {(submitAttempted || fieldTouched.name) && nameError && <p className="mt-1 text-xs text-destructive">Bắt buộc</p>}
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Danh má»¥c</label>
+              <label className="text-sm font-medium mb-1.5 block">Danh mục</label>
               <Select value={categoryId || "none"} onValueChange={(v) => setCategoryId(v === "none" ? null : v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Chá»n danh má»¥c" />
+                  <SelectValue placeholder="Chọn danh mục" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">ChÆ°a phÃ¢n loáº¡i</SelectItem>
+                  <SelectItem value="none">Chưa phân loại</SelectItem>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -344,9 +344,9 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">MÃ£ barcode</label>
+              <label className="text-sm font-medium mb-1.5 block">Mã barcode</label>
               <Input
-                placeholder="QuÃ©t hoáº·c nháº­p mÃ£"
+                placeholder="Quét mã vạch hoặc nhập thủ công"
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 className={placeholderClass}
@@ -354,27 +354,27 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">ÄÆ¡n vá»‹ tÃ­nh</label>
+              <label className="text-sm font-medium mb-1.5 block">Đơn vị tính</label>
               <Select value={unit} onValueChange={setUnit}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cÃ¡i">CÃ¡i</SelectItem>
+                  <SelectItem value="cái">Cái</SelectItem>
                   <SelectItem value="ly">Ly</SelectItem>
-                  <SelectItem value="pháº§n">Pháº§n</SelectItem>
+                  <SelectItem value="phần">Phần</SelectItem>
                   <SelectItem value="kg">Kg</SelectItem>
-                  <SelectItem value="há»™p">Há»™p</SelectItem>
+                  <SelectItem value="hộp">Hộp</SelectItem>
                   <SelectItem value="chai">Chai</SelectItem>
-                  <SelectItem value="gÃ³i">GÃ³i</SelectItem>
+                  <SelectItem value="gói">Gói</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1.5 block">MÃ´ táº£</label>
+              <label className="text-sm font-medium mb-1.5 block">Mô tả</label>
               <Textarea
-                placeholder="MÃ´ táº£ sáº£n pháº©m..."
+                placeholder="Mô tả sản phẩm..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
@@ -384,11 +384,11 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">GiÃ¡</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Giá</h3>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
-                  GiÃ¡ vá»‘n <span className="text-destructive">*</span>
+                  Giá vốn <span className="text-destructive">*</span>
                 </label>
                 <Input
                   type="number"
@@ -399,12 +399,12 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                   className={placeholderClass}
                 />
                 {(submitAttempted || fieldTouched.costPrice) && costPriceError && (
-                  <p className="mt-1 text-xs text-destructive">Báº¯t buá»™c</p>
+                  <p className="mt-1 text-xs text-destructive">Bắt buộc</p>
                 )}
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">
-                  GiÃ¡ bÃ¡n <span className="text-destructive">*</span>
+                  Giá bán <span className="text-destructive">*</span>
                 </label>
                 <Input
                   type="number"
@@ -415,23 +415,23 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                   className={placeholderClass}
                 />
                 {(submitAttempted || fieldTouched.sellingPrice) && sellingPriceError && (
-                  <p className="mt-1 text-xs text-destructive">Báº¯t buá»™c</p>
+                  <p className="mt-1 text-xs text-destructive">Bắt buộc</p>
                 )}
                 {(submitAttempted || fieldTouched.sellingPrice || fieldTouched.costPrice) &&
                   !sellingPriceError &&
                   !costPriceError &&
                   sellingLowerThanCostError && (
-                    <p className="mt-1 text-xs text-destructive">Gia ban phai lon hon hoac bang gia von</p>
+                    <p className="mt-1 text-xs text-destructive">Giá bán phải lớn hơn hoặc bằng giá vốn</p>
                   )}
               </div>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tá»“n kho</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tổn kho</h3>
             <div>
               <label className="text-sm font-medium mb-1.5 block">
-                Tá»“n kho tá»‘i thiá»ƒu <span className="text-destructive">*</span>
+                Tồn kho tối thiểu <span className="text-destructive">*</span>
               </label>
               <Input
                 type="number"
@@ -441,7 +441,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                 onBlur={() => markFieldTouched("minStock")}
                 className={placeholderClass}
               />
-              {(submitAttempted || fieldTouched.minStock) && minStockError && <p className="mt-1 text-xs text-destructive">Báº¯t buá»™c</p>}
+              {(submitAttempted || fieldTouched.minStock) && minStockError && <p className="mt-1 text-xs text-destructive">Bắt buộc</p>}
             </div>
           </section>
 
@@ -449,7 +449,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-destructive" />
-                PhÃ¢n loáº¡i hÃ ng <span className="text-destructive">*</span>
+                Phân loại hàng <span className="text-destructive">*</span>
               </h3>
             </div>
 
@@ -458,11 +458,11 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                 <div className="p-3 space-y-3">
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-medium text-muted-foreground whitespace-nowrap min-w-[60px]">
-                      PhÃ¢n loáº¡i {gIndex + 1} <span className="text-destructive">*</span>
+                      Phân loại {gIndex + 1} <span className="text-destructive">*</span>
                     </label>
                     <div className="relative flex-1">
                       <Input
-                        placeholder="VD: MÃ u sáº¯c, Size..."
+                        placeholder="VD: Màu sắc, Size..."
                         value={group.name}
                         onChange={(e) => updateGroupName(gIndex, e.target.value)}
                         onBlur={() => markGroupNameTouched(gIndex)}
@@ -489,7 +489,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                     </Button>
                   </div>
                   {(submitAttempted || groupTouched[gIndex]?.name) && groupsError[gIndex]?.name && (
-                    <p className="pl-[68px] -mt-1 text-xs text-destructive">Báº¯t buá»™c</p>
+                    <p className="pl-[68px] -mt-1 text-xs text-destructive">Bắt buộc</p>
                   )}
 
                   <div className="flex items-center gap-2 pl-[68px]">
@@ -499,7 +499,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                       onCheckedChange={(checked) => updateGroupMultiple(gIndex, checked === true)}
                     />
                     <label htmlFor={`multi-${gIndex}`} className="text-xs text-muted-foreground cursor-pointer select-none">
-                      Chá»n nhiá»u (cho phÃ©p chá»n nhiá»u hÆ¡n 1 khi bÃ¡n hÃ ng)
+                      Chọn nhiều (cho phép chọn nhiều hơn 1 khi bán hàng)
                     </label>
                   </div>
 
@@ -510,20 +510,20 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                       onCheckedChange={(checked) => updateGroupRequired(gIndex, checked === true)}
                     />
                     <label htmlFor={`required-${gIndex}`} className="text-xs text-muted-foreground cursor-pointer select-none">
-                      B?t bu?c (khi b?n h?ng ph?i ch?n nh?m ph?n lo?i n?y)
+                      Bắt buộc (khi bán hàng phải chọn nhóm phân loại này)
                     </label>
                   </div>
 
                   <div className="space-y-2 pl-[68px]">
                     <label className="text-xs font-medium text-muted-foreground">
-                      TÃ¹y chá»n <span className="text-destructive">*</span>
+                      Tùy chọn <span className="text-destructive">*</span>
                     </label>
                     <div className="space-y-2">
                       {group.options.map((option, oIndex) => (
                         <div key={oIndex} className="flex items-center gap-1.5">
                           <div className="relative flex-1">
                             <Input
-                              placeholder="TÃªn"
+                              placeholder="Tên"
                               value={option.name}
                               onChange={(e) => updateOption(gIndex, oIndex, e.target.value)}
                               onBlur={() => markOptionTouched(gIndex, oIndex)}
@@ -537,12 +537,12 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                           <div className="relative w-24">
                             <Input
                               type="number"
-                              placeholder="+0Ä‘"
+                              placeholder="+0đ"
                               value={option.extra_price || ""}
                               onChange={(e) => updateOptionPrice(gIndex, oIndex, Number(e.target.value))}
                               className={`h-8 text-sm pl-3 pr-6 ${placeholderClass}`}
                             />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground/50">Ä‘</span>
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground/50">đ</span>
                           </div>
                           {group.options.length > 1 && (
                             <Button
@@ -559,7 +559,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
                       {group.options.map((_, oIndex) =>
                         (submitAttempted || groupTouched[gIndex]?.options?.[oIndex]) && groupsError[gIndex]?.options?.[oIndex] ? (
                           <p key={`option-error-${gIndex}-${oIndex}`} className="text-xs text-destructive">
-                            TÃ¹y chá»n {oIndex + 1}: Báº¯t buá»™c
+                            Tùy chọn {oIndex + 1}: Bắt buộc
                           </p>
                         ) : null
                       )}
@@ -574,14 +574,14 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
 
             <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 w-full border-dashed text-primary" onClick={addGroup}>
               <Plus className="w-4 h-4" />
-              ThÃªm nhÃ³m phÃ¢n loáº¡i {classificationGroups.length + 1}
+              Thêm nhóm phân loại {classificationGroups.length + 1}
             </Button>
           </section>
 
           <section className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/50">
             <div>
-              <h4 className="text-sm font-medium">Äang kinh doanh</h4>
-              <p className="text-xs text-muted-foreground">Táº¯t náº¿u ngá»«ng bÃ¡n sáº£n pháº©m nÃ y</p>
+              <h4 className="text-sm font-medium">Đang kinh doanh</h4>
+              <p className="text-xs text-muted-foreground">Tắt nếu ngừng bán sản phẩm này</p>
             </div>
             <Switch checked={isActive} onCheckedChange={setIsActive} />
           </section>
