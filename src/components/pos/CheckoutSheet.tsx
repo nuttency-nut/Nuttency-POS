@@ -570,7 +570,8 @@ export default function CheckoutSheet({
 
   const panelContent = (
     <>
-        <SheetHeader className="px-4 pt-4 pb-2 flex items-center gap-2">
+        <SheetHeader className="px-4 pt-4 pb-2">
+          <div className="grid grid-cols-[32px_1fr_32px] items-center">
           <button
             onClick={() => void handleBackToCart()}
             disabled={isDeletingDraft || isSubmitting}
@@ -579,9 +580,11 @@ export default function CheckoutSheet({
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <SheetTitle className="text-base font-bold flex-1 h-8 flex items-center leading-none">
+          <SheetTitle className="text-base font-bold h-8 flex items-center justify-center leading-none">
             Thanh toán
           </SheetTitle>
+            <div className="w-8 h-8" aria-hidden />
+          </div>
         </SheetHeader>
 
         {draftOrder?.orderNumber && (
@@ -736,10 +739,10 @@ export default function CheckoutSheet({
 
                   {useLoyaltyPoints && (
                     <div className="space-y-1">
-                      <div className="flex items-center rounded-lg border border-border bg-background">
+                      <div className="group flex items-center rounded-lg border border-border bg-background transition-colors focus-within:border-primary/50 hover:border-muted-foreground/40">
                         <button
                           type="button"
-                          className="px-3 h-9 text-xs font-semibold text-primary whitespace-nowrap"
+                          className="px-3 h-9 text-xs font-medium text-muted-foreground whitespace-nowrap bg-transparent"
                         >
                           Nhập SSO xác nhận
                         </button>
@@ -747,7 +750,7 @@ export default function CheckoutSheet({
                           value={ssoCodeInput}
                           onChange={(e) => setSsoCodeInput(e.target.value.toUpperCase())}
                           placeholder="Nhập mã SSO"
-                          className="h-9 rounded-none border-0 text-sm w-full focus-visible:ring-0"
+                          className="h-9 rounded-none border-0 bg-transparent text-sm w-full focus-visible:ring-0 focus-visible:outline-none"
                         />
                       </div>
 
@@ -944,6 +947,7 @@ export default function CheckoutSheet({
     >
       <SheetContent
         side="bottom"
+        showCloseButton={false}
         className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
       >
         {panelContent}
