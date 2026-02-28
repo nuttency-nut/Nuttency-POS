@@ -13,6 +13,7 @@ export interface ClassificationGroup {
   product_id: string;
   name: string;
   allow_multiple: boolean;
+  is_required: boolean;
   sort_order: number;
   product_classification_options?: ClassificationOption[];
 }

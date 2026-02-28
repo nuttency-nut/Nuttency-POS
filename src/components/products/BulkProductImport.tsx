@@ -32,6 +32,8 @@ type RawImportRow = {
   is_active: boolean;
   image_url: string;
   classification_group_name: string;
+  classification_allow_multiple: boolean;
+  classification_is_required: boolean;
   classification_option_name: string;
   classification_extra_price: number;
   _lineNo: number;
@@ -49,6 +51,8 @@ const COLUMN_MAP: Record<string, keyof RawImportRow> = {
   "Trạng thái": "is_active",
   "Link ảnh": "image_url",
   "Nhóm phân loại": "classification_group_name",
+  "Chọn nhiều": "classification_allow_multiple",
+  "Bắt buộc": "classification_is_required",
   "Tên phân loại": "classification_option_name",
   "Giá phân loại": "classification_extra_price",
 };
@@ -70,6 +74,8 @@ function generateTemplate() {
       "Có",
       "",
       "Size",
+      "Không",
+      "Có",
       "M",
       5000,
     ],
@@ -85,6 +91,8 @@ function generateTemplate() {
       "Có",
       "",
       "Size",
+      "Không",
+      "Có",
       "L",
       10000,
     ],
@@ -146,6 +154,12 @@ function parseSheetRows(jsonRows: Array<Record<string, unknown>>) {
           row[fieldKey] = lower !== "không" && lower !== "no" && lower !== "false" && String(value) !== "0";
           break;
         }
+        case "classification_allow_multiple":
+        case "classification_is_required": {
+          const lower = String(value).toLowerCase();
+          row[fieldKey] = lower === "có" || lower === "co" || lower === "yes" || lower === "true" || String(value) === "1";
+          break;
+        }
         default:
           (row as Record<string, unknown>)[fieldKey] = String(value);
           break;
@@ -169,6 +183,8 @@ function parseSheetRows(jsonRows: Array<Record<string, unknown>>) {
       is_active: row.is_active !== false,
       image_url: row.image_url || "",
       classification_group_name: row.classification_group_name || "",
+      classification_allow_multiple: row.classification_allow_multiple === true,
+      classification_is_required: row.classification_is_required === true,
       classification_option_name: row.classification_option_name || "",
       classification_extra_price: row.classification_extra_price || 0,
       _lineNo: row._lineNo || i + 2,
@@ -186,6 +202,7 @@ function consolidateRows(rawRows: RawImportRow[]) {
       baseSignature: string;
       classificationSet: Set<string>;
       lines: number[];
+      classificationModeMap: Map<string, string>;
     }
   >();
 
@@ -201,6 +218,7 @@ function consolidateRows(rawRows: RawImportRow[]) {
         baseSignature: signature,
         classificationSet: new Set<string>(),
         lines: [row._lineNo],
+        classificationModeMap: new Map<string, string>(),
       });
     } else {
       const grouped = groupMap.get(key)!;
@@ -218,7 +236,14 @@ function consolidateRows(rawRows: RawImportRow[]) {
       if (!row.classification_group_name.trim() || !row.classification_option_name.trim()) {
         errors.push(`Dòng ${row._lineNo}: phải nhập đủ \"Nhóm phân loại\" và \"Tên phân loại\".`);
       } else {
-        const classificationToken = `${row.classification_group_name.trim()}:${row.classification_option_name.trim()}:${row.classification_extra_price || 0}`;
+        const groupName = row.classification_group_name.trim();
+        const mode = `${row.classification_allow_multiple ? 1 : 0}:${row.classification_is_required ? 1 : 0}`;
+        const previousMode = target.classificationModeMap.get(groupName);
+        if (previousMode && previousMode !== mode) {
+          errors.push(`Dòng ${row._lineNo}: cờ Chọn nhiều/Bắt buộc của nhóm \"${groupName}\" phải giống nhau trong cùng sản phẩm.`);
+        }
+        target.classificationModeMap.set(groupName, mode);
+        const classificationToken = `${groupName}:${row.classification_allow_multiple ? 1 : 0}:${row.classification_is_required ? 1 : 0}:${row.classification_option_name.trim()}:${row.classification_extra_price || 0}`;
         target.classificationSet.add(classificationToken);
       }
     }
@@ -281,6 +306,11 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
       const { rows: consolidatedRows, errors: consolidateErrors } = consolidateRows(rawRows);
 
       const nextErrors = [...parseErrors, ...consolidateErrors];
+      consolidatedRows.forEach((row, idx) => {
+        if (Number(row.selling_price || 0) < Number(row.cost_price || 0)) {
+          nextErrors.push(`Sản phẩm #${idx + 1} (${row.name}): Giá bán phải >= giá vốn`);
+        }
+      });
 
       const barcodes = consolidatedRows.map((row) => row.barcode?.trim()).filter(Boolean) as string[];
       if (barcodes.length > 0) {
@@ -386,8 +416,10 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Mỗi dòng là một phân loại của cùng sản phẩm. Muốn thêm nhiều phân loại thì lặp lại dòng sản phẩm, chỉ thay 3 cột:
+                Mỗi dòng là một phân loại của cùng sản phẩm. Muốn thêm nhiều phân loại thì lặp lại dòng sản phẩm, chỉ thay các cột:
                 <code className="bg-muted px-1 rounded ml-1">Nhóm phân loại</code>,
+                <code className="bg-muted px-1 rounded ml-1">Chọn nhiều</code>,
+                <code className="bg-muted px-1 rounded ml-1">Bắt buộc</code>,
                 <code className="bg-muted px-1 rounded ml-1">Tên phân loại</code>,
                 <code className="bg-muted px-1 rounded ml-1">Giá phân loại</code>.
               </p>
@@ -500,7 +532,7 @@ export default function BulkProductImport({ open, onOpenChange }: BulkProductImp
                 <X className="w-4 h-4 mr-1" />
                 Chọn lại file
               </Button>
-              <Button onClick={handleImport} disabled={rows.length === 0 || importMutation.isPending}>
+              <Button onClick={handleImport} disabled={rows.length === 0 || errors.length > 0 || importMutation.isPending}>
                 <Upload className="w-4 h-4 mr-1" />
                 Import {rows.length} sản phẩm
               </Button>

@@ -15,6 +15,7 @@ export interface ClassificationGroup {
   product_id: string;
   name: string;
   allow_multiple: boolean;
+  is_required: boolean;
   sort_order: number;
   product_classification_options?: ClassificationOption[];
 }
@@ -45,6 +46,7 @@ export interface ClassificationOptionForm {
 export interface ClassificationGroupForm {
   name: string;
   allow_multiple: boolean;
+  is_required: boolean;
   options: ClassificationOptionForm[];
 }
 
@@ -70,6 +72,7 @@ type GroupLinkRow = {
     id: string;
     name: string;
     allow_multiple: boolean;
+    is_required: boolean;
   } | null;
   product_classification_option_links: Array<{
     id: string;
@@ -90,7 +93,7 @@ async function fetchGroupLinksByProductIds(productIds: string[]) {
   const { data, error } = await supabase
     .from("product_classification_group_links" as any)
     .select(
-      "id,product_id,sort_order,classification_group_catalog(id,name,allow_multiple),product_classification_option_links(id,sort_order,classification_option_catalog(id,name,extra_price))"
+      "id,product_id,sort_order,classification_group_catalog(id,name,allow_multiple,is_required),product_classification_option_links(id,sort_order,classification_option_catalog(id,name,extra_price))"
     )
     .in("product_id", productIds);
 
@@ -107,6 +110,7 @@ function mapLinksToGroups(productId: string, links: GroupLinkRow[]): Classificat
       product_id: link.product_id,
       name: link.classification_group_catalog!.name,
       allow_multiple: link.classification_group_catalog!.allow_multiple,
+      is_required: !!link.classification_group_catalog!.is_required,
       sort_order: link.sort_order,
       product_classification_options: (link.product_classification_option_links || [])
         .filter((optLink) => !!optLink.classification_option_catalog)
@@ -155,6 +159,7 @@ async function upsertClassificationForProduct(productId: string, groups: Classif
       .select("id")
       .eq("name", group.name.trim())
       .eq("allow_multiple", group.allow_multiple)
+      .eq("is_required", group.is_required)
       .maybeSingle();
     if (findGroupCatalogError) throw findGroupCatalogError;
 
@@ -165,6 +170,7 @@ async function upsertClassificationForProduct(productId: string, groups: Classif
         .insert({
           name: group.name.trim(),
           allow_multiple: group.allow_multiple,
+          is_required: group.is_required,
         })
         .select("id")
         .single();

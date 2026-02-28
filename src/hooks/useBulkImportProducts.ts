@@ -22,32 +22,64 @@ export interface BulkProductRow {
 type ClassificationParsed = {
   name: string;
   allow_multiple: boolean;
+  is_required: boolean;
   options: Array<{ name: string; extra_price: number }>;
 };
 
 function parseClassifications(raw?: string): ClassificationParsed[] {
   if (!raw?.trim()) return [];
 
-  const groups = new Map<string, Array<{ name: string; extra_price: number }>>();
+  const groups = new Map<
+    string,
+    { name: string; allow_multiple: boolean; is_required: boolean; options: Array<{ name: string; extra_price: number }> }
+  >();
   raw.split("|").forEach((entry) => {
     const parts = entry.split(":");
-    if (parts.length < 2) return;
+    if (parts.length >= 5) {
+      const groupName = parts[0].trim();
+      const allowMultipleRaw = parts[1].trim().toLowerCase();
+      const isRequiredRaw = parts[2].trim().toLowerCase();
+      const optionName = parts[3].trim();
+      const extraPrice = Number(parts[4] ?? 0);
+      if (!groupName || !optionName) return;
 
+      const allow_multiple = ["1", "true", "yes", "co", "có"].includes(allowMultipleRaw);
+      const is_required = ["1", "true", "yes", "co", "có"].includes(isRequiredRaw);
+
+      const existed = groups.get(groupName);
+      if (existed) {
+        existed.options.push({ name: optionName, extra_price: Number.isFinite(extraPrice) ? extraPrice : 0 });
+      } else {
+        groups.set(groupName, {
+          name: groupName,
+          allow_multiple,
+          is_required,
+          options: [{ name: optionName, extra_price: Number.isFinite(extraPrice) ? extraPrice : 0 }],
+        });
+      }
+      return;
+    }
+
+    if (parts.length < 2) return;
     const groupName = parts[0].trim();
     const optionName = parts[1].trim();
     const extraPrice = Number(parts[2] ?? 0);
     if (!groupName || !optionName) return;
 
-    const list = groups.get(groupName) || [];
-    list.push({ name: optionName, extra_price: Number.isFinite(extraPrice) ? extraPrice : 0 });
-    groups.set(groupName, list);
+    const existed = groups.get(groupName);
+    if (existed) {
+      existed.options.push({ name: optionName, extra_price: Number.isFinite(extraPrice) ? extraPrice : 0 });
+    } else {
+      groups.set(groupName, {
+        name: groupName,
+        allow_multiple: false,
+        is_required: false,
+        options: [{ name: optionName, extra_price: Number.isFinite(extraPrice) ? extraPrice : 0 }],
+      });
+    }
   });
 
-  return Array.from(groups.entries()).map(([name, options]) => ({
-    name,
-    allow_multiple: false,
-    options,
-  }));
+  return Array.from(groups.values());
 }
 
 async function resolveCategoryId(categoryName?: string) {
@@ -103,6 +135,7 @@ async function upsertClassificationForProduct(productId: string, groups: Classif
       .select("id")
       .eq("name", group.name.trim())
       .eq("allow_multiple", group.allow_multiple)
+      .eq("is_required", group.is_required)
       .maybeSingle();
     if (findGroupCatalogError) throw findGroupCatalogError;
 
@@ -113,6 +146,7 @@ async function upsertClassificationForProduct(productId: string, groups: Classif
         .insert({
           name: group.name.trim(),
           allow_multiple: group.allow_multiple,
+          is_required: group.is_required,
         })
         .select("id")
         .single();
@@ -183,12 +217,18 @@ export function useBulkImportProducts() {
 
       for (const row of rows) {
         try {
+          const costPrice = Number(row.cost_price || 0);
+          const sellingPrice = Number(row.selling_price || 0);
+          if (sellingPrice < costPrice) {
+            throw new Error("Giá bán phải lớn hơn hoặc bằng giá vốn");
+          }
+
           const categoryId = await resolveCategoryId(row.category_name);
           const productData = {
             name: row.name,
             barcode: row.barcode?.trim() ? row.barcode.trim() : null,
-            cost_price: row.cost_price || 0,
-            selling_price: row.selling_price || 0,
+            cost_price: costPrice,
+            selling_price: sellingPrice,
             unit: row.unit?.trim() || "cái",
             is_active: row.is_active !== false,
             min_stock: row.min_stock || 0,

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+﻿import { useRef, useState } from "react";
 import { Product, ClassificationGroup } from "@/hooks/useProducts";
 import {
   Dialog,
@@ -84,9 +84,14 @@ export default function ClassificationDialog({
   }, 0);
 
   const unitPrice = (product?.selling_price || 0) + extraPrice;
+  const missingRequiredGroups = groups.filter(
+    (group) => group.is_required && (selections[group.id] || []).length === 0
+  );
+  const canConfirm = missingRequiredGroups.length === 0;
 
   const handleConfirm = () => {
     if (!product) return;
+    if (!canConfirm) return;
     onConfirm(product, qty, selections, note);
     setQty(1);
     setSelections({});
@@ -106,7 +111,7 @@ export default function ClassificationDialog({
         }}
       >
         <DialogDescription className="sr-only">
-          Chọn biến thể, ghi chú và số lượng trước khi thêm sản phẩm vào giỏ hàng.
+          Chá»n biáº¿n thá»ƒ, ghi chÃº vÃ  sá»‘ lÆ°á»£ng trÆ°á»›c khi thÃªm sáº£n pháº©m vÃ o giá» hÃ ng.
         </DialogDescription>
         <DialogHeader className="p-4 pb-2">
           <div className="flex items-center gap-3">
@@ -139,7 +144,15 @@ export default function ClassificationDialog({
                     <span className="text-xs font-semibold text-foreground">{group.name}</span>
                     {group.allow_multiple && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        Chọn nhiều
+                        Chá»n nhiá»u
+                      </Badge>
+                    )}
+                    {group.is_required && (
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border border-amber-200"
+                      >
+                        Bat buoc
                       </Badge>
                     )}
                   </div>
@@ -176,10 +189,10 @@ export default function ClassificationDialog({
         <div className="px-4 py-2">
           <div className="flex items-center gap-1.5 mb-1.5">
             <StickyNote className="w-3 h-3 text-muted-foreground" />
-            <span className="text-xs font-semibold text-foreground">Ghi chú</span>
+            <span className="text-xs font-semibold text-foreground">Ghi chÃº</span>
           </div>
           <Input
-            placeholder="Ghi chú cho món này..."
+            placeholder="Ghi chÃº cho mÃ³n nÃ y..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
             className="h-8 rounded-lg text-xs"
@@ -203,10 +216,15 @@ export default function ClassificationDialog({
               <Plus className="w-4 h-4" />
             </button>
           </div>
-          <Button onClick={handleConfirm} className="flex-1 h-10 rounded-xl font-semibold">
-            Thêm · {formatPrice(unitPrice * qty)}
+          <Button onClick={handleConfirm} className="flex-1 h-10 rounded-xl font-semibold" disabled={!canConfirm}>
+            ThÃªm Â· {formatPrice(unitPrice * qty)}
           </Button>
         </DialogFooter>
+        {!canConfirm && (
+          <p className="px-4 pb-3 text-xs text-destructive">
+            Vui long chon day du cac phan loai bat buoc truoc khi them vao gio hang.
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );
