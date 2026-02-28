@@ -402,6 +402,9 @@ export default function Reports() {
                           fill="#0B1736"
                           radius={[6, 6, 0, 0]}
                           label={({ x, y, width, payload }) => {
+                            if (!payload || typeof payload.currentRevenue !== "number" || typeof payload.previousRevenue !== "number") {
+                              return null;
+                            }
                             const trend = getTrendPercent(payload.currentRevenue, payload.previousRevenue);
                             const color = trend >= 0 ? "#16a34a" : "#ef4444";
                             return (
@@ -437,6 +440,9 @@ export default function Reports() {
                           fill="#0B1736"
                           radius={[6, 6, 0, 0]}
                           label={({ x, y, width, payload }) => {
+                            if (!payload || typeof payload.currentOrders !== "number" || typeof payload.previousOrders !== "number") {
+                              return null;
+                            }
                             const trend = getTrendPercent(payload.currentOrders, payload.previousOrders);
                             const color = trend >= 0 ? "#16a34a" : "#ef4444";
                             return (
