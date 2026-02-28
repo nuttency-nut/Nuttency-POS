@@ -50,6 +50,8 @@ type OrderRow = {
   income_receipt_code: string | null;
   income_recorded_at: string | null;
   transfer_content: string | null;
+  discount_code: string | null;
+  discount_amount: number;
   created_at: string;
   note: string | null;
   loyalty_points_used: number;
@@ -194,7 +196,7 @@ export default function Orders() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,income_receipt_code,income_recorded_at,transfer_content,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
+          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,income_receipt_code,income_recorded_at,transfer_content,discount_code,discount_amount,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
         )
         .order("created_at", { ascending: false })
         .limit(300);
@@ -290,6 +292,8 @@ export default function Orders() {
               income_receipt_code: (newRow.income_receipt_code as string) ?? null,
               income_recorded_at: (newRow.income_recorded_at as string) ?? null,
               transfer_content: (newRow.transfer_content as string) ?? null,
+              discount_code: (newRow.discount_code as string) ?? null,
+              discount_amount: Number(newRow.discount_amount || 0),
               created_at: newRow.created_at || new Date().toISOString(),
               note: newRow.note ?? null,
               loyalty_points_used: Number(newRow.loyalty_points_used || 0),
@@ -793,6 +797,14 @@ export default function Orders() {
             incomeReceiptCode: repayOrder.income_receipt_code,
           }}
           existingPaymentMethod={repayOrder.payment_method === "transfer" ? "transfer" : "cash"}
+          existingCheckoutData={{
+            customerName: repayOrder.customer_name,
+            customerPhone: repayOrder.customer_phone,
+            note: repayOrder.note,
+            discountCode: repayOrder.discount_code,
+            loyaltyPointsUsed: repayOrder.loyalty_points_used,
+            transferContent: repayOrder.transfer_content,
+          }}
           onSuccess={(orderNumber) => {
             setRepayOrder(null);
             toast.success(`Đơn hàng ${orderNumber} đã thanh toán thành công!`);

@@ -96,6 +96,14 @@ interface CheckoutSheetProps {
   embedded?: boolean;
   existingDraftOrder?: DraftOrderState | null;
   existingPaymentMethod?: PaymentMethod;
+  existingCheckoutData?: {
+    customerName: string;
+    customerPhone: string | null;
+    note: string | null;
+    discountCode: string | null;
+    loyaltyPointsUsed: number;
+    transferContent: string | null;
+  } | null;
 }
 
 interface CustomerInfo {
@@ -134,6 +142,7 @@ export default function CheckoutSheet({
   embedded = false,
   existingDraftOrder = null,
   existingPaymentMethod,
+  existingCheckoutData = null,
 }: CheckoutSheetProps) {
   const VCB_BANK_BIN = "970436";
   const VCB_ACCOUNT_NUMBER = "1036448212";
@@ -206,7 +215,7 @@ export default function CheckoutSheet({
   const loyaltyInputParsed = loyaltyInputDigits ? parseInt(loyaltyInputDigits, 10) : 0;
   const loyaltyPointsError = null;
 
-  const loyaltyPointsToUse = 0;
+  const loyaltyPointsToUse = useLoyaltyPoints ? Math.max(0, Math.min(loyaltyInputParsed, maxPointsUsable)) : 0;
   const loyaltyDiscount = loyaltyPointsToUse * pointValue;
 
   const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
@@ -277,11 +286,33 @@ export default function CheckoutSheet({
   useEffect(() => {
     if (!open || !existingDraftOrder) return;
     setDraftOrder(existingDraftOrder);
-    setTransferContent(buildTransferContentFromOrderNumber(existingDraftOrder.orderNumber));
+    setTransferContent(
+      sanitizeTransferContent(
+        existingCheckoutData?.transferContent || buildTransferContentFromOrderNumber(existingDraftOrder.orderNumber)
+      )
+    );
     if (existingPaymentMethod === "transfer" || existingPaymentMethod === "cash") {
       setPaymentMethod(existingPaymentMethod);
     }
-  }, [open, existingDraftOrder, existingPaymentMethod]);
+
+    if (existingCheckoutData) {
+      const hasCustomer =
+        !!existingCheckoutData.customerPhone ||
+        (existingCheckoutData.customerName && existingCheckoutData.customerName !== "Khách lẻ");
+      setUseLoyalty(hasCustomer);
+      setCustomerName(existingCheckoutData.customerName || "");
+      setCustomerPhone(existingCheckoutData.customerPhone || "");
+      setOrderNote(existingCheckoutData.note || "");
+
+      const normalizedCode = (existingCheckoutData.discountCode || "").trim().toUpperCase();
+      setUseDiscountCode(!!normalizedCode);
+      setDiscountCodeInput(normalizedCode);
+
+      const usedPoints = Math.max(0, Number(existingCheckoutData.loyaltyPointsUsed || 0));
+      setUseLoyaltyPoints(usedPoints > 0);
+      setLoyaltyPointsInput(String(usedPoints));
+    }
+  }, [open, existingDraftOrder, existingPaymentMethod, existingCheckoutData]);
 
   useEffect(() => {
     if (open && !checkoutSeedTimeMs) {
@@ -487,6 +518,8 @@ export default function CheckoutSheet({
         payment_method: paymentMethod,
         transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
         note: orderNote || null,
+        discount_code: useDiscountCode ? normalizedDiscountCode : null,
+        discount_amount: discountCodeAmount,
         customer_name: useLoyalty && customerName.trim() ? customerName.trim() : "Khách lẻ",
         customer_phone: useLoyalty ? customerPhone.trim() || null : null,
         loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
@@ -628,6 +661,8 @@ export default function CheckoutSheet({
           income_receipt_code: incomeReceiptCode,
           income_recorded_at: new Date().toISOString(),
           transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
+          discount_code: useDiscountCode ? normalizedDiscountCode : null,
+          discount_amount: discountCodeAmount,
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
           customer_id: customerId,
           note: orderNote || null,
