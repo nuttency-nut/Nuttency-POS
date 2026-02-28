@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
-  CreditCard,
   Download,
   Package,
   RefreshCw,
@@ -86,19 +85,6 @@ function formatYAxisRevenue(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return value.toString();
-}
-
-function getPaymentLabel(method: string) {
-  switch (method) {
-    case "cash":
-      return "Tiền mặt";
-    case "transfer":
-      return "Chuyển khoản";
-    case "momo":
-      return "MoMo";
-    default:
-      return method;
-  }
 }
 
 function toLocalDate(dateString: string) {
@@ -207,16 +193,6 @@ export default function Reports() {
     const avgYesterday = completedYesterday.length > 0
       ? completedYesterday.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) / completedYesterday.length
       : 0;
-
-    const paymentMap = new Map<string, { count: number; amount: number }>();
-    completedOrders.forEach((order) => {
-      const key = order.payment_method || "other";
-      const prev = paymentMap.get(key) || { count: 0, amount: 0 };
-      paymentMap.set(key, {
-        count: prev.count + 1,
-        amount: prev.amount + Number(order.total_amount || 0),
-      });
-    });
 
     const now = new Date();
     const weekStart = getMonday(now);
