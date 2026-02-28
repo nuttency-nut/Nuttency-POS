@@ -217,11 +217,6 @@ export default function ClassificationDialog({
             Thêm · {formatPrice(unitPrice * qty)}
           </Button>
         </DialogFooter>
-        {!canConfirm && (
-          <p className="px-4 pb-3 text-xs text-destructive">
-            Vui lòng chọn đầy đủ các phân loại bắt buộc trước khi thêm vào giỏ hàng.
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   );
