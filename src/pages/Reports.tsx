@@ -218,9 +218,31 @@ export default function Reports() {
       });
     });
 
+    const now = new Date();
+    const weekStart = getMonday(now);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const monthBase = new Date(now.getFullYear(), now.getMonth(), 1);
+    const range12MonthStart = new Date(monthBase);
+    range12MonthStart.setMonth(range12MonthStart.getMonth() - 11);
+    range12MonthStart.setHours(0, 0, 0, 0);
+    const range12MonthEnd = new Date(monthBase);
+    range12MonthEnd.setMonth(range12MonthEnd.getMonth() + 1);
+    range12MonthEnd.setMilliseconds(-1);
+
+    const chartScopedCompletedOrders = completedOrders.filter((order) => {
+      const dt = toLocalDate(order.created_at);
+      if (chartTab === "revenue-12m") {
+        return dt >= range12MonthStart && dt <= range12MonthEnd;
+      }
+      return dt >= weekStart && dt <= weekEnd;
+    });
+
     const productMap = new Map<string, { qty: number; amount: number }>();
     const categoryMap = new Map<string, number>();
-    completedOrders.forEach((order) => {
+    chartScopedCompletedOrders.forEach((order) => {
       (order.order_items || []).forEach((item) => {
         const key = item.product_name || "Sản phẩm";
         const prev = productMap.get(key) || { qty: 0, amount: 0 };
@@ -249,8 +271,6 @@ export default function Reports() {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
 
-    const now = new Date();
-    const weekStart = getMonday(now);
     const previousWeekStart = new Date(weekStart);
     previousWeekStart.setDate(previousWeekStart.getDate() - 7);
 
@@ -284,7 +304,6 @@ export default function Reports() {
     });
 
     const monthlyData: MonthlyDataPoint[] = [];
-    const monthBase = new Date(now.getFullYear(), now.getMonth(), 1);
     for (let i = 11; i >= 0; i--) {
       const d = new Date(monthBase);
       d.setMonth(d.getMonth() - i);
@@ -316,15 +335,15 @@ export default function Reports() {
         avgValueTrend: getTrendPercent(avgToday, avgYesterday),
       },
       totalRevenue,
-      paymentStats: Array.from(paymentMap.entries()).map(([method, stat]) => ({ method, ...stat })),
       topProducts,
       categoryBreakdown,
       totalOrders: orders.length,
       weeklyData,
       monthlyData,
       monthlyTrend: getTrendPercent(thisMonth, lastMonth),
+      chartScope: chartTab === "revenue-12m" ? "12m" : "week",
     };
-  }, [orders]);
+  }, [orders, chartTab]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["reports-data"] });
@@ -335,9 +354,6 @@ export default function Reports() {
       ["Báo cáo tổng quan"],
       ["Tổng đơn", report.totalOrders.toString()],
       ["Doanh thu", report.totalRevenue.toString()],
-      [],
-      ["Phương thức", "Số đơn", "Doanh thu"],
-      ...report.paymentStats.map((p) => [getPaymentLabel(p.method), p.count.toString(), p.amount.toString()]),
       [],
       ["Top sản phẩm", "Số lượng", "Doanh thu"],
       ...report.topProducts.map((p) => [p.name, p.qty.toString(), p.amount.toString()]),
@@ -507,12 +523,16 @@ export default function Reports() {
 
             <div className="rounded-xl border border-border bg-card p-3">
               <h3 className="text-base font-semibold text-foreground">Doanh thu theo danh mục</h3>
-              <p className="text-sm text-muted-foreground mb-3">Phân bổ doanh thu 12 tháng theo nhóm sản phẩm</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                {report.chartScope === "12m"
+                  ? "Phân bổ doanh thu 12 tháng theo nhóm sản phẩm"
+                  : "Phân bổ doanh thu tuần theo nhóm sản phẩm"}
+              </p>
 
               {report.categoryBreakdown.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Chưa có dữ liệu danh mục.</p>
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_1fr] items-center">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_1fr] items-center overflow-hidden">
                   <div className="h-44 mx-auto w-full max-w-[220px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -535,21 +555,17 @@ export default function Reports() {
                     </ResponsiveContainer>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 min-w-0">
                     {report.categoryBreakdown.map((item, idx) => {
                       const colors = ["#0B1736", "#5F7391", "#90A4C0", "#B7C7DA", "#DCE3ED"];
                       return (
-                        <div key={`${item.name}-${idx}`} className="flex items-center justify-between gap-3">
-                          <div className="inline-flex min-w-0 items-center gap-2">
+                        <div key={`${item.name}-${idx}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+                          <div className="inline-flex min-w-0 items-center gap-2 overflow-hidden">
                             <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: colors[idx % colors.length] }} />
-                            <span className="truncate text-sm font-medium text-foreground">{item.name}</span>
+                            <span className="truncate text-[clamp(11px,2.8vw,14px)] font-medium text-foreground">{item.name}</span>
                           </div>
-                          <div className="inline-flex shrink-0 items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">{item.percent.toFixed(0)}%</span>
-                            <span className="text-xs text-muted-foreground min-w-[52px] text-right">
-                              {formatCompact(item.amount)}
-                            </span>
-                          </div>
+                          <span className="text-[clamp(11px,2.8vw,14px)] font-semibold text-foreground">{item.percent.toFixed(0)}%</span>
+                          <span className="text-[clamp(11px,2.6vw,13px)] text-muted-foreground text-right">{formatCompact(item.amount)}</span>
                         </div>
                       );
                     })}
@@ -558,31 +574,11 @@ export default function Reports() {
               )}
             </div>
 
-            <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Phương thức thanh toán</h3>
-              {report.paymentStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chưa có đơn hoàn thành.</p>
-              ) : (
-                <div className="space-y-2">
-                  {report.paymentStats.map((payment) => (
-                    <div key={payment.method} className="rounded-lg border border-border bg-background px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
-                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                          {getPaymentLabel(payment.method)}
-                        </span>
-                        <span className="text-sm font-semibold text-foreground">{formatPrice(payment.amount)}</span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{payment.count} đơn</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <div className="rounded-xl border border-border bg-card p-3 space-y-3">
               <h3 className="text-base font-semibold text-foreground">Sản phẩm bán chạy</h3>
-              <p className="text-sm text-muted-foreground -mt-2">Top 5 sản phẩm 12 tháng gần nhất</p>
+              <p className="text-sm text-muted-foreground -mt-2">
+                {report.chartScope === "12m" ? "Top 5 sản phẩm 12 tháng gần nhất" : "Top 5 sản phẩm tuần hiện tại"}
+              </p>
               {report.topProducts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Chưa có dữ liệu sản phẩm.</p>
               ) : (
