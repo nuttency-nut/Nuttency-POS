@@ -425,6 +425,43 @@ export default function CheckoutSheet({
   }, [draftOrder?.id]);
 
   useEffect(() => {
+    if (!open || !draftOrder?.id) return;
+
+    const refreshDraft = async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("id,order_number,status,income_receipt_code,payment_method")
+        .eq("id", draftOrder.id)
+        .maybeSingle();
+
+      if (!data) return;
+
+      setDraftOrder((prev) =>
+        prev
+          ? {
+              ...prev,
+              orderNumber: data.order_number || prev.orderNumber,
+              status: data.status || prev.status,
+              incomeReceiptCode: data.income_receipt_code ?? prev.incomeReceiptCode,
+            }
+          : prev
+      );
+
+      if (data.payment_method === "transfer" || data.payment_method === "cash") {
+        setPaymentMethod(data.payment_method);
+      }
+    };
+
+    // Immediate refresh for retry-checkout, then periodic fallback when websocket misses event.
+    void refreshDraft();
+    const timer = setInterval(() => {
+      void refreshDraft();
+    }, 1500);
+
+    return () => clearInterval(timer);
+  }, [open, draftOrder?.id]);
+
+  useEffect(() => {
     latestDraftRef.current = draftOrder;
     if (draftOrder?.orderNumber) {
       setTransferContent(buildTransferContentFromOrderNumber(draftOrder.orderNumber));
@@ -632,7 +669,7 @@ export default function CheckoutSheet({
       autoConfirmTriggered ||
       isSubmitting ||
       paymentMethod !== "transfer" ||
-      draftOrder?.status !== "completed" ||
+      !draftOrder?.incomeReceiptCode ||
       !canSubmit
     ) {
       return;

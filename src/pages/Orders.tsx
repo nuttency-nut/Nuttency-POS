@@ -749,7 +749,7 @@ export default function Orders() {
                         disabled={updateStatus.isPending}
                         onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
                       >
-                        Hủy đơn hàng chưa thanh toán
+                        Hủy đơn hàng
                       </Button>
                       <Button
                         className="h-11 rounded-xl"
