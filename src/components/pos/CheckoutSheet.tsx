@@ -107,6 +107,7 @@ interface DraftOrderState {
   id: string;
   orderNumber: string;
   status: string;
+  incomeReceiptCode: string | null;
 }
 
 type PromoRule = {
@@ -316,7 +317,7 @@ export default function CheckoutSheet({
         .update({ order_number: customOrderNumber })
         .eq("id", order.id)
         .eq("status", "pending")
-        .select("id, order_number, status")
+        .select("id, order_number, status, income_receipt_code")
         .single();
 
       if (updateOrderError) throw updateOrderError;
@@ -340,6 +341,7 @@ export default function CheckoutSheet({
         id: updatedOrder.id,
         orderNumber: updatedOrder.order_number,
         status: updatedOrder.status || "pending",
+        incomeReceiptCode: updatedOrder.income_receipt_code ?? null,
       });
       setTransferContent(transferContentDefault);
     } catch (error: any) {
@@ -382,9 +384,16 @@ export default function CheckoutSheet({
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "orders", filter: `id=eq.${draftOrder.id}` },
         (payload: any) => {
-          const row = payload.new as { status?: string };
-          if (!row?.status) return;
-          setDraftOrder((prev) => (prev ? { ...prev, status: row.status || prev.status } : prev));
+          const row = payload.new as { status?: string; income_receipt_code?: string | null };
+          setDraftOrder((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: row?.status || prev.status,
+                  incomeReceiptCode: row?.income_receipt_code ?? prev.incomeReceiptCode,
+                }
+              : prev
+          );
         }
       )
       .subscribe();
@@ -472,8 +481,8 @@ export default function CheckoutSheet({
       return;
     }
 
-    if (paymentMethod === "transfer" && draftOrder.status !== "completed") {
-      toast.error("Đơn chưa nhận được xác nhận thanh toán từ ngân hàng");
+    if (paymentMethod === "transfer" && !draftOrder.incomeReceiptCode) {
+      toast.error("Đơn chưa nhận được phiếu thu từ giao dịch ngân hàng");
       return;
     }
 
@@ -525,7 +534,29 @@ export default function CheckoutSheet({
         }
       }
 
-      const nextStatus = paymentMethod === "transfer" ? draftOrder.status : "completed";
+      let incomeReceiptCode = draftOrder.incomeReceiptCode;
+
+      if (paymentMethod === "cash" && !incomeReceiptCode) {
+        const { data: createdIncomeCode, error: incomeError } = await (supabase as any).rpc("create_income_voucher", {
+          p_amount: finalAmount,
+          p_payment_method: "cash",
+          p_payment_content: null,
+          p_order_id: draftOrder.id,
+          p_order_number: draftOrder.orderNumber,
+          p_income_type: "cash",
+          p_created_at: new Date().toISOString(),
+          p_transaction_id: null,
+        });
+
+        if (incomeError) throw incomeError;
+        incomeReceiptCode = String(createdIncomeCode || "");
+      }
+
+      if (!incomeReceiptCode) {
+        toast.error("Chưa tạo được phiếu thu");
+        return;
+      }
+
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .update({
@@ -533,7 +564,9 @@ export default function CheckoutSheet({
           customer_name: useLoyalty ? customerName : "Khách lẻ",
           customer_phone: useLoyalty ? customerPhone : null,
           payment_method: paymentMethod,
-          status: nextStatus,
+          status: "completed",
+          income_receipt_code: incomeReceiptCode,
+          income_recorded_at: new Date().toISOString(),
           transfer_content: paymentMethod === "transfer" ? normalizedTransferContent : null,
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
           customer_id: customerId,
@@ -558,14 +591,14 @@ export default function CheckoutSheet({
     { key: "transfer", label: "Chuyển khoản", icon: <CreditCard className="w-4 h-4" /> },
   ];
 
-  const transferCompleted = paymentMethod === "transfer" && draftOrder?.status === "completed";
+  const transferReceiptReady = paymentMethod === "transfer" && !!draftOrder?.incomeReceiptCode;
 
   const canSubmit =
     !!draftOrder &&
     !isPreparingOrder &&
     !isDeletingDraft &&
     !isSubmitting &&
-    (transferCompleted
+    (transferReceiptReady
       ? true
       : (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
         (!useDiscountCode || !discountCodeError) &&
@@ -780,7 +813,7 @@ export default function CheckoutSheet({
                     const lockCashAfterTransferCompleted =
                       payment.key === "cash" &&
                       paymentMethod === "transfer" &&
-                      draftOrder?.status === "completed";
+                      !!draftOrder?.incomeReceiptCode;
 
                     return (
                   <button
@@ -860,13 +893,13 @@ export default function CheckoutSheet({
                   <div
                     className={cn(
                       "rounded-lg border px-2.5 py-2 text-xs",
-                      draftOrder?.status === "completed"
+                      draftOrder?.incomeReceiptCode
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
                         : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
                     )}
                   >
-                    {draftOrder?.status === "completed"
-                      ? "Thanh toán thành công"
+                    {draftOrder?.incomeReceiptCode
+                      ? "Đã nhận tiền từ ngân hàng. Có thể xác nhận thanh toán."
                       : "Hệ thống chờ thanh toán"}
                   </div>
                 </div>
@@ -904,13 +937,13 @@ export default function CheckoutSheet({
             <span className="text-base font-bold text-foreground">{formatPrice(finalAmount)}</span>
           </div>
 
-          {(paymentMethod !== "transfer" || draftOrder?.status === "completed") && (
+          {(paymentMethod !== "transfer" || draftOrder?.incomeReceiptCode) && (
             <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
               {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
             </Button>
           )}
 
-          {paymentMethod === "transfer" && draftOrder?.status !== "completed" && (
+          {paymentMethod === "transfer" && !draftOrder?.incomeReceiptCode && (
             <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
               Chờ thanh toán
             </div>

@@ -197,11 +197,30 @@ Deno.serve(async (req) => {
     );
   });
 
+  const { data: incomeCode, error: incomeError } = await (supabase as any).rpc("create_income_voucher", {
+    p_amount: roundedAmount,
+    p_payment_method: "transfer",
+    p_payment_content: transferContentRaw,
+    p_order_id: match?.id ?? null,
+    p_order_number: match?.order_number ?? null,
+    p_income_type: "transfer",
+    p_created_at: new Date().toISOString(),
+    p_transaction_id: transactionId || null,
+  });
+
+  if (incomeError) {
+    return new Response(JSON.stringify({ ok: false, error: "income_create_failed", detail: incomeError.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (!match) {
     return new Response(
       JSON.stringify({
         ok: true,
         matched: false,
+        income_receipt_code: String(incomeCode || ""),
         reason: "no_order_match",
       }),
       {
@@ -211,27 +230,12 @@ Deno.serve(async (req) => {
     );
   }
 
-  if (match.status === "completed") {
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        matched: true,
-        updated: false,
-        order_id: match.id,
-        order_number: match.order_number,
-        reason: "already_completed",
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
-
   const updatePayload: Record<string, unknown> = {
     status: "completed",
     paid_at: new Date().toISOString(),
     payment_payload: payload,
+    income_receipt_code: String(incomeCode || ""),
+    income_recorded_at: new Date().toISOString(),
   };
 
   if (transactionId) {
@@ -242,17 +246,26 @@ Deno.serve(async (req) => {
     .from("orders")
     .update(updatePayload)
     .eq("id", match.id)
-    .eq("status", "pending")
-    .select("id,order_number,status")
+    .in("status", ["pending", "completed"])
+    .select("id,order_number,status,income_receipt_code")
     .maybeSingle();
 
   if (updateError) {
     const code = (updateError as { code?: string }).code;
     if (code === "23505") {
-      return new Response(JSON.stringify({ ok: true, matched: true, updated: false, reason: "duplicate_transaction_id" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          matched: true,
+          updated: false,
+          reason: "duplicate_transaction_id",
+          income_receipt_code: String(incomeCode || ""),
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     return new Response(JSON.stringify({ ok: false, error: "update_failed", detail: updateError.message }), {
@@ -268,6 +281,8 @@ Deno.serve(async (req) => {
       updated: true,
       order_id: updatedOrder?.id ?? match.id,
       order_number: updatedOrder?.order_number ?? match.order_number,
+      income_receipt_code: updatedOrder?.income_receipt_code ?? String(incomeCode || ""),
+      status: updatedOrder?.status ?? match.status,
     }),
     {
       status: 200,

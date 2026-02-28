@@ -79,6 +79,62 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_vouchers: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          id_income: string
+          income_type: string
+          order_id: string | null
+          order_number: string | null
+          payment_content: string | null
+          payment_method: string
+          transaction_id: string | null
+          updated_at: string
+          voucher_code: string
+          voucher_type: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          id_income: string
+          income_type: string
+          order_id?: string | null
+          order_number?: string | null
+          payment_content?: string | null
+          payment_method?: string
+          transaction_id?: string | null
+          updated_at?: string
+          voucher_code: string
+          voucher_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          id_income?: string
+          income_type?: string
+          order_id?: string | null
+          order_number?: string | null
+          payment_content?: string | null
+          payment_method?: string
+          transaction_id?: string | null
+          updated_at?: string
+          voucher_code?: string
+          voucher_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_vouchers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           classification_labels: string[] | null
