@@ -258,9 +258,9 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
           <button onClick={onCancel} className="flex items-center gap-1 text-sm text-muted-foreground">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold text-foreground">{product ? "Sá»­a sáº£n pháº©m" : "Thêm sản phẩm mới"}</h1>
+          <h1 className="text-lg font-bold text-foreground">{product ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}</h1>
           <Button size="sm" className="rounded-xl h-9" onClick={handleSubmit} disabled={!isFormValid || isSaving}>
-            {isSaving ? "Äang lÆ°u..." : "LÆ°u"}
+            {isSaving ? "Đang lưu..." : "Lưu"}
           </Button>
         </div>
       </header>
@@ -276,7 +276,7 @@ export default function ProductForm({ product, onSave, onCancel, isSaving }: Pro
               >
                 {imageUrl ? (
                   <>
-                    <img src={imageUrl} alt="áº¢nh sáº£n pháº©m" className="w-full h-full object-cover" />
+                    <img src={imageUrl} alt="Ảnh sản phẩm" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors flex items-center justify-center">
                       <Camera className="w-6 h-6 text-primary-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
