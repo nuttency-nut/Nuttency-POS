@@ -44,6 +44,8 @@ type OrderRow = {
   total_amount: number;
   payment_method: string;
   status: string;
+  income_receipt_code: string | null;
+  income_recorded_at: string | null;
   created_at: string;
   note: string | null;
   loyalty_points_used: number;
@@ -60,21 +62,21 @@ const STATUS_META: Record<
   }
 > = {
   pending: {
-    label: "Chờ xử lý",
+    label: "Chờ thanh toán",
     chipClass:
       "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-700",
     dotColor: "bg-amber-500",
     icon: <Clock3 className="w-3.5 h-3.5" />,
   },
   completed: {
-    label: "Hoàn thành",
+    label: "Đã thanh toán",
     chipClass:
       "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-700",
     dotColor: "bg-emerald-500",
     icon: <CircleCheckBig className="w-3.5 h-3.5" />,
   },
   cancelled: {
-    label: "Đã hủy",
+    label: "Đơn hàng đã hủy do chưa thanh toán",
     chipClass:
       "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
     dotColor: "bg-rose-500",
@@ -144,8 +146,6 @@ function getPaymentLabel(method: string) {
       return "Tiền mặt";
     case "transfer":
       return "Chuyển khoản";
-    case "momo":
-      return "MoMo";
     default:
       return method;
   }
@@ -188,7 +188,7 @@ export default function Orders() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
+          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,income_receipt_code,income_recorded_at,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
         )
         .order("created_at", { ascending: false })
         .limit(300);
@@ -199,7 +199,7 @@ export default function Orders() {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: "completed" | "cancelled" }) => {
+    mutationFn: async ({ orderId, status }: { orderId: string; status: "cancelled" }) => {
       const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
       if (error) throw error;
     },
@@ -250,8 +250,8 @@ export default function Orders() {
 
   const tabs = [
     { key: "all" as const, label: "Tất cả", count: counts.all },
-    { key: "pending" as const, label: "Chờ xử lý", count: counts.pending },
-    { key: "completed" as const, label: "Hoàn thành", count: counts.completed },
+    { key: "pending" as const, label: "Chờ thanh toán", count: counts.pending },
+    { key: "completed" as const, label: "Đã thanh toán", count: counts.completed },
     { key: "cancelled" as const, label: "Đã hủy", count: counts.cancelled },
   ];
 
@@ -281,6 +281,8 @@ export default function Orders() {
               total_amount: Number(newRow.total_amount || 0),
               payment_method: (newRow.payment_method as string) || "cash",
               status: (newRow.status as string) || "pending",
+              income_receipt_code: (newRow.income_receipt_code as string) ?? null,
+              income_recorded_at: (newRow.income_recorded_at as string) ?? null,
               created_at: newRow.created_at || new Date().toISOString(),
               note: newRow.note ?? null,
               loyalty_points_used: Number(newRow.loyalty_points_used || 0),
@@ -424,7 +426,7 @@ export default function Orders() {
             accent="bg-rose-100"
           />
           <SummaryCard
-            label="Đã nhập trả"
+            label="Đã thanh toán"
             value={counts.completed.toString()}
             icon={<RotateCcw className="h-5 w-5 text-emerald-700" />}
             accent="bg-emerald-100"
@@ -651,6 +653,21 @@ export default function Orders() {
                       </span>
                       <span className="text-sm font-medium text-foreground">{getPaymentLabel(selectedOrder.payment_method)}</span>
                     </div>
+                    {selectedOrder.income_receipt_code && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
+                          <ReceiptText className="h-3.5 w-3.5" />
+                          Phiếu thu
+                        </span>
+                        <span className="text-sm font-semibold text-foreground">{selectedOrder.income_receipt_code}</span>
+                      </div>
+                    )}
+                    {selectedOrder.income_recorded_at && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Ghi nhận thu</span>
+                        <span className="text-sm font-medium text-foreground">{formatDateTime(selectedOrder.income_recorded_at)}</span>
+                      </div>
+                    )}
                     {selectedOrder.loyalty_points_used > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
@@ -718,21 +735,14 @@ export default function Orders() {
                   </div>
 
                   {selectedOrder.status === "pending" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <Button
                         variant="outline"
                         className="h-11 rounded-xl"
                         disabled={updateStatus.isPending}
                         onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
                       >
-                        Đánh dấu hủy
-                      </Button>
-                      <Button
-                        className="h-11 rounded-xl"
-                        disabled={updateStatus.isPending}
-                        onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "completed" })}
-                      >
-                        Hoàn thành
+                        Hủy đơn hàng chưa thanh toán
                       </Button>
                     </div>
                   )}

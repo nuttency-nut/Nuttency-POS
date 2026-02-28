@@ -558,15 +558,18 @@ export default function CheckoutSheet({
     { key: "transfer", label: "Chuyển khoản", icon: <CreditCard className="w-4 h-4" /> },
   ];
 
+  const transferCompleted = paymentMethod === "transfer" && draftOrder?.status === "completed";
+
   const canSubmit =
     !!draftOrder &&
     !isPreparingOrder &&
     !isDeletingDraft &&
     !isSubmitting &&
-    (paymentMethod !== "transfer" || draftOrder.status === "completed") &&
-    (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
-    (!useDiscountCode || !discountCodeError) &&
-    (!useLoyaltyPoints || !loyaltyPointsError);
+    (transferCompleted
+      ? true
+      : (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
+        (!useDiscountCode || !discountCodeError) &&
+        (!useLoyaltyPoints || !loyaltyPointsError));
 
   const panelContent = (
     <>

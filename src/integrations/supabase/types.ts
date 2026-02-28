@@ -140,6 +140,8 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           id: string
+          income_receipt_code: string | null
+          income_recorded_at: string | null
           loyalty_points_used: number
           note: string | null
           order_number: string
@@ -159,6 +161,8 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           id?: string
+          income_receipt_code?: string | null
+          income_recorded_at?: string | null
           loyalty_points_used?: number
           note?: string | null
           order_number: string
@@ -178,6 +182,8 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           id?: string
+          income_receipt_code?: string | null
+          income_recorded_at?: string | null
           loyalty_points_used?: number
           note?: string | null
           order_number?: string
