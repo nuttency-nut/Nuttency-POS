@@ -622,8 +622,21 @@ export default function CheckoutSheet({
             .select("id")
             .single();
 
-          if (customerError) throw customerError;
-          customerId = newCustomer.id;
+          if (customerError) {
+            const isDuplicatePhone = (customerError as { code?: string }).code === "23505";
+            if (!isDuplicatePhone) throw customerError;
+
+            const { data: existingCustomer, error: existingCustomerError } = await supabase
+              .from("customers")
+              .select("id")
+              .eq("phone", customerPhone)
+              .single();
+
+            if (existingCustomerError) throw existingCustomerError;
+            customerId = existingCustomer.id;
+          } else {
+            customerId = newCustomer.id;
+          }
         }
       }
 
