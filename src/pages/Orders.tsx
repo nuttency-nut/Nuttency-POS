@@ -19,12 +19,15 @@ import {
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/sonner";
 import QrScannerDialog from "@/components/common/QrScannerDialog";
+import CheckoutSheet from "@/components/pos/CheckoutSheet";
+import type { CartItem } from "@/components/pos/Cart";
 
 type OrderItem = {
   id: string;
@@ -46,6 +49,7 @@ type OrderRow = {
   status: string;
   income_receipt_code: string | null;
   income_recorded_at: string | null;
+  transfer_content: string | null;
   created_at: string;
   note: string | null;
   loyalty_points_used: number;
@@ -175,10 +179,12 @@ function SummaryCard({
 
 export default function Orders() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
+  const [repayOrder, setRepayOrder] = useState<OrderRow | null>(null);
   const [fromDate, setFromDate] = useState(getTodayLocalISO());
   const [toDate, setToDate] = useState(getTodayLocalISO());
 
@@ -188,7 +194,7 @@ export default function Orders() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,income_receipt_code,income_recorded_at,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
+          "id,order_number,customer_name,customer_phone,total_amount,payment_method,status,income_receipt_code,income_recorded_at,transfer_content,created_at,note,loyalty_points_used,order_items(id,product_name,qty,unit_price,subtotal,classification_labels,note)"
         )
         .order("created_at", { ascending: false })
         .limit(300);
@@ -283,6 +289,7 @@ export default function Orders() {
               status: (newRow.status as string) || "pending",
               income_receipt_code: (newRow.income_receipt_code as string) ?? null,
               income_recorded_at: (newRow.income_recorded_at as string) ?? null,
+              transfer_content: (newRow.transfer_content as string) ?? null,
               created_at: newRow.created_at || new Date().toISOString(),
               note: newRow.note ?? null,
               loyalty_points_used: Number(newRow.loyalty_points_used || 0),
@@ -735,7 +742,7 @@ export default function Orders() {
                   </div>
 
                   {selectedOrder.status === "pending" && (
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <Button
                         variant="outline"
                         className="h-11 rounded-xl"
@@ -743,6 +750,15 @@ export default function Orders() {
                         onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
                       >
                         Hủy đơn hàng chưa thanh toán
+                      </Button>
+                      <Button
+                        className="h-11 rounded-xl"
+                        onClick={() => {
+                          setRepayOrder(selectedOrder);
+                          setSelectedOrder(null);
+                        }}
+                      >
+                        Thanh toán lại
                       </Button>
                     </div>
                   )}
@@ -752,6 +768,37 @@ export default function Orders() {
           })()}
         </SheetContent>
       </Sheet>
+
+      {user && repayOrder && (
+        <CheckoutSheet
+          open={!!repayOrder}
+          onClose={() => setRepayOrder(null)}
+          userId={user.id}
+          items={repayOrder.order_items.map(
+            (item, idx): CartItem => ({
+              id: `repay-${repayOrder.id}-${idx}`,
+              productId: item.id,
+              name: item.product_name,
+              price: item.unit_price,
+              qty: item.qty,
+              image_url: null,
+              classificationLabels: item.classification_labels || [],
+              note: item.note || undefined,
+            })
+          )}
+          existingDraftOrder={{
+            id: repayOrder.id,
+            orderNumber: repayOrder.order_number,
+            status: repayOrder.status,
+            incomeReceiptCode: repayOrder.income_receipt_code,
+          }}
+          existingPaymentMethod={repayOrder.payment_method === "transfer" ? "transfer" : "cash"}
+          onSuccess={(orderNumber) => {
+            setRepayOrder(null);
+            toast.success(`Đơn hàng ${orderNumber} đã thanh toán thành công!`);
+          }}
+        />
+      )}
     </AppLayout>
   );
 }

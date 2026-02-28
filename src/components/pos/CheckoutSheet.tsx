@@ -94,6 +94,8 @@ interface CheckoutSheetProps {
   onSuccess: (orderNumber: string) => void;
   userId: string;
   embedded?: boolean;
+  existingDraftOrder?: DraftOrderState | null;
+  existingPaymentMethod?: PaymentMethod;
 }
 
 interface CustomerInfo {
@@ -130,6 +132,8 @@ export default function CheckoutSheet({
   onSuccess,
   userId,
   embedded = false,
+  existingDraftOrder = null,
+  existingPaymentMethod,
 }: CheckoutSheetProps) {
   const VCB_BANK_BIN = "970436";
   const VCB_ACCOUNT_NUMBER = "1036448212";
@@ -157,6 +161,7 @@ export default function CheckoutSheet({
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [autoConfirmTriggered, setAutoConfirmTriggered] = useState(false);
   const latestDraftRef = useRef<DraftOrderState | null>(null);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -265,8 +270,18 @@ export default function CheckoutSheet({
       setDraftOrder(null);
       setIsPreparingOrder(false);
       setIsDeletingDraft(false);
+      setAutoConfirmTriggered(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !existingDraftOrder) return;
+    setDraftOrder(existingDraftOrder);
+    setTransferContent(buildTransferContentFromOrderNumber(existingDraftOrder.orderNumber));
+    if (existingPaymentMethod === "transfer" || existingPaymentMethod === "cash") {
+      setPaymentMethod(existingPaymentMethod);
+    }
+  }, [open, existingDraftOrder, existingPaymentMethod]);
 
   useEffect(() => {
     if (open && !checkoutSeedTimeMs) {
@@ -352,6 +367,11 @@ export default function CheckoutSheet({
   };
 
   const handleBackToCart = async () => {
+    if (existingDraftOrder) {
+      onClose();
+      return;
+    }
+
     if (!draftOrder || draftOrder.status !== "pending") {
       onClose();
       return;
@@ -371,9 +391,10 @@ export default function CheckoutSheet({
   };
 
   useEffect(() => {
+    if (existingDraftOrder) return;
     if (!open || items.length === 0 || draftOrder || isPreparingOrder) return;
     void createDraftOrder();
-  }, [open, items.length, draftOrder, isPreparingOrder]);
+  }, [open, items.length, draftOrder, isPreparingOrder, existingDraftOrder]);
 
   useEffect(() => {
     if (!draftOrder?.id) return;
@@ -412,12 +433,13 @@ export default function CheckoutSheet({
 
   useEffect(() => {
     return () => {
+      if (existingDraftOrder) return;
       const latest = latestDraftRef.current;
       if (latest?.id && latest.status === "pending") {
         void supabase.from("orders").delete().eq("id", latest.id).eq("status", "pending");
       }
     };
-  }, []);
+  }, [existingDraftOrder]);
 
   useEffect(() => {
     if (!draftOrder?.id || !open) return;
@@ -603,6 +625,33 @@ export default function CheckoutSheet({
       : (paymentMethod !== "cash" || cashReceivedNum >= finalAmount) &&
         (!useDiscountCode || !discountCodeError) &&
         (!useLoyaltyPoints || !loyaltyPointsError));
+
+  useEffect(() => {
+    if (
+      !open ||
+      autoConfirmTriggered ||
+      isSubmitting ||
+      paymentMethod !== "transfer" ||
+      draftOrder?.status !== "completed" ||
+      !canSubmit
+    ) {
+      return;
+    }
+
+    setAutoConfirmTriggered(true);
+    const timer = setTimeout(() => {
+      void handleSubmit();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [
+    open,
+    autoConfirmTriggered,
+    isSubmitting,
+    paymentMethod,
+    draftOrder?.status,
+    canSubmit,
+  ]);
 
   const panelContent = (
     <>
@@ -899,7 +948,7 @@ export default function CheckoutSheet({
                     )}
                   >
                     {draftOrder?.incomeReceiptCode
-                      ? "Đã nhận tiền từ ngân hàng. Có thể xác nhận thanh toán."
+                      ? "Thanh toán thành công"
                       : "Hệ thống chờ thanh toán"}
                   </div>
                 </div>
