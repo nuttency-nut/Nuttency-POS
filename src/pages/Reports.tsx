@@ -1,10 +1,9 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTheme } from "next-themes";
 import {
   BarChart3,
   Download,
@@ -153,8 +152,27 @@ function KpiCard({
 export default function Reports() {
   const [chartTab, setChartTab] = useState<"revenue-week" | "orders-week" | "revenue-12m">("revenue-week");
   const queryClient = useQueryClient();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return document.documentElement.classList.contains("dark");
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    const syncTheme = () => setIsDark(root.classList.contains("dark"));
+    syncTheme();
+
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    window.addEventListener("storage", syncTheme);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
 
   const chartColors = useMemo(
     () => ({
@@ -614,4 +632,6 @@ export default function Reports() {
     </AppLayout>
   );
 }
+
+
 
