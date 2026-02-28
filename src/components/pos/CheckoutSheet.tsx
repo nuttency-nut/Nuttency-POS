@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Banknote,
   CreditCard,
-  Smartphone,
   Star,
   UserPlus,
   ArrowLeft,
@@ -59,7 +58,34 @@ function sanitizeTransferContent(raw: string) {
     .replace(/[^A-Z0-9]/g, "");
 }
 
-type PaymentMethod = "cash" | "transfer" | "momo";
+function toBase36Chars(input: number, length: number) {
+  const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let n = Math.abs(input);
+  let result = "";
+  for (let i = 0; i < length; i += 1) {
+    result = alphabet[n % 36] + result;
+    n = Math.floor(n / 36);
+  }
+  return result;
+}
+
+function generateCheckoutOrderNumber(seedTimeMs: number) {
+  const date = new Date(seedTimeMs);
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yy = String(date.getFullYear()).slice(-2);
+  // Deterministic "random-like" suffix based on click time.
+  const salt = (seedTimeMs ^ (seedTimeMs >>> 7) ^ (seedTimeMs >>> 13)) >>> 0;
+  const suffix = toBase36Chars(salt, 3);
+  return `000OD${dd}${mm}${yy}${suffix}`;
+}
+
+function buildTransferContentFromOrderNumber(orderNumber: string) {
+  const afterOD = orderNumber.toUpperCase().split("OD")[1] || "";
+  return sanitizeTransferContent(`DH${afterOD}`);
+}
+
+type PaymentMethod = "cash" | "transfer";
 
 interface CheckoutSheetProps {
   open: boolean;
@@ -117,17 +143,20 @@ export default function CheckoutSheet({
   const [cashReceived, setCashReceived] = useState("");
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [loyaltyPointsInput, setLoyaltyPointsInput] = useState("0");
+  const [ssoCodeInput, setSsoCodeInput] = useState("");
 
   const [useDiscountCode, setUseDiscountCode] = useState(false);
   const [discountCodeInput, setDiscountCodeInput] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [orderNote, setOrderNote] = useState("");
-  const [transferContent, setTransferContent] = useState(sanitizeTransferContent(generateTransferContent()));
+  const [transferContent, setTransferContent] = useState("");
+  const [checkoutSeedTimeMs, setCheckoutSeedTimeMs] = useState<number | null>(null);
   const [draftOrder, setDraftOrder] = useState<DraftOrderState | null>(null);
   const [isPreparingOrder, setIsPreparingOrder] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const latestDraftRef = useRef<DraftOrderState | null>(null);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -169,22 +198,13 @@ export default function CheckoutSheet({
 
   const loyaltyInputDigits = loyaltyPointsInput.replace(/\D/g, "");
   const loyaltyInputParsed = loyaltyInputDigits ? parseInt(loyaltyInputDigits, 10) : 0;
-  const loyaltyPointsError =
-    useLoyaltyPoints
-      ? loyaltyPointsInput.trim() === ""
-        ? "Bắt buộc"
-        : loyaltyInputParsed <= 0
-          ? "Phải > 0"
-          : loyaltyInputParsed > maxPointsUsable
-            ? `Tối đa ${formatNumberWithDots(maxPointsUsable)}`
-            : null
-      : null;
+  const loyaltyPointsError = null;
 
-  const loyaltyPointsToUse = useLoyaltyPoints && !loyaltyPointsError ? loyaltyInputParsed : 0;
+  const loyaltyPointsToUse = 0;
   const loyaltyDiscount = loyaltyPointsToUse * pointValue;
 
   const finalAmount = Math.max(0, amountAfterDiscountCode - loyaltyDiscount);
-  const normalizedTransferContent = sanitizeTransferContent(transferContent) || sanitizeTransferContent(generateTransferContent());
+  const normalizedTransferContent = sanitizeTransferContent(transferContent);
   const transferQrUrl = `https://img.vietqr.io/image/${VCB_BANK_BIN}-${VCB_ACCOUNT_NUMBER}-compact2.png?amount=${finalAmount}&addInfo=${encodeURIComponent(normalizedTransferContent)}`;
 
   const cashReceivedNum = parseInt(cashReceived.replace(/\D/g, ""), 10) || 0;
@@ -232,18 +252,26 @@ export default function CheckoutSheet({
 
       setUseLoyaltyPoints(false);
       setLoyaltyPointsInput("0");
+      setSsoCodeInput("");
 
       setUseDiscountCode(false);
       setDiscountCodeInput("");
       setScannerOpen(false);
 
       setOrderNote("");
-      setTransferContent(sanitizeTransferContent(generateTransferContent()));
+      setTransferContent("");
+      setCheckoutSeedTimeMs(null);
       setDraftOrder(null);
       setIsPreparingOrder(false);
       setIsDeletingDraft(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (open && !checkoutSeedTimeMs) {
+      setCheckoutSeedTimeMs(Date.now());
+    }
+  }, [open, checkoutSeedTimeMs]);
 
   useEffect(() => {
     setUseLoyaltyPoints(false);
@@ -261,6 +289,8 @@ export default function CheckoutSheet({
 
     setIsPreparingOrder(true);
     try {
+      const seed = checkoutSeedTimeMs || Date.now();
+      const customOrderNumber = generateCheckoutOrderNumber(seed);
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -281,6 +311,16 @@ export default function CheckoutSheet({
 
       if (orderError) throw orderError;
 
+      const { data: updatedOrder, error: updateOrderError } = await supabase
+        .from("orders")
+        .update({ order_number: customOrderNumber })
+        .eq("id", order.id)
+        .eq("status", "pending")
+        .select("id, order_number, status")
+        .single();
+
+      if (updateOrderError) throw updateOrderError;
+
       const orderItems = items.map((item) => ({
         order_id: order.id,
         product_id: item.productId,
@@ -295,11 +335,11 @@ export default function CheckoutSheet({
       const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
       if (itemsError) throw itemsError;
 
-      const transferContentDefault = sanitizeTransferContent(order.order_number || generateTransferContent());
+      const transferContentDefault = buildTransferContentFromOrderNumber(updatedOrder.order_number || customOrderNumber);
       setDraftOrder({
-        id: order.id,
-        orderNumber: order.order_number,
-        status: order.status || "pending",
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.order_number,
+        status: updatedOrder.status || "pending",
       });
       setTransferContent(transferContentDefault);
     } catch (error: any) {
@@ -353,6 +393,22 @@ export default function CheckoutSheet({
       supabase.removeChannel(channel);
     };
   }, [draftOrder?.id]);
+
+  useEffect(() => {
+    latestDraftRef.current = draftOrder;
+    if (draftOrder?.orderNumber) {
+      setTransferContent(buildTransferContentFromOrderNumber(draftOrder.orderNumber));
+    }
+  }, [draftOrder]);
+
+  useEffect(() => {
+    return () => {
+      const latest = latestDraftRef.current;
+      if (latest?.id && latest.status === "pending") {
+        void supabase.from("orders").delete().eq("id", latest.id).eq("status", "pending");
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!draftOrder?.id || !open) return;
@@ -500,7 +556,6 @@ export default function CheckoutSheet({
   const paymentMethods: Array<{ key: PaymentMethod; label: string; icon: React.ReactNode }> = [
     { key: "cash", label: "Tiền mặt", icon: <Banknote className="w-4 h-4" /> },
     { key: "transfer", label: "Chuyển khoản", icon: <CreditCard className="w-4 h-4" /> },
-    { key: "momo", label: "MoMo", icon: <Smartphone className="w-4 h-4" /> },
   ];
 
   const canSubmit =
@@ -515,7 +570,7 @@ export default function CheckoutSheet({
 
   const panelContent = (
     <>
-        <SheetHeader className="px-4 pt-4 pb-2 flex-row items-center gap-2">
+        <SheetHeader className="px-4 pt-4 pb-2 flex items-center gap-2">
           <button
             onClick={() => void handleBackToCart()}
             disabled={isDeletingDraft || isSubmitting}
@@ -523,8 +578,10 @@ export default function CheckoutSheet({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <SheetTitle className="text-base font-bold text-foreground flex-1">Thanh toán</SheetTitle>
-          <span className="text-sm font-bold text-primary">{formatPrice(totalPrice)}</span>
+
+          <SheetTitle className="text-base font-bold flex-1 h-8 flex items-center leading-none">
+            Thanh toán
+          </SheetTitle>
         </SheetHeader>
 
         {draftOrder?.orderNumber && (
@@ -679,18 +736,20 @@ export default function CheckoutSheet({
 
                   {useLoyaltyPoints && (
                     <div className="space-y-1">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={maxPointsUsable}
-                        value={loyaltyPointsInput}
-                        onChange={(e) => setLoyaltyPointsInput(e.target.value)}
-                        onBlur={() => normalizeLoyaltyInput(loyaltyPointsInput)}
-                        className={cn(
-                          "h-9 rounded-lg text-sm w-full",
-                          loyaltyPointsError && "border-destructive focus-visible:ring-destructive"
-                        )}
-                      />
+                      <div className="flex items-center rounded-lg border border-border bg-background">
+                        <button
+                          type="button"
+                          className="px-3 h-9 text-xs font-semibold text-primary whitespace-nowrap"
+                        >
+                          Nhập SSO xác nhận
+                        </button>
+                        <Input
+                          value={ssoCodeInput}
+                          onChange={(e) => setSsoCodeInput(e.target.value.toUpperCase())}
+                          placeholder="Nhập mã SSO"
+                          className="h-9 rounded-none border-0 text-sm w-full focus-visible:ring-0"
+                        />
+                      </div>
 
                       {loyaltyPointsError ? (
                         <span className="text-xs text-destructive">{loyaltyPointsError}</span>
@@ -717,21 +776,35 @@ export default function CheckoutSheet({
             {/* 4. Payment method */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-foreground">Phương thức thanh toán</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {paymentMethods.map((payment) => (
+                  (() => {
+                    const lockCashAfterTransferCompleted =
+                      payment.key === "cash" &&
+                      paymentMethod === "transfer" &&
+                      draftOrder?.status === "completed";
+
+                    return (
                   <button
                     key={payment.key}
-                    onClick={() => setPaymentMethod(payment.key)}
+                    onClick={() => {
+                      if (lockCashAfterTransferCompleted) return;
+                      setPaymentMethod(payment.key);
+                    }}
+                    disabled={lockCashAfterTransferCompleted}
                     className={cn(
                       "flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-medium transition-colors",
                       paymentMethod === payment.key
                         ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-card text-foreground border-border"
+                        : "bg-card text-foreground border-border",
+                      lockCashAfterTransferCompleted && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     {payment.icon}
                     {payment.label}
                   </button>
+                    );
+                  })()
                 ))}
               </div>
 
@@ -767,8 +840,7 @@ export default function CheckoutSheet({
                     <p className="text-xs text-muted-foreground">Nội dung chuyển khoản</p>
                     <Input
                       value={transferContent}
-                      onChange={(e) => setTransferContent(sanitizeTransferContent(e.target.value))}
-                      placeholder="TTDH..."
+                      readOnly
                       className="h-9 rounded-lg text-sm"
                     />
                   </div>
@@ -791,8 +863,8 @@ export default function CheckoutSheet({
                     )}
                   >
                     {draftOrder?.status === "completed"
-                      ? "Đã nhận webhook thanh toán. Có thể bấm Xác nhận thanh toán."
-                      : "Đang chờ webhook ngân hàng xác nhận giao dịch..."}
+                      ? "Thanh toán thành công. Có thể bấm Xác nhận thanh toán."
+                      : "Hệ thống chờ thanh toán"}
                   </div>
                 </div>
               )}
