@@ -532,10 +532,11 @@ export default function CheckoutSheet({
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (options?: { auto?: boolean }) => {
     if (items.length === 0 || !draftOrder) return;
+    const isAutoSubmit = !!options?.auto;
 
-    if (useLoyalty && (!customerName.trim() || !customerPhone.trim())) {
+    if (!isAutoSubmit && useLoyalty && (!customerName.trim() || !customerPhone.trim())) {
       toast.error("Vui lòng nhập tên và SĐT khách hàng");
       return;
     }
@@ -545,17 +546,17 @@ export default function CheckoutSheet({
       return;
     }
 
-    if (paymentMethod === "cash" && cashReceivedNum < finalAmount) {
+    if (!isAutoSubmit && paymentMethod === "cash" && cashReceivedNum < finalAmount) {
       toast.error("Số tiền nhận chưa đủ");
       return;
     }
 
-    if (useDiscountCode && discountCodeError) {
+    if (!isAutoSubmit && useDiscountCode && discountCodeError) {
       toast.error("Mã giảm giá không hợp lệ");
       return;
     }
 
-    if (useLoyaltyPoints && loyaltyPointsError) {
+    if (!isAutoSubmit && useLoyaltyPoints && loyaltyPointsError) {
       toast.error("Số điểm dùng không hợp lệ");
       return;
     }
@@ -564,7 +565,7 @@ export default function CheckoutSheet({
     try {
       let customerId: string | null = null;
 
-      if (useLoyalty) {
+      if (!isAutoSubmit && useLoyalty) {
         if (foundCustomer) {
           customerId = foundCustomer.id;
           const newPoints =
@@ -670,14 +671,14 @@ export default function CheckoutSheet({
       isSubmitting ||
       paymentMethod !== "transfer" ||
       !draftOrder?.incomeReceiptCode ||
-      !canSubmit
+      draftOrder?.status !== "completed"
     ) {
       return;
     }
 
     setAutoConfirmTriggered(true);
     const timer = setTimeout(() => {
-      void handleSubmit();
+      void handleSubmit({ auto: true });
     }, 1000);
 
     return () => clearTimeout(timer);
