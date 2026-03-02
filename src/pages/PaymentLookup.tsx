@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, ChevronLeft, Loader2, Search } from "lucide-react";
+import { Calendar, ChevronLeft, HandCoins, Loader2, Search } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type VoucherRow = {
   id: string;
@@ -107,6 +108,9 @@ export default function PaymentLookup() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<VoucherRow[]>([]);
+  const [linkingVoucher, setLinkingVoucher] = useState<VoucherRow | null>(null);
+  const [linkOrderNumberInput, setLinkOrderNumberInput] = useState("");
+  const [isLinkingOrder, setIsLinkingOrder] = useState(false);
 
   const canSearch = useMemo(() => {
     return Boolean(fromDate && toDate && amountInput.trim() && contentInput.trim());
@@ -171,6 +175,60 @@ export default function PaymentLookup() {
       setResults([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openLinkOrderSheet = (voucher: VoucherRow) => {
+    setLinkingVoucher(voucher);
+    setLinkOrderNumberInput("");
+  };
+
+  const handleConfirmAttachVoucher = async () => {
+    if (!linkingVoucher) return;
+    if (linkingVoucher.voucher_type !== "income") {
+      toast.error("Chỉ phiếu thu mới có thể gắn vào đơn hàng");
+      return;
+    }
+
+    const normalizedOrderNumber = linkOrderNumberInput.trim().toUpperCase();
+    if (!normalizedOrderNumber) {
+      toast.error("Vui lòng nhập mã đơn hàng");
+      return;
+    }
+
+    setIsLinkingOrder(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("attach_income_voucher_to_order", {
+        p_voucher_id: linkingVoucher.id,
+        p_order_number: normalizedOrderNumber,
+      });
+
+      if (error) throw error;
+
+      const linkedRow = Array.isArray(data) ? data[0] : data;
+      const nextOrderId = linkedRow?.order_id ?? null;
+      const nextOrderNumber = linkedRow?.order_number ?? normalizedOrderNumber;
+
+      setResults((prev) =>
+        prev.map((voucher) =>
+          voucher.id === linkingVoucher.id
+            ? {
+                ...voucher,
+                order_id: nextOrderId,
+                order_number: nextOrderNumber,
+              }
+            : voucher
+        )
+      );
+
+      toast.success(`Đã ghi nhận thanh toán cho đơn ${nextOrderNumber}`);
+      setLinkingVoucher(null);
+      setLinkOrderNumberInput("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể gắn phiếu thu vào đơn hàng";
+      toast.error(message);
+    } finally {
+      setIsLinkingOrder(false);
     }
   };
 
@@ -289,13 +347,65 @@ export default function PaymentLookup() {
                   <p className="text-right text-foreground break-words">{voucher.payment_content || "-"}</p>
 
                   <p className="text-muted-foreground">Đã thu vào đơn hàng</p>
-                  <p className="text-right text-foreground break-all">{voucher.order_number || "Chưa gắn đơn hàng"}</p>
+                  <div className="text-right">
+                    {voucher.order_number ? (
+                      <p className="text-foreground break-all">{voucher.order_number}</p>
+                    ) : voucher.voucher_type === "income" ? (
+                      <button
+                        type="button"
+                        onClick={() => openLinkOrderSheet(voucher)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                      >
+                        <HandCoins className="h-4 w-4" />
+                        Chưa gắn đơn hàng
+                      </button>
+                    ) : (
+                      <p className="text-foreground break-all">Chưa gắn đơn hàng</p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <Sheet open={!!linkingVoucher} onOpenChange={(open) => !open && setLinkingVoucher(null)}>
+        <SheetContent side="bottom" className="max-w-lg mx-auto rounded-t-3xl">
+          <SheetHeader>
+            <SheetTitle>Gắn phiếu thu vào đơn hàng</SheetTitle>
+            <SheetDescription>
+              Nhập mã đơn để xác nhận phiếu thu và cập nhật đơn hàng sang trạng thái đã thanh toán.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="pt-4 space-y-3">
+            <div className="rounded-lg border border-border bg-card p-3 text-sm">
+              <p className="text-muted-foreground">Mã phiếu thu</p>
+              <p className="font-semibold text-foreground break-all">{linkingVoucher?.id_income || linkingVoucher?.voucher_code}</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Mã đơn hàng</label>
+              <Input
+                value={linkOrderNumberInput}
+                onChange={(e) => setLinkOrderNumberInput(e.target.value.toUpperCase())}
+                placeholder="VD: 000OD020326ABC"
+                className="h-10"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Button variant="outline" onClick={() => setLinkingVoucher(null)} disabled={isLinkingOrder}>
+                Hủy
+              </Button>
+              <Button onClick={() => void handleConfirmAttachVoucher()} disabled={isLinkingOrder}>
+                {isLinkingOrder ? "Đang xác nhận..." : "Xác nhận thu tiền"}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
