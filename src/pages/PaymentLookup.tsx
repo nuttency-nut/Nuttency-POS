@@ -99,6 +99,16 @@ function getVoucherTypeLabel(type: string) {
   return type || "-";
 }
 
+function getSupabaseErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const err = error as { message?: string; details?: string; hint?: string };
+    const message = [err.message, err.details, err.hint].filter(Boolean).join(" | ");
+    if (message) return message;
+  }
+  return fallback;
+}
+
 export default function PaymentLookup() {
   const navigate = useNavigate();
   const [fromDate, setFromDate] = useState(getTodayLocalISO());
@@ -169,7 +179,7 @@ export default function PaymentLookup() {
       setResults(filtered);
       setHasSearched(true);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Không tra cứu được phiếu thu/chi";
+      const message = getSupabaseErrorMessage(error, "Khong tra cuu duoc phieu thu/chi");
       toast.error(message);
       setHasSearched(false);
       setResults([]);
@@ -225,7 +235,7 @@ export default function PaymentLookup() {
       setLinkingVoucher(null);
       setLinkOrderNumberInput("");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Không thể gắn phiếu thu vào đơn hàng";
+      const message = getSupabaseErrorMessage(error, "Khong the gan phieu thu vao don hang");
       toast.error(message);
     } finally {
       setIsLinkingOrder(false);
@@ -409,3 +419,4 @@ export default function PaymentLookup() {
     </AppLayout>
   );
 }
+
