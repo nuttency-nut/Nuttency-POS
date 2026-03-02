@@ -1252,7 +1252,7 @@ export default function CheckoutSheet({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[75vh] max-h-[75vh] flex flex-col p-0"
+        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[90vh] max-h-[90vh] flex flex-col p-0"
       >
         {panelContent}
       </SheetContent>

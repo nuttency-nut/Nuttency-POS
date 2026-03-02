@@ -8,6 +8,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 import CheckoutSheet from "./CheckoutSheet";
 
 export interface CartItem {
@@ -66,7 +67,10 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
 
       <SheetContent
         side="bottom"
-        className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl max-h-[80vh] flex flex-col p-0"
+        className={cn(
+          "inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl flex flex-col p-0",
+          step === "checkout" ? "h-[90vh] max-h-[90vh]" : "max-h-[80vh]"
+        )}
       >
         {step === "cart" ? (
           <>
@@ -133,7 +137,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
             </div>
           </>
         ) : (
-          <div className="h-[80vh] max-h-[80vh] flex flex-col">
+          <div className="h-full max-h-full flex flex-col">
             <CheckoutSheet
               embedded
               open={step === "checkout"}
