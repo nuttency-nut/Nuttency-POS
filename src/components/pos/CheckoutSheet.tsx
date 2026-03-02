@@ -133,6 +133,8 @@ const PROMO_RULES: Record<string, PromoRule> = {
   GIAM50K: { type: "fixed", value: 50000 },
 };
 
+const CASH_KEYPAD_TOKENS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "000"] as const;
+
 export default function CheckoutSheet({
   open,
   onClose,
@@ -162,6 +164,7 @@ export default function CheckoutSheet({
   const [useDiscountCode, setUseDiscountCode] = useState(false);
   const [discountCodeInput, setDiscountCodeInput] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerTarget, setScannerTarget] = useState<"discount" | "phone">("discount");
 
   const [orderNote, setOrderNote] = useState("");
   const [transferContent, setTransferContent] = useState("");
@@ -253,6 +256,55 @@ export default function CheckoutSheet({
     }
 
     setCashReceived(formatNumberWithDots(parsed));
+  };
+
+  const handleCashPadInput = (token: string) => {
+    const currentDigits = cashReceived.replace(/\D/g, "");
+    const nextDigits = `${currentDigits}${token}`;
+    const parsed = parseInt(nextDigits, 10);
+    if (Number.isNaN(parsed)) {
+      setCashReceived("");
+      return;
+    }
+    setCashReceived(formatNumberWithDots(parsed));
+  };
+
+  const clearCashPadInput = () => {
+    setCashReceived("");
+  };
+
+  const extractPhoneFromScannedCode = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+
+    let phone = digits;
+    if (phone.startsWith("84") && phone.length >= 11) {
+      phone = `0${phone.slice(2)}`;
+    }
+
+    if (phone.length > 11) {
+      const found = phone.match(/0\d{8,10}/);
+      phone = found?.[0] || phone.slice(0, 11);
+    }
+
+    return phone.length >= 9 ? phone : "";
+  };
+
+  const handleScannerDetected = (code: string) => {
+    if (scannerTarget === "discount") {
+      setDiscountCodeInput(code.toUpperCase());
+      setUseDiscountCode(true);
+      return;
+    }
+
+    const scannedPhone = extractPhoneFromScannedCode(code);
+    if (!scannedPhone) {
+      toast.error("Không nhận diện được số điện thoại từ mã QR");
+      return;
+    }
+
+    setUseLoyalty(true);
+    setCustomerPhone(scannedPhone);
   };
 
   useEffect(() => {
@@ -741,6 +793,7 @@ export default function CheckoutSheet({
   ];
 
   const transferReceiptReady = paymentMethod === "transfer" && !!draftOrder?.incomeReceiptCode;
+  const isPhoneLocked = !!existingDraftOrder && !!existingCheckoutData?.customerPhone;
 
   const canSubmit =
     !!draftOrder &&
@@ -835,14 +888,31 @@ export default function CheckoutSheet({
                   />
 
                   <div className="flex gap-2">
-                    <Input
-                      placeholder="Số điện thoại"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      onBlur={searchCustomer}
-                      disabled={!!existingDraftOrder && !!existingCheckoutData?.customerPhone}
-                      className="h-9 rounded-lg text-sm flex-1"
-                    />
+                    <div className="relative flex-1">
+                      <Input
+                        placeholder="Số điện thoại"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        onBlur={searchCustomer}
+                        disabled={isPhoneLocked}
+                        className="h-9 rounded-lg text-sm pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScannerTarget("phone");
+                          setScannerOpen(true);
+                        }}
+                        disabled={isPhoneLocked}
+                        className={cn(
+                          "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground",
+                          isPhoneLocked && "opacity-50 cursor-not-allowed"
+                        )}
+                        aria-label="Quét QR số điện thoại khách"
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </button>
+                    </div>
                     {searchingCustomer && <span className="text-xs text-muted-foreground self-center">Đang tìm...</span>}
                   </div>
 
@@ -934,7 +1004,10 @@ export default function CheckoutSheet({
                         />
                         <button
                           type="button"
-                          onClick={() => setScannerOpen(true)}
+                          onClick={() => {
+                            setScannerTarget("discount");
+                            setScannerOpen(true);
+                          }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
                           aria-label="Quét QR hoặc barcode mã giảm giá"
                         >
@@ -1018,13 +1091,37 @@ export default function CheckoutSheet({
 
               {paymentMethod === "cash" && (
                 <div className="space-y-1.5">
-                  <Input
-                    placeholder="Tiền nhận từ khách"
-                    value={cashReceived}
-                    onChange={(e) => handleCashReceivedChange(e.target.value)}
-                    className="h-9 rounded-lg text-sm"
-                    inputMode="numeric"
-                  />
+                  <div className="grid grid-cols-2 gap-2 items-start">
+                    <Input
+                      placeholder="Tiền nhận từ khách"
+                      value={cashReceived}
+                      onChange={(e) => handleCashReceivedChange(e.target.value)}
+                      className="h-9 rounded-lg text-sm"
+                      inputMode="numeric"
+                    />
+
+                    <div className="rounded-lg border border-border bg-card p-1.5 space-y-1.5">
+                      <div className="grid grid-cols-4 gap-1">
+                        {CASH_KEYPAD_TOKENS.map((token) => (
+                          <button
+                            key={token}
+                            type="button"
+                            onClick={() => handleCashPadInput(token)}
+                            className="h-8 rounded-md border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent"
+                          >
+                            {token}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearCashPadInput}
+                        className="w-full h-8 rounded-md border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/10"
+                      >
+                        Xóa hết
+                      </button>
+                    </div>
+                  </div>
 
                   {cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
@@ -1136,11 +1233,8 @@ export default function CheckoutSheet({
         <QrScannerDialog
           open={scannerOpen}
           onOpenChange={setScannerOpen}
-          onDetected={(code) => {
-            setDiscountCodeInput(code.toUpperCase());
-            setUseDiscountCode(true);
-          }}
-          title="Quét mã giảm giá"
+          onDetected={handleScannerDetected}
+          title={scannerTarget === "phone" ? "Quét QR số điện thoại khách" : "Quét mã giảm giá"}
         />
       </>
     );
@@ -1166,11 +1260,8 @@ export default function CheckoutSheet({
       <QrScannerDialog
         open={scannerOpen}
         onOpenChange={setScannerOpen}
-        onDetected={(code) => {
-          setDiscountCodeInput(code.toUpperCase());
-          setUseDiscountCode(true);
-        }}
-        title="Quét mã giảm giá"
+        onDetected={handleScannerDetected}
+        title={scannerTarget === "phone" ? "Quét QR số điện thoại khách" : "Quét mã giảm giá"}
       />
     </Sheet>
   );

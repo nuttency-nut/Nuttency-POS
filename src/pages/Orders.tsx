@@ -9,6 +9,7 @@ import {
   CreditCard,
   Package,
   Phone,
+  RefreshCw,
   ReceiptText,
   Search,
   Star,
@@ -190,7 +191,7 @@ export default function Orders() {
   const [fromDate, setFromDate] = useState(getTodayLocalISO());
   const [toDate, setToDate] = useState(getTodayLocalISO());
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["orders-management"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -262,6 +263,13 @@ export default function Orders() {
     { key: "completed" as const, label: "Đã thanh toán", count: counts.completed },
     { key: "cancelled" as const, label: "Đã hủy", count: counts.cancelled },
   ];
+
+  const refreshTodayOrders = () => {
+    const today = getTodayLocalISO();
+    setFromDate(today);
+    setToDate(today);
+    void refetch();
+  };
 
   useEffect(() => {
     const channel = supabase
@@ -448,17 +456,25 @@ export default function Orders() {
             <div className="rounded-xl border border-border bg-card p-2.5 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bộ lọc ngày</p>
-              <button
-                type="button"
-                onClick={() => {
-                  const today = getTodayLocalISO();
-                  setFromDate(today);
-                  setToDate(today);
-                }}
-                className="text-xs font-semibold text-primary"
-              >
-                Hôm nay
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={refreshTodayOrders}
+                  className="text-xs font-semibold text-primary px-1"
+                >
+                  Hôm nay
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={refreshTodayOrders}
+                  className="h-7 w-7 rounded-lg"
+                  aria-label="Làm mới đơn hàng hôm nay"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
