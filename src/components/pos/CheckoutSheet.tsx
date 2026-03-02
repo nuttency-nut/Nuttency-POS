@@ -133,7 +133,7 @@ const PROMO_RULES: Record<string, PromoRule> = {
   GIAM50K: { type: "fixed", value: 50000 },
 };
 
-const CASH_KEYPAD_TOKENS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "00", "0", "000"] as const;
+const CASH_KEYPAD_TOKENS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "00", "000"] as const;
 
 export default function CheckoutSheet({
   open,
