@@ -313,9 +313,6 @@ export default function PaymentLookup() {
               onChange={(e) => setContentInput(e.target.value)}
               className="h-10 rounded-lg"
             />
-            <p className="text-[11px] text-muted-foreground">
-              Khớp theo từng từ liên tiếp và đúng thứ tự; dấu "-" được xem như khoảng trắng.
-            </p>
           </div>
 
           <Button type="submit" className="w-full h-10 rounded-lg gap-2" disabled={isLoading || !canSearch}>

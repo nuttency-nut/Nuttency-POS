@@ -185,7 +185,6 @@
 [data-sileo-toast] {
   width: min(280px, calc(min(100vw, 32rem) - 24px)) !important;
   max-width: min(280px, calc(min(100vw, 32rem) - 24px)) !important;
-  overflow: hidden !important;
 }
 
 [data-sileo-description] {
@@ -194,6 +193,7 @@
 }
 
 [data-sileo-viewport] {
+  z-index: 90 !important;
   max-width: calc(min(100vw, 32rem) - 24px) !important;
 }
 

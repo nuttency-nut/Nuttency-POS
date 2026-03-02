@@ -5,21 +5,48 @@ type ToasterProps = React.ComponentProps<typeof SileoToaster>;
 type ToastOptions = Omit<SileoOptions, "title">;
 type ToastPayload = SileoOptions & { id: string };
 
-function createToastPayload(title: string, options?: ToastOptions, kind: "success" | "error" | "info" | "warning" = "info"): ToastPayload {
+const MIN_TOAST_DURATION_MS = 2200;
+const MAX_TOAST_DURATION_MS = 10000;
+const TOAST_READING_CHARS_PER_SECOND = 14;
+const TOAST_BUFFER_MS = 1200;
+
+function getTextLength(value: unknown) {
+  if (typeof value === "string") return value.trim().length;
+  if (typeof value === "number" || typeof value === "boolean") return String(value).length;
+  return 0;
+}
+
+function getAdaptiveDurationMs(title: string, description?: React.ReactNode | string) {
+  const totalChars = Math.max(1, getTextLength(title) + getTextLength(description));
+  const readingMs = Math.ceil((totalChars / TOAST_READING_CHARS_PER_SECOND) * 1000) + TOAST_BUFFER_MS;
+  return Math.min(MAX_TOAST_DURATION_MS, Math.max(MIN_TOAST_DURATION_MS, readingMs));
+}
+
+function createToastPayload(
+  title: string,
+  options?: ToastOptions,
+  kind: "success" | "error" | "info" | "warning" = "info",
+): ToastPayload {
   const isLong = title.length > 30 || /ORD-\d{8}-\d+/i.test(title);
   const fallbackTitle =
     kind === "success"
-      ? "Thành công"
+      ? "Thanh cong"
       : kind === "error"
-        ? "Lỗi"
+        ? "Loi"
         : kind === "warning"
-          ? "Cảnh báo"
-          : "Thông báo";
+          ? "Canh bao"
+          : "Thong bao";
+
+  const { description, duration, ...restOptions } = options ?? {};
+  const resolvedTitle = isLong ? fallbackTitle : title;
+  const resolvedDescription = isLong ? title : description;
+  const resolvedDuration = duration !== undefined ? duration : getAdaptiveDurationMs(resolvedTitle, resolvedDescription);
 
   return {
-    title: isLong ? fallbackTitle : title,
-    description: isLong ? title : options?.description,
-    ...options,
+    ...restOptions,
+    title: resolvedTitle,
+    description: resolvedDescription,
+    duration: resolvedDuration,
     // Force unique id so multiple toasts stack instead of replacing each other.
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   };
@@ -34,7 +61,7 @@ const Toaster = ({ ...props }: ToasterProps) => (
       left: "max(12px, calc((100vw - min(100vw, 32rem)) / 2 + 12px))",
     }}
     options={{
-      duration: 1800,
+      duration: MIN_TOAST_DURATION_MS,
       roundness: 18,
       fill: "hsl(var(--card))",
       // Auto-expand quickly so long messages can wrap in description area.
@@ -57,3 +84,4 @@ export const toast = {
 };
 
 export { Toaster };
+
