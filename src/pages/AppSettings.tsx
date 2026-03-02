@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, Loader2, LogOut, Moon, RefreshCw, Shield, Sun, User } from "lucide-react";
+import { Camera, ChevronRight, Loader2, LogOut, Moon, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -395,6 +395,27 @@ export default function AppSettings() {
                 )}
               </div>
             </div>
+          </button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          <button
+            type="button"
+            onClick={() => navigate("/payment-lookup")}
+            className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <ReceiptText className="h-5 w-5" />
+              </span>
+              <div className="text-left">
+                <p className="font-semibold text-foreground">Quản lý phiếu thu/chi</p>
+                <p className="text-xs text-muted-foreground">Tra cứu phiếu theo ngày, số tiền và nội dung</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
           </button>
         </CardContent>
       </Card>

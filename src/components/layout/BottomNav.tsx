@@ -32,7 +32,9 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong safe-bottom">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {visibleItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            location.pathname === item.path ||
+            (item.path === "/settings" && location.pathname === "/payment-lookup");
           const Icon = item.icon;
 
           return (

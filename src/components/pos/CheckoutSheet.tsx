@@ -1212,7 +1212,7 @@ export default function CheckoutSheet({
           </div>
 
           {(paymentMethod !== "transfer" || draftOrder?.incomeReceiptCode) && (
-            <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
+            <Button onClick={() => void handleSubmit()} disabled={!canSubmit} className="w-full h-12 rounded-xl text-base font-bold">
               {isSubmitting ? "Đang xử lý..." : "Xác nhận thanh toán"}
             </Button>
           )}

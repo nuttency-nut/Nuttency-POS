@@ -10,6 +10,7 @@ import Orders from "./pages/Orders";
 import Products from "./pages/Products";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
+import PaymentLookup from "./pages/PaymentLookup";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
@@ -129,6 +130,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payment-lookup"
+        element={
+          <ProtectedRoute>
+            <PaymentLookup />
           </ProtectedRoute>
         }
       />
