@@ -554,7 +554,7 @@ export default function CheckoutSheet({
     const refreshDraft = async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id,order_number,status,income_receipt_code,payment_method")
+        .select("id,order_number,status,income_receipt_code")
         .eq("id", draftOrder.id)
         .maybeSingle();
 
@@ -570,10 +570,6 @@ export default function CheckoutSheet({
             }
           : prev
       );
-
-      if (data.payment_method === "transfer" || data.payment_method === "cash") {
-        setPaymentMethod(data.payment_method);
-      }
     };
 
     // Immediate refresh for retry-checkout, then periodic fallback when websocket misses event.

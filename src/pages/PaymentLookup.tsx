@@ -51,7 +51,39 @@ function formatPrice(price: number) {
 }
 
 function normalizeText(value: string | null | undefined) {
-  return (value ?? "").toLowerCase().trim().replace(/\s+/g, " ");
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/-/g, " ")
+    .replace(/[^a-z0-9\u00c0-\u024f]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isContentMatch(content: string | null | undefined, query: string) {
+  const normalizedContent = normalizeText(content);
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedContent || !normalizedQuery) return false;
+
+  const contentWords = normalizedContent.split(" ").filter(Boolean);
+  const queryWords = normalizedQuery.split(" ").filter(Boolean);
+  if (queryWords.length === 0) return false;
+
+  if (queryWords.length === 1) {
+    return contentWords.includes(queryWords[0]);
+  }
+
+  for (let i = 0; i <= contentWords.length - queryWords.length; i += 1) {
+    let isMatched = true;
+    for (let j = 0; j < queryWords.length; j += 1) {
+      if (contentWords[i + j] !== queryWords[j]) {
+        isMatched = false;
+        break;
+      }
+    }
+    if (isMatched) return true;
+  }
+
+  return false;
 }
 
 function getPaymentMethodLabel(method: string) {
@@ -88,8 +120,6 @@ export default function PaymentLookup() {
   const handleLookup = async (e: FormEvent) => {
     e.preventDefault();
 
-    const normalizedContent = normalizeText(contentInput);
-    const words = normalizedContent.split(" ").filter(Boolean);
     const parsedAmount = Number(amountInput);
 
     if (!canSearch) {
@@ -128,16 +158,9 @@ export default function PaymentLookup() {
 
       if (error) throw error;
 
-      const filtered = ((data ?? []) as VoucherRow[]).filter((row) => {
-        const rowContent = normalizeText(row.payment_content);
-        if (!rowContent) return false;
-
-        if (words.length <= 1) {
-          return rowContent.includes(normalizedContent);
-        }
-
-        return rowContent === normalizedContent;
-      });
+      const filtered = ((data ?? []) as VoucherRow[]).filter((row) =>
+        isContentMatch(row.payment_content, contentInput)
+      );
 
       setResults(filtered);
       setHasSearched(true);
@@ -223,7 +246,7 @@ export default function PaymentLookup() {
               className="h-10 rounded-lg"
             />
             <p className="text-[11px] text-muted-foreground">
-              1 từ: chấp nhận phiếu có chứa từ đó. Từ 2 từ trở lên: phải khớp chính xác toàn bộ nội dung.
+              Khớp theo từng từ liên tiếp và đúng thứ tự; dấu "-" được xem như khoảng trắng.
             </p>
           </div>
 
