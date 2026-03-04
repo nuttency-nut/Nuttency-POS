@@ -6,9 +6,9 @@ type ToastOptions = Omit<SileoOptions, "title">;
 type ToastPayload = SileoOptions & { id: string };
 
 const MIN_TOAST_DURATION_MS = 2200;
-const MAX_TOAST_DURATION_MS = 10000;
-const TOAST_READING_CHARS_PER_SECOND = 14;
-const TOAST_BUFFER_MS = 1200;
+const MAX_TOAST_DURATION_MS = 15000;
+const TOAST_READING_CHARS_PER_SECOND = 12;
+const TOAST_BUFFER_MS = 1800;
 
 function getTextLength(value: unknown) {
   if (typeof value === "string") return value.trim().length;
@@ -30,23 +30,32 @@ function createToastPayload(
   const isLong = title.length > 30 || /ORD-\d{8}-\d+/i.test(title);
   const fallbackTitle =
     kind === "success"
-      ? "Thanh cong"
+      ? "Thành công"
       : kind === "error"
-        ? "Loi"
+        ? "Lỗi"
         : kind === "warning"
-          ? "Canh bao"
-          : "Thong bao";
+          ? "Cảnh báo"
+          : "Thông báo";
 
   const { description, duration, ...restOptions } = options ?? {};
   const resolvedTitle = isLong ? fallbackTitle : title;
   const resolvedDescription = isLong ? title : description;
   const resolvedDuration = duration !== undefined ? duration : getAdaptiveDurationMs(resolvedTitle, resolvedDescription);
+  const resolvedAutopilot =
+    restOptions.autopilot !== undefined
+      ? restOptions.autopilot
+      : {
+          expand: 120,
+          // Keep expanded almost until toast dismisses so long messages remain readable.
+          collapse: Math.max(2000, resolvedDuration - 600),
+        };
 
   return {
     ...restOptions,
     title: resolvedTitle,
     description: resolvedDescription,
     duration: resolvedDuration,
+    autopilot: resolvedAutopilot,
     // Force unique id so multiple toasts stack instead of replacing each other.
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   };
@@ -64,8 +73,6 @@ const Toaster = ({ ...props }: ToasterProps) => (
       duration: MIN_TOAST_DURATION_MS,
       roundness: 18,
       fill: "hsl(var(--card))",
-      // Auto-expand quickly so long messages can wrap in description area.
-      autopilot: { expand: 120, collapse: 1200 },
       styles: {
         description: "whitespace-normal break-words text-left max-w-[220px]",
       },
@@ -84,4 +91,3 @@ export const toast = {
 };
 
 export { Toaster };
-

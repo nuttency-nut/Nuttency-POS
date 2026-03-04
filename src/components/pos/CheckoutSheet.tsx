@@ -175,6 +175,7 @@ export default function CheckoutSheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoConfirmTriggered, setAutoConfirmTriggered] = useState(false);
   const latestDraftRef = useRef<DraftOrderState | null>(null);
+  const initializedExistingOrderIdRef = useRef<string | null>(null);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -332,11 +333,15 @@ export default function CheckoutSheet({
       setIsPreparingOrder(false);
       setIsDeletingDraft(false);
       setAutoConfirmTriggered(false);
+      initializedExistingOrderIdRef.current = null;
     }
   }, [open]);
 
   useEffect(() => {
-    if (!open || !existingDraftOrder) return;
+    if (!open || !existingDraftOrder?.id) return;
+    if (initializedExistingOrderIdRef.current === existingDraftOrder.id) return;
+
+    initializedExistingOrderIdRef.current = existingDraftOrder.id;
     setDraftOrder(existingDraftOrder);
     setTransferContent(
       sanitizeTransferContent(
@@ -364,7 +369,7 @@ export default function CheckoutSheet({
       setUseLoyaltyPoints(usedPoints > 0);
       setLoyaltyPointsInput(String(usedPoints));
     }
-  }, [open, existingDraftOrder, existingPaymentMethod, existingCheckoutData]);
+  }, [open, existingDraftOrder?.id, existingPaymentMethod, existingCheckoutData]);
 
   useEffect(() => {
     if (open && !checkoutSeedTimeMs) {
