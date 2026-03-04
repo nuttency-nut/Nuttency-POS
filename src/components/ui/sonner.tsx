@@ -5,10 +5,10 @@ type ToasterProps = React.ComponentProps<typeof SileoToaster>;
 type ToastOptions = Omit<SileoOptions, "title">;
 type ToastPayload = SileoOptions & { id: string };
 
-const MIN_TOAST_DURATION_MS = 2200;
-const MAX_TOAST_DURATION_MS = 15000;
-const TOAST_READING_CHARS_PER_SECOND = 12;
-const TOAST_BUFFER_MS = 1800;
+const MIN_TOAST_DURATION_MS = 2400;
+const MAX_TOAST_DURATION_MS = 11000;
+const TOAST_READING_CHARS_PER_SECOND = 13;
+const TOAST_BUFFER_MS = 1300;
 
 function getTextLength(value: unknown) {
   if (typeof value === "string") return value.trim().length;
@@ -74,7 +74,7 @@ const Toaster = ({ ...props }: ToasterProps) => (
       roundness: 18,
       fill: "hsl(var(--card))",
       styles: {
-        description: "whitespace-normal break-words text-left max-w-[220px]",
+        description: "whitespace-normal break-words text-left",
       },
     }}
     {...props}

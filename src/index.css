@@ -202,9 +202,7 @@
 }
 
 [data-sileo-title] {
-  max-width: 170px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  max-width: none !important;
 }
 
 @keyframes fly-to-cart {
