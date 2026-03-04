@@ -9,11 +9,16 @@ const MIN_TOAST_DURATION_MS = 2400;
 const MAX_TOAST_DURATION_MS = 11000;
 const TOAST_READING_CHARS_PER_SECOND = 13;
 const TOAST_BUFFER_MS = 1300;
+const LONG_TOAST_TITLE_THRESHOLD = 52;
 
 function getTextLength(value: unknown) {
   if (typeof value === "string") return value.trim().length;
   if (typeof value === "number" || typeof value === "boolean") return String(value).length;
   return 0;
+}
+
+function normalizeToastText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function getAdaptiveDurationMs(title: string, description?: React.ReactNode | string) {
@@ -27,19 +32,22 @@ function createToastPayload(
   options?: ToastOptions,
   kind: "success" | "error" | "info" | "warning" = "info",
 ): ToastPayload {
-  const isLong = title.length > 30 || /ORD-\d{8}-\d+/i.test(title);
+  const normalizedTitle = normalizeToastText(title);
+  const isLong = normalizedTitle.length > LONG_TOAST_TITLE_THRESHOLD;
   const fallbackTitle =
     kind === "success"
-      ? "Thành công"
+      ? "Th\u00e0nh c\u00f4ng"
       : kind === "error"
-        ? "Lỗi"
+        ? "L\u1ed7i"
         : kind === "warning"
-          ? "Cảnh báo"
-          : "Thông báo";
+          ? "C\u1ea3nh b\u00e1o"
+          : "Th\u00f4ng b\u00e1o";
 
   const { description, duration, ...restOptions } = options ?? {};
-  const resolvedTitle = isLong ? fallbackTitle : title;
-  const resolvedDescription = isLong ? title : description;
+  const safeTitle = normalizedTitle || fallbackTitle;
+  const safeDescription = typeof description === "string" ? normalizeToastText(description) : description;
+  const resolvedTitle = isLong ? fallbackTitle : safeTitle;
+  const resolvedDescription = isLong ? safeTitle : safeDescription;
   const resolvedDuration = duration !== undefined ? duration : getAdaptiveDurationMs(resolvedTitle, resolvedDescription);
   const resolvedAutopilot =
     restOptions.autopilot !== undefined

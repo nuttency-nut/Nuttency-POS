@@ -183,13 +183,8 @@
 
 /* Sileo toast tuning for mobile app frame */
 [data-sileo-toast] {
-  width: min(220px, calc(min(100vw, 32rem) - 24px)) !important;
-  max-width: min(220px, calc(min(100vw, 32rem) - 24px)) !important;
-}
-
-[data-sileo-toast][data-expanded="true"] {
-  width: min(200px, calc(min(100vw, 32rem) - 24px)) !important;
-  max-width: min(200px, calc(min(100vw, 32rem) - 24px)) !important;
+  width: min(240px, calc(min(100vw, 32rem) - 24px)) !important;
+  max-width: min(240px, calc(min(100vw, 32rem) - 24px)) !important;
 }
 
 [data-sileo-canvas] {
@@ -202,7 +197,7 @@
 }
 
 [data-sileo-description] {
-  padding: 0.75rem !important;
+  padding: 0.625rem !important;
   white-space: normal !important;
   word-break: break-word !important;
 }
