@@ -4,11 +4,25 @@ import "sileo/styles.css";
 type ToasterProps = React.ComponentProps<typeof SileoToaster>;
 type ToastOptions = Omit<SileoOptions, "title">;
 type ToastPayload = SileoOptions & { id: string };
+type ToastKind = "success" | "error" | "info" | "warning";
 
 const MIN_TOAST_DURATION_MS = 2400;
 const MAX_TOAST_DURATION_MS = 10000;
 const TOAST_READING_CHARS_PER_SECOND = 14;
 const TOAST_BUFFER_MS = 1200;
+const MIN_EXPANDED_VIEW_MS = 2200;
+const TITLE_BY_KIND: Record<ToastKind, string> = {
+  success: "Th\u00e0nh c\u00f4ng",
+  error: "L\u1ed7i",
+  warning: "C\u1ea3nh b\u00e1o",
+  info: "Th\u00f4ng b\u00e1o",
+};
+const DETAIL_PREFIX_BY_KIND: Record<ToastKind, RegExp[]> = {
+  success: [/^th\u00e0nh c\u00f4ng\s*:\s*/i, /^success\s*:\s*/i],
+  error: [/^l\u1ed7i\s*:\s*/i, /^error\s*:\s*/i],
+  warning: [/^c\u1ea3nh b\u00e1o\s*:\s*/i, /^warning\s*:\s*/i],
+  info: [/^th\u00f4ng b\u00e1o\s*:\s*/i, /^info\s*:\s*/i],
+};
 
 function getTextLength(value: unknown) {
   if (typeof value === "string") return value.trim().length;
@@ -26,16 +40,35 @@ function getAdaptiveDurationMs(title: string, description?: React.ReactNode | st
   return Math.min(MAX_TOAST_DURATION_MS, Math.max(MIN_TOAST_DURATION_MS, readingMs));
 }
 
-function createToastPayload(title: string, options?: ToastOptions): ToastPayload {
-  const safeTitle = normalizeToastText(title) || "Th\u00f4ng b\u00e1o";
-  const safeDescription = typeof options?.description === "string" ? normalizeToastText(options.description) : options?.description;
-  const resolvedDuration = options?.duration ?? getAdaptiveDurationMs(safeTitle, safeDescription);
+function stripStatusPrefix(kind: ToastKind, text: string) {
+  const normalizedText = normalizeToastText(text);
+  return DETAIL_PREFIX_BY_KIND[kind].reduce(
+    (acc, pattern) => acc.replace(pattern, "").trim(),
+    normalizedText,
+  );
+}
+
+function createToastPayload(kind: ToastKind, detail: string, options?: ToastOptions): ToastPayload {
+  const normalizedDetail = stripStatusPrefix(kind, detail);
+  const optionsDescription =
+    typeof options?.description === "string" ? normalizeToastText(options.description) : options?.description;
+  const resolvedDescription = optionsDescription ?? (normalizedDetail || undefined);
+  const resolvedDuration = options?.duration ?? getAdaptiveDurationMs(TITLE_BY_KIND[kind], resolvedDescription);
+  const resolvedAutopilot =
+    options?.autopilot ??
+    (resolvedDescription
+      ? {
+          expand: 120,
+          collapse: Math.max(MIN_EXPANDED_VIEW_MS, resolvedDuration - 500),
+        }
+      : undefined);
 
   return {
     ...options,
-    title: safeTitle,
-    description: safeDescription,
+    title: TITLE_BY_KIND[kind],
+    description: resolvedDescription,
     duration: resolvedDuration,
+    autopilot: resolvedAutopilot,
     // Force unique id so multiple toasts stack instead of replacing each other.
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   };
@@ -61,10 +94,10 @@ const Toaster = ({ ...props }: ToasterProps) => (
 );
 
 export const toast = {
-  success: (title: string, options?: ToastOptions) => sileo.success(createToastPayload(title, options)),
-  error: (title: string, options?: ToastOptions) => sileo.error(createToastPayload(title, options)),
-  info: (title: string, options?: ToastOptions) => sileo.info(createToastPayload(title, options)),
-  warning: (title: string, options?: ToastOptions) => sileo.warning(createToastPayload(title, options)),
+  success: (detail: string, options?: ToastOptions) => sileo.success(createToastPayload("success", detail, options)),
+  error: (detail: string, options?: ToastOptions) => sileo.error(createToastPayload("error", detail, options)),
+  info: (detail: string, options?: ToastOptions) => sileo.info(createToastPayload("info", detail, options)),
+  warning: (detail: string, options?: ToastOptions) => sileo.warning(createToastPayload("warning", detail, options)),
   dismiss: sileo.dismiss,
   clear: sileo.clear,
 };
