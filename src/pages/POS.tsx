@@ -110,7 +110,7 @@ export default function POS() {
 
       setDialogProduct(null);
       triggerFlyAnimation(product);
-      toast.success(`Đã thêm ${product.name}`);
+      toast.success(`Đã thêm ${product.name}`, { compactTitle: true });
     },
     [triggerFlyAnimation]
   );

@@ -2,7 +2,9 @@ import { Toaster as SileoToaster, sileo, type SileoOptions } from "sileo";
 import "sileo/styles.css";
 
 type ToasterProps = React.ComponentProps<typeof SileoToaster>;
-type ToastOptions = Omit<SileoOptions, "title">;
+type ToastOptions = Omit<SileoOptions, "title"> & {
+  compactTitle?: boolean;
+};
 type ToastPayload = SileoOptions & { id: string };
 type ToastKind = "success" | "error" | "info" | "warning";
 
@@ -50,12 +52,13 @@ function stripStatusPrefix(kind: ToastKind, text: string) {
 
 function createToastPayload(kind: ToastKind, detail: string, options?: ToastOptions): ToastPayload {
   const normalizedDetail = stripStatusPrefix(kind, detail);
-  const optionsDescription =
-    typeof options?.description === "string" ? normalizeToastText(options.description) : options?.description;
-  const resolvedDescription = optionsDescription ?? (normalizedDetail || undefined);
-  const resolvedDuration = options?.duration ?? getAdaptiveDurationMs(TITLE_BY_KIND[kind], resolvedDescription);
+  const { compactTitle, description, duration, autopilot, ...restOptions } = options ?? {};
+  const optionsDescription = typeof description === "string" ? normalizeToastText(description) : description;
+  const resolvedTitle = compactTitle ? (normalizedDetail || TITLE_BY_KIND[kind]) : TITLE_BY_KIND[kind];
+  const resolvedDescription = compactTitle ? optionsDescription : optionsDescription ?? (normalizedDetail || undefined);
+  const resolvedDuration = duration ?? getAdaptiveDurationMs(resolvedTitle, resolvedDescription);
   const resolvedAutopilot =
-    options?.autopilot ??
+    autopilot ??
     (resolvedDescription
       ? {
           expand: 120,
@@ -64,8 +67,8 @@ function createToastPayload(kind: ToastKind, detail: string, options?: ToastOpti
       : undefined);
 
   return {
-    ...options,
-    title: TITLE_BY_KIND[kind],
+    ...restOptions,
+    title: resolvedTitle,
     description: resolvedDescription,
     duration: resolvedDuration,
     autopilot: resolvedAutopilot,
