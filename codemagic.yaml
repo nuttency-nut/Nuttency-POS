@@ -9,7 +9,6 @@ workflows:
         - ios
       vars:
         BUNDLE_ID: "com.apppos.nut"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 22
       xcode: latest
@@ -33,18 +32,38 @@ workflows:
           fi
           npx cap sync ios
 
-          PODFILE_PATH="$(find ios -name Podfile | head -n 1)"
-          if [ -z "$PODFILE_PATH" ]; then
-            echo "Could not find Podfile under ios/"
+          XCODE_WORKSPACE_PATH="$(find ios -name '*.xcworkspace' | head -n 1)"
+          XCODE_PROJECT_PATH="$(find ios -name '*.xcodeproj' | head -n 1)"
+          if [ -n "$XCODE_WORKSPACE_PATH" ]; then
+            echo "Resolved Xcode workspace: $XCODE_WORKSPACE_PATH"
+            echo "XCODE_WORKSPACE=$XCODE_WORKSPACE_PATH" >> "$CM_ENV"
+            echo "XCODE_CONTAINER_DIR=$(dirname "$XCODE_WORKSPACE_PATH")" >> "$CM_ENV"
+          elif [ -n "$XCODE_PROJECT_PATH" ]; then
+            echo "Resolved Xcode project: $XCODE_PROJECT_PATH"
+            echo "XCODE_PROJECT=$XCODE_PROJECT_PATH" >> "$CM_ENV"
+            echo "XCODE_CONTAINER_DIR=$(dirname "$XCODE_PROJECT_PATH")" >> "$CM_ENV"
+          else
+            echo "Could not find .xcworkspace or .xcodeproj under ios/"
             find ios -maxdepth 4 -type f | sort || true
             exit 1
           fi
 
-          IOS_POD_DIR="$(dirname "$PODFILE_PATH")"
-          echo "Resolved iOS pod dir: $IOS_POD_DIR"
-          echo "IOS_POD_DIR=$IOS_POD_DIR" >> "$CM_ENV"
+          PODFILE_PATH="$(find ios -name Podfile | head -n 1)"
+          if [ -n "$PODFILE_PATH" ]; then
+            IOS_POD_DIR="$(dirname "$PODFILE_PATH")"
+            echo "Resolved iOS pod dir: $IOS_POD_DIR"
+            echo "IOS_POD_DIR=$IOS_POD_DIR" >> "$CM_ENV"
+            echo "HAS_PODFILE=true" >> "$CM_ENV"
+          else
+            echo "No Podfile found under ios/. Skipping CocoaPods install (SPM mode)."
+            echo "HAS_PODFILE=false" >> "$CM_ENV"
+          fi
       - name: Install pods
         script: |
+          if [ "$HAS_PODFILE" != "true" ]; then
+            echo "Skipping pod install because Podfile is not present."
+            exit 0
+          fi
           if [ -z "$IOS_POD_DIR" ]; then
             echo "IOS_POD_DIR is empty"
             exit 1
@@ -62,7 +81,14 @@ workflows:
           keychain add-certificates
       - name: Set up code signing settings on Xcode project
         script: |
-          xcode-project use-profiles
+          if [ -n "$XCODE_WORKSPACE" ] && [ -f "$XCODE_WORKSPACE" ]; then
+            xcode-project use-profiles --workspace "$XCODE_WORKSPACE"
+          elif [ -n "$XCODE_PROJECT" ] && [ -d "$XCODE_PROJECT" ]; then
+            xcode-project use-profiles --project "$XCODE_PROJECT"
+          else
+            echo "No valid Xcode workspace/project found for code signing."
+            exit 1
+          fi
       - name: Increment build number
         script: |
           if [ -z "$APP_STORE_APP_ID" ]; then
@@ -75,15 +101,22 @@ workflows:
           else
             NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
           fi
-          if [ -z "$IOS_POD_DIR" ]; then
-            echo "IOS_POD_DIR is empty"
+          if [ -z "$XCODE_CONTAINER_DIR" ]; then
+            echo "XCODE_CONTAINER_DIR is empty"
             exit 1
           fi
-          cd "$IOS_POD_DIR"
+          cd "$XCODE_CONTAINER_DIR"
           agvtool new-version -all "$NEW_BUILD_NUMBER"
       - name: Build ipa for distribution
         script: |
-          xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+          if [ -n "$XCODE_WORKSPACE" ] && [ -f "$XCODE_WORKSPACE" ]; then
+            xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+          elif [ -n "$XCODE_PROJECT" ] && [ -d "$XCODE_PROJECT" ]; then
+            xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME"
+          else
+            echo "No valid Xcode workspace/project found for build."
+            exit 1
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
