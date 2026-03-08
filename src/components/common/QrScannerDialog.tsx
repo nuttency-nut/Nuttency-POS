@@ -10,7 +10,6 @@ import {
 } from "@zxing/library";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/sonner";
 
 interface QrScannerDialogProps {
   open: boolean;
@@ -74,7 +73,6 @@ export default function QrScannerDialog({
     stopScanner();
     onDetected(value);
     onOpenChange(false);
-    toast.success("Đã quét mã");
   };
 
   useEffect(() => {

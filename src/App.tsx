@@ -25,6 +25,16 @@ const queryClient = new QueryClient({
 });
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 
+function isAuthRecoveryFlow() {
+  if (typeof window === "undefined") return false;
+  const search = new URLSearchParams(window.location.search);
+  const hashRaw = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const hash = new URLSearchParams(hashRaw);
+  return hash.get("type") === "recovery" || search.get("mode") === "reset-password";
+}
+
 function AppResumeSync() {
   useSupabaseReconnect();
 
@@ -65,6 +75,7 @@ function ProtectedRoute({
 
 function AppRoutes() {
   const { session, role, loading } = useAuth();
+  const allowAuthForRecovery = isAuthRecoveryFlow();
 
   if (loading) {
     return (
@@ -81,7 +92,7 @@ function AppRoutes() {
     <Routes>
       <Route
         path="/auth"
-        element={session ? <Navigate to="/pos" replace /> : <Auth />}
+        element={session && !allowAuthForRecovery ? <Navigate to="/pos" replace /> : <Auth />}
       />
       <Route
         path="/"
