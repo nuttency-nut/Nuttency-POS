@@ -460,8 +460,8 @@ export default function AppSettings() {
                 <ReceiptText className="h-5 w-5" />
               </span>
               <div className="text-left">
-                <p className="font-semibold text-foreground">Quản lý phiếu thu/chi</p>
-                <p className="text-xs text-muted-foreground">Tra cứu phiếu theo ngày, số tiền và nội dung</p>
+                <p className="font-semibold text-foreground">Quản lý thu/chi ngân hàng</p>
+                <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu/chi</p>
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -475,13 +475,13 @@ export default function AppSettings() {
         className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/25 bg-card hover:bg-destructive/5 shadow-sm hover:shadow-md active:translate-y-[1px] active:shadow-sm transition-all"
       >
         <LogOut className="w-4 h-4" />
-        Đăng xuất
+        ÄÄƒng xuáº¥t
       </Button>
     </div>
   );
 
   return (
-    <AppLayout title="Cài đặt">
+    <AppLayout title="CÃ i Ä‘áº·t">
       <div className="p-4 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
@@ -496,9 +496,9 @@ export default function AppSettings() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-sm">Quản lý quyền tài khoản</p>
+                    <p className="font-semibold text-sm">Xác thực và quản lý phân quyền </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Nguyên tắc: chỉ phân quyền cho tài khoản thấp hơn quyền của bạn.
+                      Nguyên tắc: Chỉ được phân quyền thấp hơn quyền của chính bạn.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -508,7 +508,7 @@ export default function AppSettings() {
                         size="icon"
                         onClick={() => setRegistrationScannerOpen(true)}
                         disabled={approvingRegistrationQr}
-                        title="Quét QR xác thực đăng ký"
+                        title="Quét QR xác thực"
                       >
                         {approvingRegistrationQr ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -530,8 +530,14 @@ export default function AppSettings() {
               </Card>
 
               <div className="space-y-2">
-                {roleUsers.length === 0 ? (
-                  loadingRoleUsers ? null : (
+                {loadingRoleUsers ? (
+                  <Card className="border-0 shadow-sm">
+                    <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      
+                    </CardContent>
+                  </Card>
+                ) : roleUsers.length === 0 ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 space-y-2">
                       <p className="text-sm text-muted-foreground">Chưa lấy được danh sách tài khoản.</p>
@@ -540,7 +546,6 @@ export default function AppSettings() {
                       </Button>
                     </CardContent>
                   </Card>
-                  )
                 ) : (
                   roleUsers.map((u) => {
                     const editable = canEditTarget(u.user_id, u.role);
@@ -576,7 +581,7 @@ export default function AppSettings() {
                           </div>
 
                           {!editable && (
-                            <p className="text-xs text-muted-foreground">Không thể chỉnh quyền tài khoản này.</p>
+                            <p className="text-xs text-muted-foreground">Không thể chỉnh sửa quyền tài khoản này.</p>
                           )}
                         </CardContent>
                       </Card>
@@ -597,7 +602,7 @@ export default function AppSettings() {
           title={"Qu\u00e9t QR x\u00e1c th\u1ef1c \u0111\u0103ng k\u00fd"}
         />
 
-        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 • Quản lý bán hàng F&B</p>
+        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0</p>
       </div>
     </AppLayout>
   );
