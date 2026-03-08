@@ -28,14 +28,28 @@ workflows:
       - name: Ensure Capacitor iOS platform
         script: |
           npm install @capacitor/ios --no-save
-          if [ ! -d "ios/App" ]; then
+          if [ ! -d "ios" ]; then
             npx cap add ios
-          else
-            npx cap sync ios
           fi
+          npx cap sync ios
+
+          PODFILE_PATH="$(find ios -name Podfile | head -n 1)"
+          if [ -z "$PODFILE_PATH" ]; then
+            echo "Could not find Podfile under ios/"
+            find ios -maxdepth 4 -type f | sort || true
+            exit 1
+          fi
+
+          IOS_POD_DIR="$(dirname "$PODFILE_PATH")"
+          echo "Resolved iOS pod dir: $IOS_POD_DIR"
+          echo "IOS_POD_DIR=$IOS_POD_DIR" >> "$CM_ENV"
       - name: Install pods
         script: |
-          cd ios/App
+          if [ -z "$IOS_POD_DIR" ]; then
+            echo "IOS_POD_DIR is empty"
+            exit 1
+          fi
+          cd "$IOS_POD_DIR"
           pod install --repo-update
       - name: Set up keychain to be used for codesigning using Codemagic CLI 'keychain' command
         script: |
@@ -61,7 +75,11 @@ workflows:
           else
             NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
           fi
-          cd ios/App
+          if [ -z "$IOS_POD_DIR" ]; then
+            echo "IOS_POD_DIR is empty"
+            exit 1
+          fi
+          cd "$IOS_POD_DIR"
           agvtool new-version -all "$NEW_BUILD_NUMBER"
       - name: Build ipa for distribution
         script: |
