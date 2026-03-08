@@ -219,7 +219,7 @@ export default function Auth() {
                   />
 
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    Nhờ quản trị viên vào tab Phân quyền để quét mã này. Chỉ khi quét hợp lệ thì nút Đăng ký mới bấm được.
+                    Nhờ Admin quét QR này để xác nhận đăng ký. Mỗi QR chỉ có hiệu lực trong 60 giây và chỉ được sử dụng một lần.
                   </p>
 
                   {qrApprovalError ? (
@@ -234,7 +234,7 @@ export default function Auth() {
                         ? "Đã xác thực QR. Bạn có thể đăng ký tài khoản."
                         : isCheckingQrApproval
                           ? "Đang kiểm tra xác thực QR..."
-                          : "Chưa có xác thực QR từ quản trị viên."}
+                          : "Chưa có xác thực QR từ Admin."}
                     </p>
                   )}
                 </div>

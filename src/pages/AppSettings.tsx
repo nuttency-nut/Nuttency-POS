@@ -35,10 +35,10 @@ const getInitialTheme = () => {
 };
 
 const ROLE_LABEL: Record<AppRole, string> = {
-  admin: "Quáº£n trá»‹ viÃªn",
-  manager: "Quáº£n lÃ½",
-  staff: "NhÃ¢n viÃªn",
-  no_role: "ChÆ°a phÃ¢n quyá»n",
+  admin: "Quản trị viên",
+  manager: "Quản lý",
+  staff: "Nhân viên",
+  no_role: "Chưa phân quyền",
 };
 
 const ROLE_LEVEL: Record<AppRole, number> = {
@@ -108,7 +108,7 @@ export default function AppSettings() {
 
   const handleSignOut = async () => {
     await signOut();
-    toast.success("ÄÃ£ Ä‘Äƒng xuáº¥t");
+    toast.success("Đã đăng xuất");
     navigate("/auth");
   };
 
@@ -118,12 +118,12 @@ export default function AppSettings() {
     if (!file || !user?.id) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Vui long chon file anh");
+      toast.error("Vui lòng chọn file ảnh");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Anh khong duoc vuot qua 5MB");
+      toast.error("Ảnh không được vượt quá 5MB");
       return;
     }
 
@@ -148,10 +148,10 @@ export default function AppSettings() {
 
       avatarCache.set(user.id, nextAvatarUrl);
       setAvatarUrl(nextAvatarUrl);
-      toast.success("Da cap nhat anh dai dien");
+      toast.success("Đã cập nhật ảnh đại diện");
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Co loi xay ra";
-      toast.error(`Loi tai anh: ${message}`);
+      const message = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(`Lỗi tải ảnh: ${message}`);
     } finally {
       setUploadingAvatar(false);
       if (avatarInputRef.current) {
@@ -215,7 +215,7 @@ export default function AppSettings() {
         ]);
 
         if (profilesRes.error || rolesRes.error) {
-          toast.error("KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n");
+          toast.error("Không tải được danh sách tài khoản");
           return;
         }
 
@@ -241,8 +241,8 @@ export default function AppSettings() {
           setRoleUsers(normalizeAndSortUsers(merged));
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Lá»—i káº¿t ná»‘i";
-        toast.error(`KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n: ${message}`);
+        const message = error instanceof Error ? error.message : "Lỗi kết nối";
+        toast.error(`Không tải được danh sách tài khoản: ${message}`);
       } finally {
         loadInFlightRef.current = false;
         if (loadSeqRef.current === currentSeq) {
@@ -288,12 +288,12 @@ export default function AppSettings() {
     if (!user?.id || !canManageRoles) return;
 
     if (!canEditTarget(targetUser.user_id, targetUser.role)) {
-      toast.error("Báº¡n chá»‰ cÃ³ thá»ƒ phÃ¢n quyá»n cho tÃ i khoáº£n tháº¥p hÆ¡n");
+      toast.error("Bạn chỉ có thể phân quyền cho tài khoản thấp hơn");
       return;
     }
 
     if (ROLE_LEVEL[currentRole] <= ROLE_LEVEL[nextRole]) {
-      toast.error("KhÃ´ng thá»ƒ gÃ¡n quyá»n ngang hoáº·c cao hÆ¡n quyá»n cá»§a báº¡n");
+      toast.error("Không thể gán quyền ngang hoặc cao hơn quyền của bạn");
       return;
     }
 
@@ -306,7 +306,7 @@ export default function AppSettings() {
       .maybeSingle();
 
     if (existingRoleError) {
-      toast.error(existingRoleError.message || "KhÃ´ng kiá»ƒm tra Ä‘Æ°á»£c quyá»n hiá»‡n táº¡i");
+      toast.error(existingRoleError.message || "Không kiểm tra được quyền hiện tại");
       setSavingUserId(null);
       return;
     }
@@ -316,7 +316,7 @@ export default function AppSettings() {
       : await supabase.from("user_roles").insert({ user_id: targetUser.user_id, role: nextRole });
 
     if (error) {
-      toast.error(error.message || "Cáº­p nháº­t quyá»n tháº¥t báº¡i");
+      toast.error(error.message || "Cập nhật quyền thất bại");
       setSavingUserId(null);
       return;
     }
@@ -324,19 +324,19 @@ export default function AppSettings() {
     setRoleUsers((prev) =>
       prev.map((u) => (u.user_id === targetUser.user_id ? { ...u, role: nextRole } : u))
     );
-    toast.success("ÄÃ£ cáº­p nháº­t quyá»n");
+    toast.success("Đã cập nhật quyền");
     setSavingUserId(null);
   };
 
   const handleApproveRegistrationQr = async (rawValue: string) => {
     if (currentRole !== "admin") {
-      toast.error("Chá»‰ quáº£n trá»‹ viÃªn má»›i cÃ³ quyá»n xÃ¡c thá»±c QR Ä‘Äƒng kÃ½");
+      toast.error("Chỉ quản trị viên mới có quyền xác thực QR đăng ký");
       return;
     }
 
     const payload = rawValue.trim();
     if (!isValidRegistrationQrPayload(payload)) {
-      toast.error("MÃ£ QR khÃ´ng há»£p lá»‡ cho xÃ¡c thá»±c Ä‘Äƒng kÃ½");
+      toast.error("Mã QR không hợp lệ cho xác thực đăng ký");
       return;
     }
 
@@ -347,7 +347,7 @@ export default function AppSettings() {
       });
 
       if (error) {
-        toast.error(error.message || "KhÃ´ng thá»ƒ xÃ¡c thá»±c mÃ£ QR Ä‘Äƒng kÃ½");
+        toast.error(error.message || "Không thể xác thực mã QR đăng ký");
         return;
       }
 
@@ -365,8 +365,8 @@ export default function AppSettings() {
 
       toast.success(
         expiresText
-          ? `ÄÃ£ xÃ¡c thá»±c QR Ä‘Äƒng kÃ½. Háº¿t háº¡n lÃºc ${expiresText}`
-          : "ÄÃ£ xÃ¡c thá»±c QR Ä‘Äƒng kÃ½ thÃ nh cÃ´ng"
+          ? `Đã xác thực QR đăng ký. Hết hạn lúc ${expiresText}`
+          : "Đã xác thực QR đăng ký thành công"
       );
     } finally {
       setApprovingRegistrationQr(false);
@@ -423,7 +423,7 @@ export default function AppSettings() {
               ) : (
                 <Sun className="w-5 h-5 text-muted-foreground" />
               )}
-              <span className="font-medium text-foreground">{isDark ? "Cháº¿ Ä‘á»™ tá»‘i" : "Cháº¿ Ä‘á»™ sÃ¡ng"}</span>
+              <span className="font-medium text-foreground">{isDark ? "Chế độ tối" : "Chế độ sáng"}</span>
             </div>
             <div
               className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
@@ -460,8 +460,8 @@ export default function AppSettings() {
                 <ReceiptText className="h-5 w-5" />
               </span>
               <div className="text-left">
-                <p className="font-semibold text-foreground">Quáº£n lÃ½ phiáº¿u thu/chi</p>
-                <p className="text-xs text-muted-foreground">Tra cá»©u phiáº¿u theo ngÃ y, sá»‘ tiá»n vÃ  ná»™i dung</p>
+                <p className="font-semibold text-foreground">Quản lý phiếu thu/chi</p>
+                <p className="text-xs text-muted-foreground">Tra cứu phiếu theo ngày, số tiền và nội dung</p>
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -475,19 +475,19 @@ export default function AppSettings() {
         className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/25 bg-card hover:bg-destructive/5 shadow-sm hover:shadow-md active:translate-y-[1px] active:shadow-sm transition-all"
       >
         <LogOut className="w-4 h-4" />
-        ÄÄƒng xuáº¥t
+        Đăng xuất
       </Button>
     </div>
   );
 
   return (
-    <AppLayout title="CÃ i Ä‘áº·t">
+    <AppLayout title="Cài đặt">
       <div className="p-4 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">
               <TabsTrigger value="general">Chung</TabsTrigger>
-              <TabsTrigger value="roles">PhÃ¢n quyá»n</TabsTrigger>
+              <TabsTrigger value="roles">Phân quyền</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general">{generalContent}</TabsContent>
@@ -496,9 +496,9 @@ export default function AppSettings() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-sm">Quáº£n lÃ½ quyá»n tÃ i khoáº£n</p>
+                    <p className="font-semibold text-sm">Quản lý quyền tài khoản</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      NguyÃªn táº¯c: chá»‰ phÃ¢n quyá»n cho tÃ i khoáº£n tháº¥p hÆ¡n quyá»n cá»§a báº¡n.
+                      Nguyên tắc: chỉ phân quyền cho tài khoản thấp hơn quyền của bạn.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -508,7 +508,7 @@ export default function AppSettings() {
                         size="icon"
                         onClick={() => setRegistrationScannerOpen(true)}
                         disabled={approvingRegistrationQr}
-                        title="QuÃ©t QR xÃ¡c thá»±c Ä‘Äƒng kÃ½"
+                        title="Quét QR xác thực đăng ký"
                       >
                         {approvingRegistrationQr ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -530,22 +530,17 @@ export default function AppSettings() {
               </Card>
 
               <div className="space-y-2">
-                {loadingRoleUsers ? (
-                  <Card className="border-0 shadow-sm">
-                    <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Äang táº£i danh sÃ¡ch tÃ i khoáº£n...
-                    </CardContent>
-                  </Card>
-                ) : roleUsers.length === 0 ? (
+                {roleUsers.length === 0 ? (
+                  loadingRoleUsers ? null : (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">ChÆ°a láº¥y Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n.</p>
+                      <p className="text-sm text-muted-foreground">Chưa lấy được danh sách tài khoản.</p>
                       <Button variant="outline" size="sm" onClick={() => void loadRoleUsers()}>
-                        Táº£i láº¡i
+                        Tải lại
                       </Button>
                     </CardContent>
                   </Card>
+                  )
                 ) : (
                   roleUsers.map((u) => {
                     const editable = canEditTarget(u.user_id, u.role);
@@ -556,8 +551,8 @@ export default function AppSettings() {
                       <Card key={u.user_id} className="border-0 shadow-sm">
                         <CardContent className="p-4 space-y-3">
                           <div className="space-y-1">
-                            <p className="text-sm font-semibold truncate">{u.full_name?.trim() || "ChÆ°a cÃ³ tÃªn"}</p>
-                            <p className="text-xs text-muted-foreground truncate">{u.email || "ChÆ°a cÃ³ email"}</p>
+                            <p className="text-sm font-semibold truncate">{u.full_name?.trim() || "Chưa có tên"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{u.email || "Chưa có email"}</p>
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -581,7 +576,7 @@ export default function AppSettings() {
                           </div>
 
                           {!editable && (
-                            <p className="text-xs text-muted-foreground">KhÃ´ng thá»ƒ chá»‰nh quyá»n tÃ i khoáº£n nÃ y.</p>
+                            <p className="text-xs text-muted-foreground">Không thể chỉnh quyền tài khoản này.</p>
                           )}
                         </CardContent>
                       </Card>
@@ -602,7 +597,7 @@ export default function AppSettings() {
           title={"Qu\u00e9t QR x\u00e1c th\u1ef1c \u0111\u0103ng k\u00fd"}
         />
 
-        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 â€¢ Quáº£n lÃ½ bÃ¡n hÃ ng F&B</p>
+        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 • Quản lý bán hàng F&B</p>
       </div>
     </AppLayout>
   );
