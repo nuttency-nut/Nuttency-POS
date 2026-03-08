@@ -137,6 +137,34 @@ workflows:
         notify:
           success: false # To not receive a notification when a build succeeds
           failure: false # To not receive a notification when a build fails
+  android-debug-test:
+    name: Android debug test build
+    instance_type: linux_x2
+    max_build_duration: 60
+    working_directory: .
+    environment:
+      node: 22
+      java: 17
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $HOME/.gradle/caches
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm ci
+      - name: Build web app
+        script: |
+          npm run build
+      - name: Sync Capacitor Android
+        script: |
+          npx cap sync android
+      - name: Build debug APK
+        script: |
+          cd android
+          ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
   ios-manual-code-signing:
     name: iOS manual code signing
     instance_type: mac_mini_m2
