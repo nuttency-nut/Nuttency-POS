@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, ChevronRight, Loader2, LogOut, Moon, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
+import { Camera, ChevronRight, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
+import QrScannerDialog from "@/components/common/QrScannerDialog";
+import { isValidRegistrationQrPayload } from "@/lib/registration-qr";
 
 type AppRole = "admin" | "manager" | "staff" | "no_role";
 type SettingsTab = "general" | "roles";
@@ -33,10 +35,10 @@ const getInitialTheme = () => {
 };
 
 const ROLE_LABEL: Record<AppRole, string> = {
-  admin: "Quản trị viên",
-  manager: "Quản lý",
-  staff: "Nhân viên",
-  no_role: "Chưa phân quyền",
+  admin: "Quáº£n trá»‹ viÃªn",
+  manager: "Quáº£n lÃ½",
+  staff: "NhÃ¢n viÃªn",
+  no_role: "ChÆ°a phÃ¢n quyá»n",
 };
 
 const ROLE_LEVEL: Record<AppRole, number> = {
@@ -64,6 +66,8 @@ export default function AppSettings() {
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([]);
   const [loadingRoleUsers, setLoadingRoleUsers] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [registrationScannerOpen, setRegistrationScannerOpen] = useState(false);
+  const [approvingRegistrationQr, setApprovingRegistrationQr] = useState(false);
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
@@ -104,7 +108,7 @@ export default function AppSettings() {
 
   const handleSignOut = async () => {
     await signOut();
-    toast.success("Đã đăng xuất");
+    toast.success("ÄÃ£ Ä‘Äƒng xuáº¥t");
     navigate("/auth");
   };
 
@@ -211,7 +215,7 @@ export default function AppSettings() {
         ]);
 
         if (profilesRes.error || rolesRes.error) {
-          toast.error("Không tải được danh sách tài khoản");
+          toast.error("KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n");
           return;
         }
 
@@ -237,8 +241,8 @@ export default function AppSettings() {
           setRoleUsers(normalizeAndSortUsers(merged));
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Lỗi kết nối";
-        toast.error(`Không tải được danh sách tài khoản: ${message}`);
+        const message = error instanceof Error ? error.message : "Lá»—i káº¿t ná»‘i";
+        toast.error(`KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n: ${message}`);
       } finally {
         loadInFlightRef.current = false;
         if (loadSeqRef.current === currentSeq) {
@@ -284,12 +288,12 @@ export default function AppSettings() {
     if (!user?.id || !canManageRoles) return;
 
     if (!canEditTarget(targetUser.user_id, targetUser.role)) {
-      toast.error("Bạn chỉ có thể phân quyền cho tài khoản thấp hơn");
+      toast.error("Báº¡n chá»‰ cÃ³ thá»ƒ phÃ¢n quyá»n cho tÃ i khoáº£n tháº¥p hÆ¡n");
       return;
     }
 
     if (ROLE_LEVEL[currentRole] <= ROLE_LEVEL[nextRole]) {
-      toast.error("Không thể gán quyền ngang hoặc cao hơn quyền của bạn");
+      toast.error("KhÃ´ng thá»ƒ gÃ¡n quyá»n ngang hoáº·c cao hÆ¡n quyá»n cá»§a báº¡n");
       return;
     }
 
@@ -302,7 +306,7 @@ export default function AppSettings() {
       .maybeSingle();
 
     if (existingRoleError) {
-      toast.error(existingRoleError.message || "Không kiểm tra được quyền hiện tại");
+      toast.error(existingRoleError.message || "KhÃ´ng kiá»ƒm tra Ä‘Æ°á»£c quyá»n hiá»‡n táº¡i");
       setSavingUserId(null);
       return;
     }
@@ -312,7 +316,7 @@ export default function AppSettings() {
       : await supabase.from("user_roles").insert({ user_id: targetUser.user_id, role: nextRole });
 
     if (error) {
-      toast.error(error.message || "Cập nhật quyền thất bại");
+      toast.error(error.message || "Cáº­p nháº­t quyá»n tháº¥t báº¡i");
       setSavingUserId(null);
       return;
     }
@@ -320,8 +324,53 @@ export default function AppSettings() {
     setRoleUsers((prev) =>
       prev.map((u) => (u.user_id === targetUser.user_id ? { ...u, role: nextRole } : u))
     );
-    toast.success("Đã cập nhật quyền");
+    toast.success("ÄÃ£ cáº­p nháº­t quyá»n");
     setSavingUserId(null);
+  };
+
+  const handleApproveRegistrationQr = async (rawValue: string) => {
+    if (currentRole !== "admin") {
+      toast.error("Chá»‰ quáº£n trá»‹ viÃªn má»›i cÃ³ quyá»n xÃ¡c thá»±c QR Ä‘Äƒng kÃ½");
+      return;
+    }
+
+    const payload = rawValue.trim();
+    if (!isValidRegistrationQrPayload(payload)) {
+      toast.error("MÃ£ QR khÃ´ng há»£p lá»‡ cho xÃ¡c thá»±c Ä‘Äƒng kÃ½");
+      return;
+    }
+
+    setApprovingRegistrationQr(true);
+    try {
+      const { data, error } = await supabase.rpc("approve_registration_qr", {
+        p_payload: payload,
+      });
+
+      if (error) {
+        toast.error(error.message || "KhÃ´ng thá»ƒ xÃ¡c thá»±c mÃ£ QR Ä‘Äƒng kÃ½");
+        return;
+      }
+
+      const expiresAtRaw =
+        Array.isArray(data) && data.length > 0 && typeof data[0]?.expires_at === "string"
+          ? data[0].expires_at
+          : null;
+      const expiresText = expiresAtRaw
+        ? new Date(expiresAtRaw).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : null;
+
+      toast.success(
+        expiresText
+          ? `ÄÃ£ xÃ¡c thá»±c QR Ä‘Äƒng kÃ½. Háº¿t háº¡n lÃºc ${expiresText}`
+          : "ÄÃ£ xÃ¡c thá»±c QR Ä‘Äƒng kÃ½ thÃ nh cÃ´ng"
+      );
+    } finally {
+      setApprovingRegistrationQr(false);
+    }
   };
 
   const generalContent = (
@@ -374,7 +423,7 @@ export default function AppSettings() {
               ) : (
                 <Sun className="w-5 h-5 text-muted-foreground" />
               )}
-              <span className="font-medium text-foreground">{isDark ? "Chế độ tối" : "Chế độ sáng"}</span>
+              <span className="font-medium text-foreground">{isDark ? "Cháº¿ Ä‘á»™ tá»‘i" : "Cháº¿ Ä‘á»™ sÃ¡ng"}</span>
             </div>
             <div
               className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
@@ -411,8 +460,8 @@ export default function AppSettings() {
                 <ReceiptText className="h-5 w-5" />
               </span>
               <div className="text-left">
-                <p className="font-semibold text-foreground">Quản lý phiếu thu/chi</p>
-                <p className="text-xs text-muted-foreground">Tra cứu phiếu theo ngày, số tiền và nội dung</p>
+                <p className="font-semibold text-foreground">Quáº£n lÃ½ phiáº¿u thu/chi</p>
+                <p className="text-xs text-muted-foreground">Tra cá»©u phiáº¿u theo ngÃ y, sá»‘ tiá»n vÃ  ná»™i dung</p>
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -426,19 +475,19 @@ export default function AppSettings() {
         className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/25 bg-card hover:bg-destructive/5 shadow-sm hover:shadow-md active:translate-y-[1px] active:shadow-sm transition-all"
       >
         <LogOut className="w-4 h-4" />
-        Đăng xuất
+        ÄÄƒng xuáº¥t
       </Button>
     </div>
   );
 
   return (
-    <AppLayout title="Cài đặt">
+    <AppLayout title="CÃ i Ä‘áº·t">
       <div className="p-4 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">
               <TabsTrigger value="general">Chung</TabsTrigger>
-              <TabsTrigger value="roles">Phân quyền</TabsTrigger>
+              <TabsTrigger value="roles">PhÃ¢n quyá»n</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general">{generalContent}</TabsContent>
@@ -447,19 +496,36 @@ export default function AppSettings() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-sm">Quản lý quyền tài khoản</p>
+                    <p className="font-semibold text-sm">Quáº£n lÃ½ quyá»n tÃ i khoáº£n</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Nguyên tắc: chỉ phân quyền cho tài khoản thấp hơn quyền của bạn.
+                      NguyÃªn táº¯c: chá»‰ phÃ¢n quyá»n cho tÃ i khoáº£n tháº¥p hÆ¡n quyá»n cá»§a báº¡n.
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => void loadRoleUsers()}
-                    disabled={loadingRoleUsers}
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loadingRoleUsers ? "animate-spin" : ""}`} />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {currentRole === "admin" && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setRegistrationScannerOpen(true)}
+                        disabled={approvingRegistrationQr}
+                        title="QuÃ©t QR xÃ¡c thá»±c Ä‘Äƒng kÃ½"
+                      >
+                        {approvingRegistrationQr ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <QrCode className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void loadRoleUsers()}
+                      disabled={loadingRoleUsers}
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loadingRoleUsers ? "animate-spin" : ""}`} />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -468,15 +534,15 @@ export default function AppSettings() {
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang tải danh sách tài khoản...
+                      Äang táº£i danh sÃ¡ch tÃ i khoáº£n...
                     </CardContent>
                   </Card>
                 ) : roleUsers.length === 0 ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">Chưa lấy được danh sách tài khoản.</p>
+                      <p className="text-sm text-muted-foreground">ChÆ°a láº¥y Ä‘Æ°á»£c danh sÃ¡ch tÃ i khoáº£n.</p>
                       <Button variant="outline" size="sm" onClick={() => void loadRoleUsers()}>
-                        Tải lại
+                        Táº£i láº¡i
                       </Button>
                     </CardContent>
                   </Card>
@@ -490,8 +556,8 @@ export default function AppSettings() {
                       <Card key={u.user_id} className="border-0 shadow-sm">
                         <CardContent className="p-4 space-y-3">
                           <div className="space-y-1">
-                            <p className="text-sm font-semibold truncate">{u.full_name?.trim() || "Chưa có tên"}</p>
-                            <p className="text-xs text-muted-foreground truncate">{u.email || "Chưa có email"}</p>
+                            <p className="text-sm font-semibold truncate">{u.full_name?.trim() || "ChÆ°a cÃ³ tÃªn"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{u.email || "ChÆ°a cÃ³ email"}</p>
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -515,7 +581,7 @@ export default function AppSettings() {
                           </div>
 
                           {!editable && (
-                            <p className="text-xs text-muted-foreground">Không thể chỉnh quyền tài khoản này.</p>
+                            <p className="text-xs text-muted-foreground">KhÃ´ng thá»ƒ chá»‰nh quyá»n tÃ i khoáº£n nÃ y.</p>
                           )}
                         </CardContent>
                       </Card>
@@ -529,10 +595,19 @@ export default function AppSettings() {
           generalContent
         )}
 
-        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 • Quản lý bán hàng F&B</p>
+        <QrScannerDialog
+          open={registrationScannerOpen}
+          onOpenChange={setRegistrationScannerOpen}
+          onDetected={(value) => void handleApproveRegistrationQr(value)}
+          title={"Qu\u00e9t QR x\u00e1c th\u1ef1c \u0111\u0103ng k\u00fd"}
+        />
+
+        <p className="text-center text-xs text-muted-foreground pt-2">NUT POS v1.0 â€¢ Quáº£n lÃ½ bÃ¡n hÃ ng F&B</p>
       </div>
     </AppLayout>
   );
 }
+
+
 
 
