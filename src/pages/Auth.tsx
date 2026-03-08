@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import {
 import logo from "../../logo_4k_RB.png";
 
 const QR_APPROVAL_POLL_MS = 3000;
+const REGISTER_FORM_REVEAL_DELAY_MS = 1000;
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -26,10 +27,15 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [qrNowMs, setQrNowMs] = useState(() => Date.now());
   const [isQrApproved, setIsQrApproved] = useState(false);
   const [isCheckingQrApproval, setIsCheckingQrApproval] = useState(false);
   const [qrApprovalError, setQrApprovalError] = useState<string | null>(null);
+  const [showRegisterFields, setShowRegisterFields] = useState(false);
+  const [isWaitingRevealDelay, setIsWaitingRevealDelay] = useState(false);
+
+  const revealTimerRef = useRef<number | null>(null);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -42,6 +48,12 @@ export default function Auth() {
       setIsQrApproved(false);
       setIsCheckingQrApproval(false);
       setQrApprovalError(null);
+      setShowRegisterFields(false);
+      setIsWaitingRevealDelay(false);
+      if (revealTimerRef.current !== null) {
+        window.clearTimeout(revealTimerRef.current);
+        revealTimerRef.current = null;
+      }
       return;
     }
 
@@ -59,6 +71,8 @@ export default function Auth() {
     let disposed = false;
     setIsQrApproved(false);
     setQrApprovalError(null);
+    setShowRegisterFields(false);
+    setIsWaitingRevealDelay(false);
 
     const checkApproval = async (silent: boolean) => {
       if (!silent) {
@@ -96,6 +110,36 @@ export default function Auth() {
     };
   }, [isLogin, qrPayload]);
 
+  useEffect(() => {
+    if (isLogin) return;
+
+    if (!isQrApproved) {
+      setShowRegisterFields(false);
+      setIsWaitingRevealDelay(false);
+      if (revealTimerRef.current !== null) {
+        window.clearTimeout(revealTimerRef.current);
+        revealTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (showRegisterFields || revealTimerRef.current !== null) return;
+
+    setIsWaitingRevealDelay(true);
+    revealTimerRef.current = window.setTimeout(() => {
+      revealTimerRef.current = null;
+      setShowRegisterFields(true);
+      setIsWaitingRevealDelay(false);
+    }, REGISTER_FORM_REVEAL_DELAY_MS);
+
+    return () => {
+      if (revealTimerRef.current !== null) {
+        window.clearTimeout(revealTimerRef.current);
+        revealTimerRef.current = null;
+      }
+    };
+  }, [isLogin, isQrApproved, showRegisterFields]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -114,14 +158,14 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        if (!fullName.trim()) {
-          toast.error("Vui lòng nhập họ tên");
+        if (!isQrApproved || !showRegisterFields) {
+          toast.error("Cần quản trị viên quét QR xác nhận trước khi đăng ký");
           setIsSubmitting(false);
           return;
         }
 
-        if (!isQrApproved) {
-          toast.error("Cần quản trị viên quét QR xác nhận trước khi đăng ký");
+        if (!fullName.trim()) {
+          toast.error("Vui lòng nhập họ tên");
           setIsSubmitting(false);
           return;
         }
@@ -180,27 +224,6 @@ export default function Auth() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
-                >
-                  <Label htmlFor="fullName" className="text-sm font-medium">
-                    Họ và tên
-                  </Label>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Nguyễn Văn A"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="h-12 rounded-xl"
-                  />
-                </motion.div>
-              )}
-
-              {!isLogin && (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -231,7 +254,9 @@ export default function Auth() {
                       }`}
                     >
                       {isQrApproved
-                        ? "Đã xác thực QR. Bạn có thể đăng ký tài khoản."
+                        ? isWaitingRevealDelay
+                          ? "Đã xác thực QR. Đang mở form đăng ký..."
+                          : "Đã xác thực QR từ Admin."
                         : isCheckingQrApproval
                           ? "Đang kiểm tra xác thực QR..."
                           : "Chưa có xác thực QR từ Admin."}
@@ -240,59 +265,84 @@ export default function Auth() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-12 rounded-xl"
-                />
-              </div>
+              {(isLogin || showRegisterFields) && (
+                <>
+                  {!isLogin && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="fullName" className="text-sm font-medium">
+                        Họ và tên
+                      </Label>
+                      <Input
+                        id="fullName"
+                        type="text"
+                        placeholder="Nguyễn Văn A"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="h-12 rounded-xl"
+                      />
+                    </motion.div>
+                  )}
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="h-12 rounded-xl pr-12"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="email@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="h-12 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Mật khẩu
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="h-12 rounded-xl pr-12"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || (!isLogin && (!isQrApproved || !showRegisterFields))}
+                    className="w-full h-12 rounded-xl text-base font-semibold shadow-lg"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={isSubmitting || (!isLogin && !isQrApproved)}
-                className="w-full h-12 rounded-xl text-base font-semibold shadow-lg"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : isLogin ? (
-                  "Đăng nhập"
-                ) : (
-                  "Đăng ký"
-                )}
-              </Button>
+                    {isSubmitting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : isLogin ? (
+                      "Đăng nhập"
+                    ) : (
+                      "Đăng ký"
+                    )}
+                  </Button>
+                </>
+              )}
             </form>
           </CardContent>
         </Card>

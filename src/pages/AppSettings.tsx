@@ -475,7 +475,7 @@ export default function AppSettings() {
         className="w-full h-12 rounded-xl gap-2 text-destructive hover:text-destructive border-destructive/25 bg-card hover:bg-destructive/5 shadow-sm hover:shadow-md active:translate-y-[1px] active:shadow-sm transition-all"
       >
         <LogOut className="w-4 h-4" />
-        ÄÄƒng xuáº¥t
+        Đăng xuất
       </Button>
     </div>
   );
