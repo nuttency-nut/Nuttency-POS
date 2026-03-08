@@ -481,7 +481,7 @@ export default function AppSettings() {
   );
 
   return (
-    <AppLayout title="CÃ i Ä‘áº·t">
+    <AppLayout title="Cài đặt">
       <div className="p-4 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
