@@ -147,7 +147,7 @@ function AppRoutes() {
       <Route
         path="/payment-lookup"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
             <PaymentLookup />
           </ProtectedRoute>
         }

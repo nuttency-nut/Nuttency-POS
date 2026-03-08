@@ -75,6 +75,7 @@ export default function AppSettings() {
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
+  const canAccessPaymentLookup = currentRole !== "no_role";
   const roleLabel = ROLE_LABEL[currentRole];
 
   useEffect(() => {
@@ -448,26 +449,28 @@ export default function AppSettings() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <button
-            type="button"
-            onClick={() => navigate("/payment-lookup")}
-            className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <ReceiptText className="h-5 w-5" />
-              </span>
-              <div className="text-left">
-                <p className="font-semibold text-foreground">Quản lý thu/chi ngân hàng</p>
-                <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu/chi</p>
+      {canAccessPaymentLookup && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <button
+              type="button"
+              onClick={() => navigate("/payment-lookup")}
+              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ReceiptText className="h-5 w-5" />
+                </span>
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">Quản lý thu/chi ngân hàng</p>
+                  <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu/chi</p>
+                </div>
               </div>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-          </button>
-        </CardContent>
-      </Card>
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </button>
+          </CardContent>
+        </Card>
+      )}
 
       <Button
         variant="outline"
