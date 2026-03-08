@@ -57,22 +57,21 @@ export default function Auth() {
       return;
     }
 
+    if (isQrApproved) return;
+
     setQrNowMs(Date.now());
     const timerId = window.setInterval(() => {
       setQrNowMs(Date.now());
     }, 1000);
 
     return () => window.clearInterval(timerId);
-  }, [isLogin]);
+  }, [isLogin, isQrApproved]);
 
   useEffect(() => {
-    if (isLogin) return;
+    if (isLogin || isQrApproved) return;
 
     let disposed = false;
-    setIsQrApproved(false);
     setQrApprovalError(null);
-    setShowRegisterFields(false);
-    setIsWaitingRevealDelay(false);
 
     const checkApproval = async (silent: boolean) => {
       if (!silent) {
@@ -89,8 +88,11 @@ export default function Auth() {
         setIsQrApproved(false);
         setQrApprovalError("Không kiểm tra được xác thực QR. Vui lòng thử lại.");
       } else {
-        setIsQrApproved(Boolean(data));
-        setQrApprovalError(null);
+        const approved = Boolean(data);
+        setIsQrApproved(approved);
+        if (approved) {
+          setQrApprovalError(null);
+        }
       }
 
       if (!silent) {
@@ -108,7 +110,7 @@ export default function Auth() {
       disposed = true;
       window.clearInterval(pollId);
     };
-  }, [isLogin, qrPayload]);
+  }, [isLogin, isQrApproved, qrPayload]);
 
   useEffect(() => {
     if (isLogin) return;
@@ -223,7 +225,7 @@ export default function Auth() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
+              {!isLogin && !isQrApproved && (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -262,6 +264,16 @@ export default function Auth() {
                           : "Chưa có xác thực QR từ Admin."}
                     </p>
                   )}
+                </div>
+              )}
+
+              {!isLogin && isQrApproved && !showRegisterFields && (
+                <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-3">
+                  <p className="text-xs font-medium text-green-600">
+                    {isWaitingRevealDelay
+                      ? "Đã xác thực QR. Đang mở form đăng ký..."
+                      : "Đã xác thực QR. Chuẩn bị mở form đăng ký..."}
+                  </p>
                 </div>
               )}
 
