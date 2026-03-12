@@ -52,6 +52,57 @@ export type Database = {
           },
         ]
       }
+      catte_player_points: {
+        Row: {
+          created_at: string
+          id: string
+          points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      catte_settings: {
+        Row: {
+          base_stake: number
+          created_at: string
+          currency: string
+          id: string
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          base_stake?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          base_stake?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
