@@ -3,6 +3,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 
+type RoomPlayer = {
+  id: string;
+  user_id: string;
+  display_name: string;
+  joined_at: string;
+};
+
 type RoleUser = {
   user_id: string;
   email: string | null;
@@ -13,33 +20,25 @@ type RoleUser = {
 const seats = [
   {
     id: "north",
-    label: "Người chơi 2",
-    status: "Sẵn sàng",
     position: "top-3 left-1/2 -translate-x-1/2",
   },
   {
     id: "east",
-    label: "Người chơi 3",
-    status: "Đang chờ",
     position: "top-1/2 right-3 -translate-y-1/2",
   },
   {
     id: "south",
-    label: "Bạn",
-    status: "Đang vào bàn",
     position: "bottom-3 left-1/2 -translate-x-1/2",
   },
   {
     id: "west",
-    label: "Người chơi 4",
-    status: "Sẵn sàng",
     position: "top-1/2 left-3 -translate-y-1/2",
   },
 ];
 
 const minPlayersToStart = 2;
-const playerCount = 4;
-const canStart = playerCount >= minPlayersToStart;
+const maxPlayers = 4;
+const roomKey = "main";
 
 const ruleHighlights = [
   "Chơi 4 người, dùng bộ bài Tây 52 lá, mỗi người nhận 6 lá.",
@@ -69,6 +68,8 @@ const CatTe = () => {
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [baseStakeInput, setBaseStakeInput] = useState("100");
   const [currencyInput, setCurrencyInput] = useState("điểm");
+  const [roomPlayers, setRoomPlayers] = useState<RoomPlayer[]>([]);
+  const [roomLoading, setRoomLoading] = useState(true);
   const [playerPoints, setPlayerPoints] = useState<Record<string, number>>({});
   const [players, setPlayers] = useState<RoleUser[]>([]);
   const [playersLoading, setPlayersLoading] = useState(false);
@@ -80,8 +81,34 @@ const CatTe = () => {
   }, [baseStakeInput]);
 
   const currencyLabel = currencyInput.trim() || "điểm";
+  const playerCount = roomPlayers.length;
+  const canStart = playerCount >= minPlayersToStart;
   const potValue = baseStakeValue * playerCount;
   const currentUserPoints = user?.id ? playerPoints[user.id] ?? 0 : 0;
+  const sortedPlayers = useMemo(() => {
+    const list = [...roomPlayers];
+    list.sort(
+      (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+    );
+    if (!user?.id) return list;
+    const idx = list.findIndex((p) => p.user_id === user.id);
+    if (idx > 0) {
+      const [current] = list.splice(idx, 1);
+      list.unshift(current);
+    }
+    return list;
+  }, [roomPlayers, user?.id]);
+
+  const seatAssignments = useMemo(() => {
+    const seatOrder = ["south", "west", "north", "east"];
+    return seatOrder.map((seatId, index) => {
+      const seat = seats.find((s) => s.id === seatId);
+      return {
+        ...seat,
+        player: sortedPlayers[index] ?? null,
+      };
+    });
+  }, [sortedPlayers]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -122,6 +149,106 @@ const CatTe = () => {
 
     void loadMyPoints();
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let mounted = true;
+    const displayName =
+      (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
+      user.email ||
+      "Người chơi";
+
+    const loadRoomPlayers = async () => {
+      setRoomLoading(true);
+      const { data, error } = await supabase
+        .from("catte_room_players")
+        .select("id, user_id, display_name, joined_at")
+        .eq("room_key", roomKey)
+        .order("joined_at", { ascending: true });
+
+      if (!mounted) return;
+
+      if (error) {
+        toast.error(error.message || "Không tải được danh sách người chơi");
+        setRoomLoading(false);
+        return;
+      }
+
+      setRoomPlayers(data ?? []);
+      setRoomLoading(false);
+
+      const alreadyInRoom = (data ?? []).some((p) => p.user_id === user.id);
+      if (!alreadyInRoom && (data?.length ?? 0) >= maxPlayers) {
+        toast.error("Bàn đã đủ 4 người");
+        return;
+      }
+
+      if (!alreadyInRoom) {
+        const { error: joinError } = await supabase
+          .from("catte_room_players")
+          .insert({ room_key: roomKey, user_id: user.id, display_name: displayName });
+
+        if (joinError) {
+          toast.error(joinError.message || "Không thể vào bàn");
+          return;
+        }
+      } else {
+        await supabase
+          .from("catte_room_players")
+          .update({ display_name: displayName })
+          .eq("room_key", roomKey)
+          .eq("user_id", user.id);
+      }
+    };
+
+    void loadRoomPlayers();
+
+    const channel = supabase
+      .channel("catte_room_players")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "catte_room_players", filter: `room_key=eq.${roomKey}` },
+        (payload) => {
+          setRoomPlayers((prev) => {
+            if (payload.eventType === "DELETE") {
+              const oldRow = payload.old as RoomPlayer | undefined;
+              return oldRow ? prev.filter((p) => p.id !== oldRow.id) : prev;
+            }
+
+            const newRow = payload.new as RoomPlayer | undefined;
+            if (!newRow) return prev;
+            const next = prev.filter((p) => p.id !== newRow.id);
+            next.push(newRow);
+            next.sort(
+              (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+            );
+            return next;
+          });
+        }
+      )
+      .subscribe();
+
+    const leaveRoom = () => {
+      if (!user?.id) return;
+      supabase
+        .from("catte_room_players")
+        .delete()
+        .eq("room_key", roomKey)
+        .eq("user_id", user.id);
+    };
+
+    window.addEventListener("pagehide", leaveRoom);
+    window.addEventListener("beforeunload", leaveRoom);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("pagehide", leaveRoom);
+      window.removeEventListener("beforeunload", leaveRoom);
+      leaveRoom();
+      supabase.removeChannel(channel);
+    };
+  }, [user?.email, user?.id, user?.user_metadata?.full_name]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -233,7 +360,7 @@ const CatTe = () => {
               className="text-3xl font-semibold text-[#f8e7c2] md:text-4xl"
               style={{ fontFamily: '"Libre Caslon Text", serif' }}
             >
-              Sòng bài Cát Tê - 4 người vào bàn
+              Sòng bài Cát Tê - {playerCount}/{maxPlayers} người vào bàn
             </h1>
             <p className="max-w-2xl text-sm text-emerald-100/70">
               Giao diện sòng bài cho 4 người đăng nhập. Luật đã bám theo mô tả bạn gửi và sẽ cắm logic chia bài +
@@ -248,27 +375,42 @@ const CatTe = () => {
                 <div className="absolute inset-6 rounded-[42px] border border-emerald-200/10 bg-[radial-gradient(circle_at_top,rgba(110,231,183,0.25),transparent_60%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.18),transparent_55%)]" />
                 <div className="absolute inset-10 rounded-[999px] border border-emerald-100/10 bg-[linear-gradient(160deg,rgba(16,185,129,0.35),rgba(15,23,22,0.9))] shadow-[inset_0_0_40px_rgba(0,0,0,0.45)]" />
 
-                {seats.map((seat) => (
+                {seatAssignments.map((seat) => {
+                  const player = seat.player;
+                  const isCurrentUser = player?.user_id === user?.id;
+                  const seatLabel = player
+                    ? isCurrentUser
+                      ? "Bạn"
+                      : player.display_name
+                    : "Chỗ trống";
+                  const statusLabel = player ? (isCurrentUser ? "Bạn" : "Đang ngồi") : "Chờ người chơi";
+
+                  return (
                   <div
                     key={seat.id}
                     className={`absolute flex flex-col items-center gap-2 ${seat.position}`}
                   >
                     <div className="flex items-center gap-2 rounded-full border border-emerald-200/20 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-emerald-100/70">
-                      {seat.status}
+                      {statusLabel}
                     </div>
                     <div className="rounded-xl border border-emerald-200/20 bg-[#141a17]/90 px-4 py-2 text-sm text-emerald-100/90 shadow-lg">
-                      {seat.label}
+                      {seatLabel}
                     </div>
                     <div className="flex items-center gap-1">
                       {Array.from({ length: 6 }).map((_, index) => (
                         <div
                           key={`${seat.id}-card-${index}`}
-                          className="h-9 w-6 rounded-md border border-emerald-100/30 bg-gradient-to-br from-[#f6e7c2] via-[#f3d9a4] to-[#cfa15e] shadow-[0_6px_10px_rgba(0,0,0,0.35)]"
+                          className={`h-9 w-6 rounded-md border border-emerald-100/30 shadow-[0_6px_10px_rgba(0,0,0,0.35)] ${
+                            player
+                              ? "bg-gradient-to-br from-[#f6e7c2] via-[#f3d9a4] to-[#cfa15e]"
+                              : "bg-emerald-200/10"
+                          }`}
                         />
                       ))}
                     </div>
                   </div>
-                ))}
+                );
+                })}
 
                 <div className="absolute bottom-10 right-12 flex flex-col items-center gap-2">
                   <span className="text-[10px] uppercase tracking-[0.3em] text-emerald-100/60">Bộ bài</span>
@@ -328,7 +470,9 @@ const CatTe = () => {
                 <div className="mt-3 grid gap-3 text-xs">
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Người chơi đang ngồi</span>
-                    <span className="text-[#f8e7c2]">{playerCount}/4</span>
+                    <span className="text-[#f8e7c2]">
+                      {roomLoading ? "Đang tải..." : `${playerCount}/${maxPlayers}`}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Vòng hiện tại</span>

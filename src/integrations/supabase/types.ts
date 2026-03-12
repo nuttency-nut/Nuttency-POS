@@ -76,6 +76,33 @@ export type Database = {
         }
         Relationships: []
       }
+      catte_room_players: {
+        Row: {
+          display_name: string
+          id: string
+          joined_at: string
+          room_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          display_name?: string
+          id?: string
+          joined_at?: string
+          room_key?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          joined_at?: string
+          room_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       catte_settings: {
         Row: {
           base_stake: number
