@@ -82,7 +82,6 @@ const CatTe = () => {
 
   const currencyLabel = currencyInput.trim() || "điểm";
   const playerCount = roomPlayers.length;
-  const canStart = playerCount >= minPlayersToStart;
   const potValue = baseStakeValue * playerCount;
   const currentUserPoints = user?.id ? playerPoints[user.id] ?? 0 : 0;
   const sortedPlayers = useMemo(() => {
@@ -98,6 +97,9 @@ const CatTe = () => {
     }
     return list;
   }, [roomPlayers, user?.id]);
+  const firstPlayerId = sortedPlayers[0]?.user_id;
+  const isFirstPlayer = !!user?.id && firstPlayerId === user.id;
+  const canStart = !roomLoading && playerCount >= minPlayersToStart && isFirstPlayer;
 
   const seatAssignments = useMemo(() => {
     const seatOrder = ["south", "west", "north", "east"];
@@ -339,6 +341,11 @@ const CatTe = () => {
     setSavingUserId(null);
   };
 
+  const handleStartHand = () => {
+    if (!canStart) return;
+    toast.success("Đã bắt đầu ván (demo)");
+  };
+
   return (
     <div
       className="min-h-screen bg-[#0b0f0c] text-[#f7f1e4]"
@@ -502,6 +509,7 @@ const CatTe = () => {
                 <div className="mt-4 flex flex-col gap-2">
                   <button
                     type="button"
+                    onClick={handleStartHand}
                     disabled={!canStart}
                     className={`w-full rounded-xl px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] transition-all ${
                       canStart
@@ -512,7 +520,13 @@ const CatTe = () => {
                     Bắt đầu ván
                   </button>
                   <p className="text-[11px] text-emerald-100/60">
-                    Cần tối thiểu {minPlayersToStart} người để bắt đầu.
+                    {roomLoading
+                      ? "Đang tải danh sách người chơi..."
+                      : playerCount < minPlayersToStart
+                        ? `Cần tối thiểu ${minPlayersToStart} người để bắt đầu.`
+                        : !isFirstPlayer
+                          ? "Chỉ người vào bàn trước mới được bắt đầu."
+                          : "Bạn có thể bắt đầu ván."}
                   </p>
                 </div>
               </div>
