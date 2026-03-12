@@ -100,6 +100,8 @@ export default function CasinoTable() {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [foldMode, setFoldMode] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const roomChannelRef = useRef<ReturnType<typeof createRoomChannel> | null>(null);
   const gameChannelRef = useRef<ReturnType<typeof createGameChannel> | null>(null);
   const gamesRoomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -162,20 +164,42 @@ export default function CasinoTable() {
     let active = true;
 
     const setup = async () => {
-      const { data: roomIdValue } = await supabase.rpc("catte_get_or_create_room");
-      if (!active || !roomIdValue) return;
+      setLoading(true);
+      setError(null);
+
+      const { data: roomIdValue, error: roomError } = await supabase.rpc(
+        "catte_get_or_create_room"
+      );
+      if (!active) return;
+      if (roomError || !roomIdValue) {
+        setError(
+          "Không thể tạo/phòng game. Hãy chắc chắn đã chạy migration Supabase và bật RPC."
+        );
+        setLoading(false);
+        return;
+      }
       setRoomId(roomIdValue as string);
 
-      const { data: joinResult } = await supabase.rpc("catte_join_room", {
+      const { data: joinResult, error: joinError } = await supabase.rpc("catte_join_room", {
         p_room_id: roomIdValue,
       });
+      if (!active) return;
+      if (joinError) {
+        setError("Không thể vào bàn chơi. Vui lòng tải lại trang.");
+        setLoading(false);
+        return;
+      }
       const joinRow = Array.isArray(joinResult) ? joinResult[0] : joinResult;
       const joinedPlayerId = (joinRow as any)?.player_id as string | undefined;
       if (joinedPlayerId) {
         setPlayerId(joinedPlayerId);
       }
 
-      await loadRoomData(roomIdValue as string, joinedPlayerId);
+      try {
+        await loadRoomData(roomIdValue as string, joinedPlayerId);
+      } catch (loadError) {
+        setError("Không thể tải dữ liệu bàn chơi. Vui lòng thử lại.");
+      }
 
       roomChannelRef.current = createRoomChannel({
         roomId: roomIdValue as string,
@@ -215,6 +239,8 @@ export default function CasinoTable() {
           }
         )
         .subscribe();
+
+      setLoading(false);
     };
 
     setup();
@@ -462,6 +488,16 @@ export default function CasinoTable() {
   return (
     <div className="min-h-screen bg-[#07140f] text-white px-4 py-6">
       <div className="max-w-6xl mx-auto flex flex-col gap-6">
+        {error && (
+          <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-rose-100 text-sm">
+            {error}
+          </div>
+        )}
+        {loading && !error && (
+          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-900/40 px-4 py-3 text-emerald-100 text-sm">
+            Đang kết nối bàn chơi...
+          </div>
+        )}
         <GameControls
           isHost={isHost}
           canStart={canStart}
