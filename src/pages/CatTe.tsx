@@ -39,6 +39,8 @@ const seats = [
 const minPlayersToStart = 2;
 const maxPlayers = 4;
 const roomKey = "main";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 
 const ruleHighlights = [
   "Chơi 4 người, dùng bộ bài Tây 52 lá, mỗi người nhận 6 lá.",
@@ -61,7 +63,7 @@ const ruleDetails = [
 const ruleNotes = ["Điểm/cược sẽ lấy từ database để admin chỉnh trực tiếp."];
 
 const CatTe = () => {
-  const { user, role } = useAuth();
+  const { user, role, session } = useAuth();
   const isAdmin = role === "admin";
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -74,6 +76,10 @@ const CatTe = () => {
   const [players, setPlayers] = useState<RoleUser[]>([]);
   const [playersLoading, setPlayersLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [handStarted, setHandStarted] = useState(false);
+  const [handStarterId, setHandStarterId] = useState<string | null>(null);
+  const [handKey, setHandKey] = useState<string>("");
+  const [handCards, setHandCards] = useState<Record<string, string[]>>({});
 
   const baseStakeValue = useMemo(() => {
     const parsed = Number(baseStakeInput);
@@ -254,17 +260,38 @@ const CatTe = () => {
         .eq("user_id", user.id);
     };
 
+    const leaveRoomKeepalive = () => {
+      if (!user?.id || !supabaseUrl || !supabaseAnonKey) return;
+      const url = `${supabaseUrl}/rest/v1/catte_room_players?room_key=eq.${encodeURIComponent(
+        roomKey
+      )}&user_id=eq.${user.id}`;
+      fetch(url, {
+        method: "DELETE",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+          Prefer: "return=minimal",
+        },
+        keepalive: true,
+      }).catch(() => {});
+    };
+
     window.addEventListener("pagehide", leaveRoom);
     window.addEventListener("beforeunload", leaveRoom);
+    window.addEventListener("pagehide", leaveRoomKeepalive);
+    window.addEventListener("beforeunload", leaveRoomKeepalive);
 
     return () => {
       mounted = false;
       window.removeEventListener("pagehide", leaveRoom);
       window.removeEventListener("beforeunload", leaveRoom);
+      window.removeEventListener("pagehide", leaveRoomKeepalive);
+      window.removeEventListener("beforeunload", leaveRoomKeepalive);
       leaveRoom();
+      leaveRoomKeepalive();
       supabase.removeChannel(channel);
     };
-  }, [user?.email, user?.id, user?.user_metadata?.full_name]);
+  }, [session?.access_token, user?.email, user?.id, user?.user_metadata?.full_name]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -303,6 +330,17 @@ const CatTe = () => {
 
     void loadPlayers();
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!handStarted) return;
+    const nextKey = joinedPlayers.map((p) => p.user_id).join("|");
+    if (nextKey !== handKey) {
+      setHandStarted(false);
+      setHandStarterId(null);
+      setHandCards({});
+      setHandKey(nextKey);
+    }
+  }, [handKey, handStarted, joinedPlayers]);
 
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
@@ -357,7 +395,30 @@ const CatTe = () => {
 
   const handleStartHand = () => {
     if (!canStart) return;
-    toast.success("Đã bắt đầu ván (demo)");
+    const ranks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
+    const suits = ["S", "H", "D", "C"];
+    const deck: string[] = [];
+    suits.forEach((suit) => {
+      ranks.forEach((rank) => {
+        deck.push(`${rank}${suit}`);
+      });
+    });
+    for (let i = deck.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const nextHands: Record<string, string[]> = {};
+    const orderedPlayers = joinedPlayers;
+    orderedPlayers.forEach((p, idx) => {
+      nextHands[p.user_id] = deck.slice(idx * 6, idx * 6 + 6);
+    });
+
+    setHandCards(nextHands);
+    setHandStarterId(user?.id ?? null);
+    setHandKey(orderedPlayers.map((p) => p.user_id).join("|"));
+    setHandStarted(true);
+    toast.success("Đã chia bài (demo)");
   };
 
   return (
@@ -405,6 +466,7 @@ const CatTe = () => {
                       : player.display_name
                     : "Chỗ trống";
                   const statusLabel = player ? (isCurrentUser ? "Bạn" : "Đang ngồi") : "Chờ người chơi";
+                  const cards = player ? handCards[player.user_id] ?? [] : [];
 
                   return (
                   <div
@@ -421,12 +483,16 @@ const CatTe = () => {
                       {Array.from({ length: 6 }).map((_, index) => (
                         <div
                           key={`${seat.id}-card-${index}`}
-                          className={`h-9 w-6 rounded-md border border-emerald-100/30 shadow-[0_6px_10px_rgba(0,0,0,0.35)] ${
-                            player
-                              ? "bg-gradient-to-br from-[#f6e7c2] via-[#f3d9a4] to-[#cfa15e]"
-                              : "bg-emerald-200/10"
+                          className={`flex h-9 w-6 items-center justify-center rounded-md border border-emerald-100/30 text-[9px] font-semibold shadow-[0_6px_10px_rgba(0,0,0,0.35)] ${
+                            player && handStarted && isCurrentUser
+                              ? "bg-gradient-to-br from-[#f6e7c2] via-[#f3d9a4] to-[#cfa15e] text-[#1a1208]"
+                              : player
+                                ? "bg-emerald-200/10 text-emerald-100/60"
+                                : "bg-emerald-200/10 text-emerald-100/30"
                           }`}
-                        />
+                        >
+                          {player && handStarted && isCurrentUser ? cards[index] ?? "" : ""}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -497,11 +563,15 @@ const CatTe = () => {
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Vòng hiện tại</span>
-                    <span className="text-[#f8e7c2]">Chờ chia bài</span>
+                    <span className="text-[#f8e7c2]">
+                      {handStarted ? "Đã chia bài" : "Chờ chia bài"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Cái</span>
-                    <span className="text-[#f8e7c2]">Chưa xác định</span>
+                    <span className="text-[#f8e7c2]">
+                      {handStarterId ? (handStarterId === user?.id ? "Bạn" : "Người vào trước") : "Chưa xác định"}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Mức cược</span>
