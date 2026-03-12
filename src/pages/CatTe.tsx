@@ -17,6 +17,31 @@ type RoleUser = {
   role: "admin" | "manager" | "staff" | "no_role";
 };
 
+const suitMap: Record<string, string> = {
+  S: "♠",
+  H: "♥",
+  D: "♦",
+  C: "♣",
+};
+
+const suitTone: Record<string, string> = {
+  S: "text-slate-900",
+  C: "text-slate-900",
+  H: "text-rose-600",
+  D: "text-rose-600",
+};
+
+const parseCard = (code: string) => {
+  const suit = code.slice(-1).toUpperCase();
+  const rank = code.slice(0, -1).toUpperCase();
+  return {
+    rank,
+    suit,
+    symbol: suitMap[suit] ?? suit,
+    tone: suitTone[suit] ?? "text-slate-900",
+  };
+};
+
 const seats = [
   {
     id: "north",
@@ -481,18 +506,47 @@ const CatTe = () => {
                     </div>
                     <div className="flex items-center gap-1">
                       {Array.from({ length: 6 }).map((_, index) => (
-                        <div
-                          key={`${seat.id}-card-${index}`}
-                          className={`flex h-9 w-6 items-center justify-center rounded-md border border-emerald-100/30 text-[9px] font-semibold shadow-[0_6px_10px_rgba(0,0,0,0.35)] ${
-                            player && handStarted && isCurrentUser
-                              ? "bg-gradient-to-br from-[#f6e7c2] via-[#f3d9a4] to-[#cfa15e] text-[#1a1208]"
-                              : player
-                                ? "bg-emerald-200/10 text-emerald-100/60"
-                                : "bg-emerald-200/10 text-emerald-100/30"
-                          }`}
-                        >
-                          {player && handStarted && isCurrentUser ? cards[index] ?? "" : ""}
-                        </div>
+                        (() => {
+                          const revealed = player && handStarted && isCurrentUser;
+                          const cardCode = cards[index] ?? "";
+                          const card = revealed && cardCode ? parseCard(cardCode) : null;
+
+                          return (
+                            <div
+                              key={`${seat.id}-card-${index}`}
+                              className={`relative flex h-11 w-8 items-center justify-center overflow-hidden rounded-lg border shadow-[0_6px_10px_rgba(0,0,0,0.35)] ${
+                                revealed
+                                  ? "border-amber-200/70 bg-gradient-to-br from-[#fff7e6] via-[#f5e0b8] to-[#d1a463]"
+                                  : player
+                                    ? "border-emerald-200/30 bg-[linear-gradient(135deg,rgba(6,78,59,0.8),rgba(15,118,110,0.7))]"
+                                    : "border-emerald-200/20 bg-emerald-200/10"
+                              }`}
+                            >
+                              {revealed && card ? (
+                                <>
+                                  <div className={`absolute left-1 top-0.5 text-[9px] font-semibold ${card.tone}`}>
+                                    {card.rank}
+                                  </div>
+                                  <div className={`absolute right-1 bottom-0.5 text-[9px] font-semibold ${card.tone}`}>
+                                    {card.rank}
+                                  </div>
+                                  <div className={`text-base ${card.tone}`}>{card.symbol}</div>
+                                </>
+                              ) : player ? (
+                                <>
+                                  <div className="absolute inset-0 opacity-70">
+                                    <div className="absolute -left-3 top-1/2 h-6 w-12 -translate-y-1/2 rotate-12 bg-emerald-200/20 blur-[6px]" />
+                                    <div className="absolute left-2 top-2 h-1 w-1 rounded-full bg-emerald-200/50" />
+                                    <div className="absolute right-2 bottom-2 h-1 w-1 rounded-full bg-emerald-200/40" />
+                                  </div>
+                                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-100/70">
+                                    CAT
+                                  </div>
+                                </>
+                              ) : null}
+                            </div>
+                          );
+                        })()
                       ))}
                     </div>
                   </div>
