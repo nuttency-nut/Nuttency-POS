@@ -102,6 +102,8 @@ export default function CasinoTable() {
   const [now, setNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
   const roomChannelRef = useRef<ReturnType<typeof createRoomChannel> | null>(null);
   const gameChannelRef = useRef<ReturnType<typeof createGameChannel> | null>(null);
   const gamesRoomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -166,6 +168,7 @@ export default function CasinoTable() {
     const setup = async () => {
       setLoading(true);
       setError(null);
+      setErrorDetails(null);
 
       const { data: roomIdValue, error: roomError } = await supabase.rpc(
         "catte_get_or_create_room"
@@ -175,6 +178,7 @@ export default function CasinoTable() {
         setError(
           "Không thể tạo/phòng game. Hãy chắc chắn đã chạy migration Supabase và bật RPC."
         );
+        setErrorDetails(roomError?.message ?? "Unknown RPC error");
         setLoading(false);
         return;
       }
@@ -186,6 +190,7 @@ export default function CasinoTable() {
       if (!active) return;
       if (joinError) {
         setError("Không thể vào bàn chơi. Vui lòng tải lại trang.");
+        setErrorDetails(joinError.message);
         setLoading(false);
         return;
       }
@@ -199,6 +204,7 @@ export default function CasinoTable() {
         await loadRoomData(roomIdValue as string, joinedPlayerId);
       } catch (loadError) {
         setError("Không thể tải dữ liệu bàn chơi. Vui lòng thử lại.");
+        setErrorDetails(loadError instanceof Error ? loadError.message : "Unknown load error");
       }
 
       roomChannelRef.current = createRoomChannel({
@@ -254,7 +260,7 @@ export default function CasinoTable() {
         gamesRoomChannelRef.current = null;
       }
     };
-  }, [loadRoomData, user]);
+  }, [loadRoomData, retryToken, user]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -489,8 +495,20 @@ export default function CasinoTable() {
     <div className="min-h-screen bg-[#07140f] text-white px-4 py-6">
       <div className="max-w-6xl mx-auto flex flex-col gap-6">
         {error && (
-          <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-rose-100 text-sm">
-            {error}
+          <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-rose-100 text-sm flex flex-col gap-2">
+            <div>{error}</div>
+            {errorDetails && (
+              <div className="text-xs text-rose-200/80">
+                Chi tiết: <span className="font-mono">{errorDetails}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setRetryToken((v) => v + 1)}
+              className="self-start rounded-lg bg-rose-400/20 px-3 py-1 text-xs font-semibold text-rose-100 hover:bg-rose-400/30"
+            >
+              Thử lại
+            </button>
           </div>
         )}
         {loading && !error && (
