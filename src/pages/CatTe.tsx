@@ -10,6 +10,33 @@ type RoomPlayer = {
   joined_at: string;
 };
 
+type HandState = {
+  room_key: string;
+  hand_id: string;
+  status: string;
+  player_order: string[];
+  current_turn: string | null;
+  lead_suit: string | null;
+  trick_index: number;
+  middle_card: string | null;
+  pot_value: number | null;
+  started_by: string | null;
+  started_at: string | null;
+};
+
+type HandCard = {
+  id: string;
+  room_key: string;
+  hand_id: string;
+  user_id: string;
+  card: string;
+  position: number;
+  is_played: boolean;
+  played_trick: number | null;
+  played_order: number | null;
+  played_at: string | null;
+};
+
 type RoleUser = {
   user_id: string;
   email: string | null;
@@ -30,6 +57,8 @@ const suitTone: Record<string, string> = {
   H: "text-rose-600",
   D: "text-rose-600",
 };
+
+const rankOrder = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 
 const parseCard = (code: string) => {
   const suit = code.slice(-1).toUpperCase();
@@ -97,14 +126,13 @@ const CatTe = () => {
   const [currencyInput, setCurrencyInput] = useState("điểm");
   const [roomPlayers, setRoomPlayers] = useState<RoomPlayer[]>([]);
   const [roomLoading, setRoomLoading] = useState(true);
+  const [handState, setHandState] = useState<HandState | null>(null);
+  const [handCards, setHandCards] = useState<HandCard[]>([]);
+  const [handLoading, setHandLoading] = useState(true);
   const [playerPoints, setPlayerPoints] = useState<Record<string, number>>({});
   const [players, setPlayers] = useState<RoleUser[]>([]);
   const [playersLoading, setPlayersLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
-  const [handStarted, setHandStarted] = useState(false);
-  const [handStarterId, setHandStarterId] = useState<string | null>(null);
-  const [handKey, setHandKey] = useState<string>("");
-  const [handCards, setHandCards] = useState<Record<string, string[]>>({});
 
   const baseStakeValue = useMemo(() => {
     const parsed = Number(baseStakeInput);
@@ -115,6 +143,7 @@ const CatTe = () => {
   const playerCount = roomPlayers.length;
   const potValue = baseStakeValue * playerCount;
   const currentUserPoints = user?.id ? playerPoints[user.id] ?? 0 : 0;
+  const displayedPot = handState?.pot_value ?? potValue;
   const joinedPlayers = useMemo(() => {
     const list = [...roomPlayers];
     list.sort(
@@ -130,7 +159,8 @@ const CatTe = () => {
   }, [joinedPlayers, user?.id]);
   const firstPlayerId = joinedPlayers[0]?.user_id;
   const isFirstPlayer = !!user?.id && firstPlayerId === user.id;
-  const canStart = !roomLoading && playerCount >= minPlayersToStart && isFirstPlayer;
+  const canStart =
+    !roomLoading && playerCount >= minPlayersToStart && isFirstPlayer && !isHandActive;
 
   const seatAssignments = useMemo(() => {
     const seatOrder = ["south", "west", "north", "east"];
@@ -142,6 +172,28 @@ const CatTe = () => {
       };
     });
   }, [seatPlayers]);
+
+  const currentHandId = handState?.hand_id ?? null;
+  const isHandActive = handState?.status === "playing";
+  const currentTurnId = handState?.current_turn ?? null;
+  const isMyTurn = !!user?.id && currentTurnId === user.id;
+  const currentTrick = handState?.trick_index ?? 1;
+  const leadSuit = handState?.lead_suit ?? null;
+  const myHandCards = useMemo(
+    () => handCards.filter((c) => c.user_id === user?.id).sort((a, b) => a.position - b.position),
+    [handCards, user?.id]
+  );
+  const trickCards = useMemo(() => {
+    if (!currentHandId) return [];
+    return handCards
+      .filter((c) => c.hand_id === currentHandId && c.played_trick === currentTrick)
+      .sort((a, b) => (a.played_order ?? 0) - (b.played_order ?? 0));
+  }, [currentHandId, currentTrick, handCards]);
+  const playerNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    roomPlayers.forEach((p) => map.set(p.user_id, p.display_name));
+    return map;
+  }, [roomPlayers]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -301,16 +353,12 @@ const CatTe = () => {
       }).catch(() => {});
     };
 
-    window.addEventListener("pagehide", leaveRoom);
     window.addEventListener("beforeunload", leaveRoom);
-    window.addEventListener("pagehide", leaveRoomKeepalive);
     window.addEventListener("beforeunload", leaveRoomKeepalive);
 
     return () => {
       mounted = false;
-      window.removeEventListener("pagehide", leaveRoom);
       window.removeEventListener("beforeunload", leaveRoom);
-      window.removeEventListener("pagehide", leaveRoomKeepalive);
       window.removeEventListener("beforeunload", leaveRoomKeepalive);
       leaveRoom();
       leaveRoomKeepalive();
@@ -357,15 +405,74 @@ const CatTe = () => {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!handStarted) return;
-    const nextKey = joinedPlayers.map((p) => p.user_id).join("|");
-    if (nextKey !== handKey) {
-      setHandStarted(false);
-      setHandStarterId(null);
-      setHandCards({});
-      setHandKey(nextKey);
-    }
-  }, [handKey, handStarted, joinedPlayers]);
+    const loadHandState = async () => {
+      setHandLoading(true);
+      const { data, error } = await supabase
+        .from("catte_hand_state")
+        .select("room_key, hand_id, status, player_order, current_turn, lead_suit, trick_index, middle_card, pot_value, started_by, started_at")
+        .eq("room_key", roomKey)
+        .maybeSingle();
+
+      if (error) {
+        setHandState(null);
+      } else {
+        setHandState(data as HandState | null);
+      }
+      setHandLoading(false);
+    };
+
+    const loadHandCards = async () => {
+      const { data } = await supabase
+        .from("catte_hand_cards")
+        .select("id, room_key, hand_id, user_id, card, position, is_played, played_trick, played_order, played_at")
+        .eq("room_key", roomKey);
+      setHandCards((data ?? []) as HandCard[]);
+    };
+
+    void loadHandState();
+    void loadHandCards();
+
+    const stateChannel = supabase
+      .channel("catte_hand_state")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "catte_hand_state", filter: `room_key=eq.${roomKey}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setHandState(null);
+            return;
+          }
+          setHandState(payload.new as HandState);
+        }
+      )
+      .subscribe();
+
+    const cardsChannel = supabase
+      .channel("catte_hand_cards")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "catte_hand_cards", filter: `room_key=eq.${roomKey}` },
+        (payload) => {
+          setHandCards((prev) => {
+            if (payload.eventType === "DELETE") {
+              const oldRow = payload.old as HandCard | undefined;
+              return oldRow ? prev.filter((c) => c.id !== oldRow.id) : prev;
+            }
+            const newRow = payload.new as HandCard | undefined;
+            if (!newRow) return prev;
+            const next = prev.filter((c) => c.id !== newRow.id);
+            next.push(newRow);
+            return next;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(stateChannel);
+      supabase.removeChannel(cardsChannel);
+    };
+  }, []);
 
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
@@ -420,11 +527,14 @@ const CatTe = () => {
 
   const handleStartHand = () => {
     if (!canStart) return;
-    const ranks = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
+    if (isHandActive) {
+      toast.error("Ván đang diễn ra");
+      return;
+    }
     const suits = ["S", "H", "D", "C"];
     const deck: string[] = [];
     suits.forEach((suit) => {
-      ranks.forEach((rank) => {
+      rankOrder.forEach((rank) => {
         deck.push(`${rank}${suit}`);
       });
     });
@@ -433,17 +543,151 @@ const CatTe = () => {
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
 
-    const nextHands: Record<string, string[]> = {};
     const orderedPlayers = joinedPlayers;
+    if (orderedPlayers.length < minPlayersToStart) {
+      toast.error("Chưa đủ người để bắt đầu");
+      return;
+    }
+
+    const handId = crypto.randomUUID();
+    const middleCard = deck[orderedPlayers.length * 6] ?? null;
+    const potValueNext = baseStakeValue * orderedPlayers.length;
+
+    const cardRows: Array<Partial<HandCard>> = [];
     orderedPlayers.forEach((p, idx) => {
-      nextHands[p.user_id] = deck.slice(idx * 6, idx * 6 + 6);
+      const cards = deck.slice(idx * 6, idx * 6 + 6);
+      cards.forEach((card, position) => {
+        cardRows.push({
+          room_key: roomKey,
+          hand_id: handId,
+          user_id: p.user_id,
+          card,
+          position,
+          is_played: false,
+        });
+      });
     });
 
-    setHandCards(nextHands);
-    setHandStarterId(user?.id ?? null);
-    setHandKey(orderedPlayers.map((p) => p.user_id).join("|"));
-    setHandStarted(true);
-    toast.success("Đã chia bài (demo)");
+    const startHand = async () => {
+      await supabase.from("catte_hand_cards").delete().eq("room_key", roomKey);
+
+      const { error: stateError } = await supabase
+        .from("catte_hand_state")
+        .upsert({
+          room_key: roomKey,
+          hand_id: handId,
+          status: "playing",
+          player_order: orderedPlayers.map((p) => p.user_id),
+          current_turn: orderedPlayers[0]?.user_id ?? null,
+          lead_suit: null,
+          trick_index: 1,
+          middle_card: middleCard,
+          pot_value: potValueNext,
+          started_by: user?.id ?? null,
+          started_at: new Date().toISOString(),
+        })
+        .select()
+        .maybeSingle();
+
+      if (stateError) {
+        toast.error(stateError.message || "Không thể bắt đầu ván");
+        return;
+      }
+
+      const { error: cardsError } = await supabase
+        .from("catte_hand_cards")
+        .insert(cardRows);
+
+      if (cardsError) {
+        toast.error(cardsError.message || "Không thể chia bài");
+        return;
+      }
+
+      toast.success("Đã chia bài");
+    };
+
+    void startHand();
+  };
+
+  const handlePlayCard = async (cardRow: HandCard) => {
+    if (!isHandActive || !handState || !user?.id) return;
+    if (!isMyTurn) {
+      toast.error("Chưa tới lượt");
+      return;
+    }
+    if (cardRow.user_id !== user.id || cardRow.is_played) return;
+
+    const cardSuit = parseCard(cardRow.card).suit;
+    if (leadSuit) {
+      const hasSuit = myHandCards.some(
+        (c) => !c.is_played && parseCard(c.card).suit === leadSuit
+      );
+      if (hasSuit && cardSuit !== leadSuit) {
+        toast.error("Phải theo chất");
+        return;
+      }
+    }
+
+    const playsThisTrick = handCards.filter(
+      (c) => c.hand_id === handState.hand_id && c.played_trick === currentTrick
+    );
+    const nextOrder = playsThisTrick.length + 1;
+
+    const { error: playError } = await supabase
+      .from("catte_hand_cards")
+      .update({
+        is_played: true,
+        played_trick: currentTrick,
+        played_order: nextOrder,
+        played_at: new Date().toISOString(),
+      })
+      .eq("id", cardRow.id);
+
+    if (playError) {
+      toast.error(playError.message || "Không thể đánh bài");
+      return;
+    }
+
+    const playerOrder = handState.player_order ?? [];
+    if (playerOrder.length === 0) return;
+
+    const currentIdx = playerOrder.indexOf(user.id);
+    const nextPlayerId = playerOrder[(currentIdx + 1) % playerOrder.length] ?? null;
+
+    const playsAfter = [
+      ...playsThisTrick,
+      { ...cardRow, played_trick: currentTrick, played_order: nextOrder },
+    ];
+
+    if (playsAfter.length < playerOrder.length) {
+      await supabase
+        .from("catte_hand_state")
+        .update({ current_turn: nextPlayerId, lead_suit: leadSuit ?? cardSuit })
+        .eq("room_key", roomKey);
+      return;
+    }
+
+    const trickLeadSuit = (leadSuit ?? cardSuit) as string;
+    const ranked = playsAfter
+      .filter((c) => parseCard(c.card).suit === trickLeadSuit)
+      .map((c) => ({
+        ...c,
+        rankValue: rankOrder.indexOf(parseCard(c.card).rank),
+      }))
+      .sort((a, b) => b.rankValue - a.rankValue);
+    const winner = ranked[0];
+
+    const nextTrick = currentTrick + 1;
+    const finished = nextTrick > 6;
+    await supabase
+      .from("catte_hand_state")
+      .update({
+        current_turn: winner?.user_id ?? nextPlayerId,
+        lead_suit: null,
+        trick_index: finished ? 6 : nextTrick,
+        status: finished ? "finished" : "playing",
+      })
+      .eq("room_key", roomKey);
   };
 
   return (
@@ -491,7 +735,11 @@ const CatTe = () => {
                       : player.display_name
                     : "Chỗ trống";
                   const statusLabel = player ? (isCurrentUser ? "Bạn" : "Đang ngồi") : "Chờ người chơi";
-                  const cards = player ? handCards[player.user_id] ?? [] : [];
+                  const cards = player
+                    ? handCards
+                        .filter((c) => c.user_id === player.user_id)
+                        .sort((a, b) => a.position - b.position)
+                    : [];
 
                   return (
                   <div
@@ -507,8 +755,9 @@ const CatTe = () => {
                     <div className="flex items-center gap-1">
                       {Array.from({ length: 6 }).map((_, index) => (
                         (() => {
-                          const revealed = player && handStarted && isCurrentUser;
-                          const cardCode = cards[index] ?? "";
+                          const revealed = player && isHandActive && isCurrentUser;
+                          const cardRow = cards[index];
+                          const cardCode = cardRow?.card ?? "";
                           const card = revealed && cardCode ? parseCard(cardCode) : null;
 
                           return (
@@ -565,7 +814,110 @@ const CatTe = () => {
                   <div className="rounded-2xl border border-emerald-200/20 bg-black/50 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-emerald-100/60">
                     Lá giữa
                   </div>
-                  <div className="h-24 w-16 rounded-xl border border-emerald-100/30 bg-gradient-to-br from-[#f9edd2] via-[#f3d9a4] to-[#cfa15e] shadow-[0_10px_18px_rgba(0,0,0,0.45)]" />
+                  <div className="relative flex h-24 w-16 items-center justify-center rounded-xl border border-emerald-100/30 bg-gradient-to-br from-[#f9edd2] via-[#f3d9a4] to-[#cfa15e] shadow-[0_10px_18px_rgba(0,0,0,0.45)]">
+                    {handState?.middle_card ? (
+                      (() => {
+                        const middle = parseCard(handState.middle_card);
+                        return (
+                          <>
+                            <div className={`absolute left-2 top-2 text-xs font-semibold ${middle.tone}`}>
+                              {middle.rank}
+                            </div>
+                            <div className={`absolute right-2 bottom-2 text-xs font-semibold ${middle.tone}`}>
+                              {middle.rank}
+                            </div>
+                            <div className={`text-lg ${middle.tone}`}>{middle.symbol}</div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-100/50">
+                        Đang chờ
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-emerald-200/20 bg-black/60 p-4 text-sm text-emerald-100/70">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-100/70">
+                    Bài đang đánh
+                  </h3>
+                  <span className="text-[11px] text-emerald-100/50">
+                    {isHandActive ? `Vòng ${currentTrick}` : "Chưa chia bài"}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {trickCards.length === 0 && (
+                    <span className="text-[11px] text-emerald-100/50">Chưa có lá nào</span>
+                  )}
+                  {trickCards.map((card) => {
+                    const parsed = parseCard(card.card);
+                    return (
+                      <div
+                        key={card.id}
+                        className="flex items-center gap-2 rounded-lg border border-emerald-200/20 bg-emerald-950/40 px-2 py-1"
+                      >
+                        <div
+                          className={`flex h-10 w-7 items-center justify-center rounded-md border border-amber-200/70 bg-gradient-to-br from-[#fff7e6] via-[#f5e0b8] to-[#d1a463] text-xs font-semibold ${parsed.tone}`}
+                        >
+                          {parsed.rank}
+                          {parsed.symbol}
+                        </div>
+                        <span className="text-[10px] text-emerald-100/70">
+                          {playerNameById.get(card.user_id) ?? "Người chơi"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-emerald-200/20 bg-black/60 p-4 text-sm text-emerald-100/70">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-100/70">
+                    Bài của bạn
+                  </h3>
+                  <span className="text-[11px] text-emerald-100/50">
+                    {isHandActive ? (isMyTurn ? "Tới lượt bạn" : "Chờ lượt") : "Chưa chia bài"}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {myHandCards.length === 0 && (
+                    <span className="text-[11px] text-emerald-100/50">Chưa có bài</span>
+                  )}
+                  {myHandCards.map((card) => {
+                    const parsed = parseCard(card.card);
+                    const hasLeadSuit =
+                      !!leadSuit &&
+                      myHandCards.some(
+                        (c) => !c.is_played && parseCard(c.card).suit === leadSuit
+                      );
+                    const isPlayable =
+                      isHandActive &&
+                      isMyTurn &&
+                      !card.is_played &&
+                      (!leadSuit || !hasLeadSuit || parsed.suit === leadSuit);
+                    return (
+                      <button
+                        key={card.id}
+                        type="button"
+                        disabled={!isPlayable}
+                        onClick={() => void handlePlayCard(card)}
+                        className={`flex h-14 w-10 flex-col items-center justify-center rounded-lg border text-xs font-semibold transition-all ${
+                          card.is_played
+                            ? "border-emerald-200/10 bg-emerald-200/10 text-emerald-100/30"
+                            : isPlayable
+                              ? "border-amber-200/70 bg-gradient-to-br from-[#fff7e6] via-[#f5e0b8] to-[#d1a463] hover:-translate-y-0.5"
+                              : "border-emerald-200/20 bg-emerald-200/10 text-emerald-100/40"
+                        }`}
+                      >
+                        <span className={parsed.tone}>{parsed.rank}</span>
+                        <span className={parsed.tone}>{parsed.symbol}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -618,13 +970,17 @@ const CatTe = () => {
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Vòng hiện tại</span>
                     <span className="text-[#f8e7c2]">
-                      {handStarted ? "Đã chia bài" : "Chờ chia bài"}
+                      {handLoading ? "Đang tải..." : isHandActive ? `Vòng ${currentTrick}` : "Chờ chia bài"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Cái</span>
                     <span className="text-[#f8e7c2]">
-                      {handStarterId ? (handStarterId === user?.id ? "Bạn" : "Người vào trước") : "Chưa xác định"}
+                      {handState?.started_by
+                        ? handState.started_by === user?.id
+                          ? "Bạn"
+                          : "Người vào trước"
+                        : "Chưa xác định"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
@@ -636,7 +992,7 @@ const CatTe = () => {
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
                     <span>Pot hiện tại</span>
                     <span className="text-[#f8e7c2]">
-                      {settingsLoading ? "Đang tải..." : `${potValue} ${currencyLabel}`}
+                      {settingsLoading ? "Đang tải..." : `${displayedPot} ${currencyLabel}`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border border-emerald-200/10 bg-emerald-950/40 px-3 py-2">
@@ -660,6 +1016,8 @@ const CatTe = () => {
                   <p className="text-[11px] text-emerald-100/60">
                     {roomLoading
                       ? "Đang tải danh sách người chơi..."
+                      : isHandActive
+                        ? "Ván đang diễn ra."
                       : playerCount < minPlayersToStart
                         ? `Cần tối thiểu ${minPlayersToStart} người để bắt đầu.`
                         : !isFirstPlayer

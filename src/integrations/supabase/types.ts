@@ -76,6 +76,90 @@ export type Database = {
         }
         Relationships: []
       }
+      catte_hand_cards: {
+        Row: {
+          card: string
+          hand_id: string
+          id: string
+          is_played: boolean
+          played_at: string | null
+          played_order: number | null
+          played_trick: number | null
+          position: number
+          room_key: string
+          user_id: string
+        }
+        Insert: {
+          card: string
+          hand_id: string
+          id?: string
+          is_played?: boolean
+          played_at?: string | null
+          played_order?: number | null
+          played_trick?: number | null
+          position: number
+          room_key: string
+          user_id: string
+        }
+        Update: {
+          card?: string
+          hand_id?: string
+          id?: string
+          is_played?: boolean
+          played_at?: string | null
+          played_order?: number | null
+          played_trick?: number | null
+          position?: number
+          room_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      catte_hand_state: {
+        Row: {
+          current_turn: string | null
+          hand_id: string
+          lead_suit: string | null
+          middle_card: string | null
+          player_order: string[]
+          pot_value: number | null
+          room_key: string
+          started_at: string | null
+          started_by: string | null
+          status: string
+          trick_index: number
+          updated_at: string
+        }
+        Insert: {
+          current_turn?: string | null
+          hand_id: string
+          lead_suit?: string | null
+          middle_card?: string | null
+          player_order: string[]
+          pot_value?: number | null
+          room_key: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: string
+          trick_index?: number
+          updated_at?: string
+        }
+        Update: {
+          current_turn?: string | null
+          hand_id?: string
+          lead_suit?: string | null
+          middle_card?: string | null
+          player_order?: string[]
+          pot_value?: number | null
+          room_key?: string
+          started_at?: string | null
+          started_by?: string | null
+          status?: string
+          trick_index?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       catte_room_players: {
         Row: {
           display_name: string
