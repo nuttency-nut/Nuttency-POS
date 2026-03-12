@@ -184,7 +184,7 @@ export default function CasinoTable() {
       }
       setRoomId(roomIdValue as string);
 
-      const { data: joinResult, error: joinError } = await supabase.rpc("catte_join_room", {
+      const { data: joinResult, error: joinError } = await supabase.rpc("catte_join_room_v2", {
         p_room_id: roomIdValue,
       });
       if (!active) return;

@@ -501,19 +501,19 @@ BEGIN
   v_is_host := v_count = 0;
 
   IF v_existing.id IS NOT NULL THEN
-    UPDATE public.room_players
+    UPDATE public.room_players AS rp
     SET seat_index = v_seat,
         is_alive = TRUE,
         is_host = v_is_host,
         joined_at = NOW(),
         last_seen = NOW()
     WHERE id = v_existing.id
-    RETURNING id, room_id, seat_index, is_host
+    RETURNING rp.id, rp.room_id, rp.seat_index, rp.is_host
     INTO v_existing;
   ELSE
-    INSERT INTO public.room_players (room_id, user_id, seat_index, is_alive, is_host)
+    INSERT INTO public.room_players AS rp (room_id, user_id, seat_index, is_alive, is_host)
     VALUES (p_room_id, auth.uid(), v_seat, TRUE, v_is_host)
-    RETURNING id, room_id, seat_index, is_host
+    RETURNING rp.id, rp.room_id, rp.seat_index, rp.is_host
     INTO v_existing;
   END IF;
 
