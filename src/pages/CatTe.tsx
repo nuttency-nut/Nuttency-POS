@@ -84,20 +84,20 @@ const CatTe = () => {
   const playerCount = roomPlayers.length;
   const potValue = baseStakeValue * playerCount;
   const currentUserPoints = user?.id ? playerPoints[user.id] ?? 0 : 0;
-  const sortedPlayers = useMemo(() => {
+  const joinedPlayers = useMemo(() => {
     const list = [...roomPlayers];
     list.sort(
       (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
     );
-    if (!user?.id) return list;
-    const idx = list.findIndex((p) => p.user_id === user.id);
-    if (idx > 0) {
-      const [current] = list.splice(idx, 1);
-      list.unshift(current);
-    }
     return list;
-  }, [roomPlayers, user?.id]);
-  const firstPlayerId = sortedPlayers[0]?.user_id;
+  }, [roomPlayers]);
+  const seatPlayers = useMemo(() => {
+    if (!user?.id) return joinedPlayers;
+    const current = joinedPlayers.find((p) => p.user_id === user.id);
+    const others = joinedPlayers.filter((p) => p.user_id !== user.id);
+    return current ? [current, ...others] : joinedPlayers;
+  }, [joinedPlayers, user?.id]);
+  const firstPlayerId = joinedPlayers[0]?.user_id;
   const isFirstPlayer = !!user?.id && firstPlayerId === user.id;
   const canStart = !roomLoading && playerCount >= minPlayersToStart && isFirstPlayer;
 
@@ -107,10 +107,10 @@ const CatTe = () => {
       const seat = seats.find((s) => s.id === seatId);
       return {
         ...seat,
-        player: sortedPlayers[index] ?? null,
+        player: seatPlayers[index] ?? null,
       };
     });
-  }, [sortedPlayers]);
+  }, [seatPlayers]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -187,13 +187,27 @@ const CatTe = () => {
       }
 
       if (!alreadyInRoom) {
-        const { error: joinError } = await supabase
+        const { data: joinedRow, error: joinError } = await supabase
           .from("catte_room_players")
-          .insert({ room_key: roomKey, user_id: user.id, display_name: displayName });
+          .insert({ room_key: roomKey, user_id: user.id, display_name: displayName })
+          .select("id, user_id, display_name, joined_at")
+          .single();
 
         if (joinError) {
-          toast.error(joinError.message || "Không thể vào bàn");
+          const message = joinError.message || "Không thể vào bàn";
+          toast.error(message);
           return;
+        }
+
+        if (joinedRow) {
+          setRoomPlayers((prev) => {
+            const next = prev.filter((p) => p.id !== joinedRow.id);
+            next.push(joinedRow);
+            next.sort(
+              (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+            );
+            return next;
+          });
         }
       } else {
         await supabase
