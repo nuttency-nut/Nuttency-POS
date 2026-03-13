@@ -11,7 +11,6 @@ import Products from "./pages/Products";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import PaymentLookup from "./pages/PaymentLookup";
-import CasinoTable from "./pages/CasinoTable";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
@@ -150,14 +149,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
             <PaymentLookup />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/casino-table"
-        element={
-          <ProtectedRoute>
-            <CasinoTable />
           </ProtectedRoute>
         }
       />
