@@ -15,7 +15,7 @@ import {
   getRegistrationQrSecondsRemaining,
   getRegistrationQrSlot,
 } from "@/lib/registration-qr";
-import logo from "../../logo_4k_RB.png";
+import logo from "../../Nut_logo_RB.png";
 
 const QR_APPROVAL_POLL_MS = 3000;
 const REGISTER_FORM_REVEAL_DELAY_MS = 1000;
