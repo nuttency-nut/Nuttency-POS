@@ -28,10 +28,6 @@ BEGIN
     RAISE EXCEPTION 'Room not found';
   END IF;
 
-  IF v_room.status <> 'WAITING' THEN
-    RAISE EXCEPTION 'Game already started';
-  END IF;
-
   SELECT * INTO v_existing
   FROM public.room_players
   WHERE room_id = p_room_id
@@ -46,6 +42,10 @@ BEGIN
   IF v_existing.id IS NOT NULL AND v_existing.is_alive THEN
     RETURN QUERY SELECT v_existing.id, v_existing.seat_index, v_existing.is_host;
     RETURN;
+  END IF;
+
+  IF v_room.status <> 'WAITING' THEN
+    RAISE EXCEPTION 'Game already started';
   END IF;
 
   IF v_count >= 6 THEN
