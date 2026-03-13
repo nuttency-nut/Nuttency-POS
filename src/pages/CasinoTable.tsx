@@ -65,24 +65,25 @@ function mapPlayerDisplay(player: PlayerRow, selfId?: string, selfName?: string)
   return `Người chơi ${player.seat_index + 1}`;
 }
 
+const rankOrder: Record<CardData["rank"], number> = {
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
+  "7": 7,
+  "8": 8,
+  "9": 9,
+  "10": 10,
+  J: 11,
+  Q: 12,
+  K: 13,
+  A: 14,
+};
+
 function cardSort(a: CardRow, b: CardRow) {
   const suitOrder: Record<CardData["suit"], number> = { S: 1, C: 2, D: 3, H: 4 };
-  const rankOrder: Record<CardData["rank"], number> = {
-    "2": 2,
-    "3": 3,
-    "4": 4,
-    "5": 5,
-    "6": 6,
-    "7": 7,
-    "8": 8,
-    "9": 9,
-    "10": 10,
-    J: 11,
-    Q: 12,
-    K: 13,
-    A: 14,
-  };
-  if (suitOrder[a.card_suit] !== suitOrder[b.card_suit]) {
+  if (suitOrder[a.card_suit] != suitOrder[b.card_suit]) {
     return suitOrder[a.card_suit] - suitOrder[b.card_suit];
   }
   return rankOrder[a.card_rank] - rankOrder[b.card_rank];
@@ -98,7 +99,6 @@ export default function CasinoTable() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
-  const [foldMode, setFoldMode] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -363,7 +363,6 @@ export default function CasinoTable() {
 
   useEffect(() => {
     setSelectedCard(null);
-    setFoldMode(false);
   }, [game?.id, game?.phase]);
 
   const myPlayer = players.find((p) => p.user_id === user?.id && p.is_alive);
@@ -383,6 +382,42 @@ export default function CasinoTable() {
     [cards]
   );
 
+  const roundMoves = useMemo(() => {
+    if (!game?.round_number) return [] as MoveRow[];
+    return moves.filter(
+      (move) =>
+        move.round_number === game.round_number &&
+        (move.move_type === "PLAY" || move.move_type === "FOLD")
+    );
+  }, [game?.round_number, moves]);
+
+  const leadSuit = useMemo(() => {
+    const lead = roundMoves.find((move) => move.move_type === "PLAY" && move.card_suit);
+    return lead?.card_suit as CardData["suit"] | undefined;
+  }, [roundMoves]);
+
+  const highestAttackRank = useMemo(() => {
+    if (!leadSuit) return null;
+    const plays = roundMoves.filter((move) => move.move_type === "PLAY" && move.card_suit === leadSuit);
+    if (!plays.length) return null;
+    const best = plays.sort((a, b) => rankOrder[(b.card_rank ?? "2") as CardData["rank"]] - rankOrder[(a.card_rank ?? "2") as CardData["rank"]])[0];
+    return rankOrder[(best.card_rank ?? "2") as CardData["rank"]];
+  }, [leadSuit, roundMoves]);
+
+  const canAttackCard = useCallback(
+    (card: CardData) => {
+      if (!game?.phase?.startsWith("ROUND")) return false;
+      if (!leadSuit) return true;
+      if (card.suit !== leadSuit) return false;
+      if (highestAttackRank == null) return true;
+      return rankOrder[card.rank] > highestAttackRank;
+    },
+    [game?.phase, leadSuit, highestAttackRank]
+  );
+
+  const isRoundPhase = Boolean(game?.phase?.startsWith("ROUND"));
+  const isShowdown = game?.phase === "SHOWDOWN";
+
   useEffect(() => {
     if (!selectedCard) return;
     const stillAvailable = availableCards.some(
@@ -390,7 +425,6 @@ export default function CasinoTable() {
     );
     if (!stillAvailable) {
       setSelectedCard(null);
-      setFoldMode(false);
     }
   }, [availableCards, selectedCard]);
 
@@ -443,29 +477,41 @@ export default function CasinoTable() {
     setCards([]);
   }, [roomId]);
 
-  const handlePlay = useCallback(async () => {
-    if (!roomId || !selectedCard) return;
+  const handlePlay = useCallback(
+    async (moveType: "PLAY" | "FOLD" | "SHOW_FIRST" | "SHOW_SECOND") => {
+      if (!roomId || !selectedCard) return;
+
+      await supabase.rpc("catte_play_move", {
+        p_room_id: roomId,
+        p_move_type: moveType,
+        p_rank: selectedCard.rank,
+        p_suit: selectedCard.suit,
+      });
+
+      setSelectedCard(null);
+    },
+    [roomId, selectedCard]
+  );
+
+  const handleAttack = useCallback(() => {
+    if (!selectedCard) return;
+    if (!canAttackCard(selectedCard)) return;
+    void handlePlay("PLAY");
+  }, [canAttackCard, handlePlay, selectedCard]);
+
+  const handleFold = useCallback(() => {
+    if (!selectedCard) return;
+    void handlePlay("FOLD");
+  }, [handlePlay, selectedCard]);
+
+  const handleReveal = useCallback(() => {
     if (!game) return;
-
-    const moveType: "PLAY" | "FOLD" | "SHOW_FIRST" | "SHOW_SECOND" =
-      game.phase === "SHOWDOWN"
-        ? game.show_stage === "ALL_SECOND" || game.show_stage === "CUP_SECOND"
-          ? "SHOW_SECOND"
-          : "SHOW_FIRST"
-        : foldMode
-          ? "FOLD"
-          : "PLAY";
-
-    await supabase.rpc("catte_play_move", {
-      p_room_id: roomId,
-      p_move_type: moveType,
-      p_rank: selectedCard.rank,
-      p_suit: selectedCard.suit,
-    });
-
-    setSelectedCard(null);
-    setFoldMode(false);
-  }, [foldMode, game, roomId, selectedCard]);
+    const moveType: "SHOW_FIRST" | "SHOW_SECOND" =
+      game.show_stage === "ALL_SECOND" || game.show_stage === "CUP_SECOND"
+        ? "SHOW_SECOND"
+        : "SHOW_FIRST";
+    void handlePlay(moveType);
+  }, [game, handlePlay]);
 
   const playerSeats = useMemo(
     () =>
@@ -488,11 +534,14 @@ export default function CasinoTable() {
       }
       return "Lật bài 1";
     }
-    return foldMode ? "Úp bài" : "Đánh bài";
-  }, [foldMode, game]);
+    if (game.phase === "FINISHED") return "Chờ ván mới";
+    return "Chờ bàn";
+  }, [game]);
 
-  const showFoldToggle = Boolean(game?.phase?.startsWith("ROUND"));
-  const actionDisabled = !isMyTurn || !selectedCard || game?.phase === "FINISHED";
+  const attackDisabled = !isMyTurn || !selectedCard || !isRoundPhase || !canAttackCard(selectedCard);
+  const foldDisabled = !isMyTurn || !selectedCard || !isRoundPhase || !leadSuit;
+  const revealDisabled = !isMyTurn || !selectedCard || !isShowdown || game?.phase === "FINISHED";
+
 
   return (
     <div className="min-h-screen bg-[#07140f] text-white px-4 py-6">
@@ -551,46 +600,63 @@ export default function CasinoTable() {
             <div className="w-full max-w-4xl rounded-2xl bg-emerald-950/80 border border-emerald-300/20 px-4 py-4 backdrop-blur-sm shadow-[0_24px_60px_rgba(0,0,0,0.55)] pointer-events-auto">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                 <div>
-                  <h2 className="text-base font-semibold">B\u00e0i tr\u00ean tay</h2>
+                  <h2 className="text-base font-semibold">Bài trên tay</h2>
                   <p className="text-xs text-emerald-100/70">
-                    {isMyTurn ? "T\u1edbi l\u01b0\u1ee3t c\u1ee7a b\u1ea1n" : "Ch\u1edd \u0111\u1ed1i th\u1ee7"}
+                    {isMyTurn ? "Tới lượt của bạn" : "Chờ đối thủ"}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-emerald-100/70 mr-2">
-                    {selectedCard ? formatCard(selectedCard) : "Ch\u1ecdn m\u1ed9t l\u00e1"}
+                    {selectedCard ? formatCard(selectedCard) : "Chọn một lá"}
                   </div>
-                  {showFoldToggle && (
+                  {isRoundPhase ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleAttack}
+                        disabled={attackDisabled}
+                        className={
+                          attackDisabled
+                            ? "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200/60 cursor-not-allowed"
+                            : "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                        }
+                      >
+                        Đánh bài
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFold}
+                        disabled={foldDisabled}
+                        className={
+                          foldDisabled
+                            ? "px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200/60 cursor-not-allowed"
+                            : "px-3 py-2 rounded-lg text-xs font-semibold bg-rose-500 text-white hover:bg-rose-400"
+                        }
+                      >
+                        Úp bài
+                      </button>
+                    </>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => setFoldMode((v) => !v)}
+                      onClick={handleReveal}
+                      disabled={revealDisabled}
                       className={
-                        foldMode
-                          ? "px-3 py-2 rounded-lg text-xs font-semibold bg-rose-500 text-white"
-                          : "px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200"
+                        revealDisabled
+                          ? "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200/60 cursor-not-allowed"
+                          : "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
                       }
                     >
-                      {foldMode ? "\u0110ang \u00fap" : "\u00dap b\u00e0i"}
+                      {primaryActionLabel}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={handlePlay}
-                    disabled={actionDisabled}
-                    className={
-                      actionDisabled
-                        ? "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200/60 cursor-not-allowed"
-                        : "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
-                    }
-                  >
-                    {primaryActionLabel}
-                  </button>
                 </div>
               </div>
               <CardHand
                 cards={availableCards.map((card) => ({ rank: card.card_rank, suit: card.card_suit }))}
                 selected={selectedCard}
                 disabled={!isMyTurn || game?.phase === "FINISHED"}
+                highlightPlayable={isRoundPhase ? canAttackCard : undefined}
                 onSelect={setSelectedCard}
               />
             </div>
