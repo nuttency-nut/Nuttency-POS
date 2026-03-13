@@ -287,7 +287,7 @@ export default function Auth() {
         className="w-full max-w-sm space-y-8"
       >
         <div className="text-center space-y-3">
-          <img src={logo} alt="Logo" className="w-80 h-40 object-contain mx-auto" />
+          <img src={logo} alt="Logo" className="w-52 mx-auto object-contain mb-6" />
           <div>
             <p className="text-muted-foreground text-sm mt-1">App POS - Quản lý bán hàng F&B</p>
           </div>
