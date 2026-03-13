@@ -491,6 +491,9 @@ export default function CasinoTable() {
     return foldMode ? "Úp bài" : "Đánh bài";
   }, [foldMode, game]);
 
+  const showFoldToggle = Boolean(game?.phase?.startsWith("ROUND"));
+  const actionDisabled = !isMyTurn || !selectedCard || game?.phase === "FINISHED";
+
   return (
     <div className="min-h-screen bg-[#07140f] text-white px-4 py-6">
       <div className="max-w-6xl mx-auto flex flex-col gap-6">
@@ -522,15 +525,8 @@ export default function CasinoTable() {
           canRestart={canRestart}
           onStart={handleStart}
           onRestart={handleRestart}
-          foldMode={foldMode}
-          onToggleFold={game?.phase?.startsWith("ROUND") ? () => setFoldMode((v) => !v) : undefined}
           phaseLabel={phaseLabel}
           timerLabel={remainingSeconds !== null ? `Còn ${remainingSeconds}s` : undefined}
-          primaryAction={{
-            label: primaryActionLabel,
-            onClick: handlePlay,
-            disabled: !isMyTurn || !selectedCard || game?.phase === "FINISHED",
-          }}
         />
 
         {game?.phase === "FINISHED" && game.winner_player && (
@@ -548,26 +544,57 @@ export default function CasinoTable() {
           </motion.div>
         )}
 
-        <GameTable players={playerSeats} game={game ?? undefined} moves={moves} currentPlayerId={playerId} />
+        <div className="relative">
+          <GameTable players={playerSeats} game={game ?? undefined} moves={moves} currentPlayerId={playerId} />
 
-        <div className="rounded-2xl bg-emerald-950/70 border border-emerald-400/20 px-4 py-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Bài trên tay</h2>
-              <p className="text-xs text-emerald-100/70">
-                {isMyTurn ? "Tới lượt của bạn" : "Chờ đối thủ"}
-              </p>
-            </div>
-            <div className="text-xs text-emerald-100/70">
-              {selectedCard ? formatCard(selectedCard) : "Chọn một lá"}
+          <div className="absolute inset-x-0 bottom-4 flex justify-center px-2 pointer-events-none">
+            <div className="w-full max-w-4xl rounded-2xl bg-emerald-950/80 border border-emerald-300/20 px-4 py-4 backdrop-blur-sm shadow-[0_24px_60px_rgba(0,0,0,0.55)] pointer-events-auto">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <h2 className="text-base font-semibold">B\u00e0i tr\u00ean tay</h2>
+                  <p className="text-xs text-emerald-100/70">
+                    {isMyTurn ? "T\u1edbi l\u01b0\u1ee3t c\u1ee7a b\u1ea1n" : "Ch\u1edd \u0111\u1ed1i th\u1ee7"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-xs text-emerald-100/70 mr-2">
+                    {selectedCard ? formatCard(selectedCard) : "Ch\u1ecdn m\u1ed9t l\u00e1"}
+                  </div>
+                  {showFoldToggle && (
+                    <button
+                      type="button"
+                      onClick={() => setFoldMode((v) => !v)}
+                      className={
+                        foldMode
+                          ? "px-3 py-2 rounded-lg text-xs font-semibold bg-rose-500 text-white"
+                          : "px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200"
+                      }
+                    >
+                      {foldMode ? "\u0110ang \u00fap" : "\u00dap b\u00e0i"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handlePlay}
+                    disabled={actionDisabled}
+                    className={
+                      actionDisabled
+                        ? "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-900/60 text-emerald-200/60 cursor-not-allowed"
+                        : "px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                    }
+                  >
+                    {primaryActionLabel}
+                  </button>
+                </div>
+              </div>
+              <CardHand
+                cards={availableCards.map((card) => ({ rank: card.card_rank, suit: card.card_suit }))}
+                selected={selectedCard}
+                disabled={!isMyTurn || game?.phase === "FINISHED"}
+                onSelect={setSelectedCard}
+              />
             </div>
           </div>
-          <CardHand
-            cards={availableCards.map((card) => ({ rank: card.card_rank, suit: card.card_suit }))}
-            selected={selectedCard}
-            disabled={!isMyTurn || game?.phase === "FINISHED"}
-            onSelect={setSelectedCard}
-          />
         </div>
       </div>
     </div>
