@@ -274,6 +274,12 @@ export default function CasinoTable() {
       setNow(Date.now());
     }, 1000);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void supabase.rpc("catte_ping", { p_room_id: roomId });
+      }
+    };
+
     const handleUnload = () => {
       if (roomId) {
         void supabase.rpc("catte_leave_room", { p_room_id: roomId });
@@ -281,6 +287,7 @@ export default function CasinoTable() {
     };
 
     window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       if (cleanupIntervalRef.current) {
@@ -290,6 +297,7 @@ export default function CasinoTable() {
         window.clearInterval(tickRef.current);
       }
       window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibility);
       if (roomId) {
         void supabase.rpc("catte_leave_room", { p_room_id: roomId });
       }
@@ -438,7 +446,9 @@ export default function CasinoTable() {
         ? "SHOW_SECOND"
         : game.phase === "SHOWDOWN"
           ? "SHOW_FIRST"
-          : "FOLD";
+          : !leadSuit
+            ? "PLAY"
+            : "FOLD";
 
     void supabase.rpc("catte_play_move", {
       p_room_id: roomId,
@@ -446,7 +456,7 @@ export default function CasinoTable() {
       p_rank: lowest.card_rank,
       p_suit: lowest.card_suit,
     });
-  }, [availableCards, game, isMyTurn, remainingSeconds, roomId]);
+  }, [availableCards, game, isMyTurn, leadSuit, remainingSeconds, roomId]);
 
   const phaseLabel = useMemo(() => {
     if (!game) return "Đang chờ bàn...";
