@@ -15,7 +15,7 @@ import {
   getRegistrationQrSecondsRemaining,
   getRegistrationQrSlot,
 } from "@/lib/registration-qr";
-import logo from "../../Nut_logo_RB.png";
+import logo from "../../Nut_logo_RB_169.png";
 
 const QR_APPROVAL_POLL_MS = 3000;
 const REGISTER_FORM_REVEAL_DELAY_MS = 1000;
@@ -287,10 +287,9 @@ export default function Auth() {
         className="w-full max-w-sm space-y-8"
       >
         <div className="text-center space-y-3">
-          <img src={logo} alt="Logo" className="w-20 h-20 object-contain mx-auto" />
+          <img src={logo} alt="Logo" className="w-48 h-48 object-contain mx-auto" />
           <div>
-            <h1 className="text-2xl font-bold text-foreground">NUT POS</h1>
-            <p className="text-muted-foreground text-sm mt-1">Quản lý bán hàng F&B</p>
+            <p className="text-muted-foreground text-sm mt-1">App POS - Quản lý bán hàng F&B</p>
           </div>
         </div>
 
