@@ -46,6 +46,20 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
   const [step, setStep] = useState<"cart" | "checkout">("cart");
 
   useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.getPropertyValue("--toast-offset-bottom");
+    root.style.setProperty("--toast-offset-bottom", "132px");
+
+    return () => {
+      if (previous) {
+        root.style.setProperty("--toast-offset-bottom", previous);
+      } else {
+        root.style.removeProperty("--toast-offset-bottom");
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!open) {
       setStep("cart");
     }

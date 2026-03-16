@@ -81,7 +81,7 @@ const Toaster = ({ ...props }: ToasterProps) => (
   <SileoToaster
     position="bottom-left"
     offset={{
-      bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)",
+      bottom: "calc(env(safe-area-inset-bottom, 0px) + var(--toast-offset-bottom, 76px))",
       left: "max(12px, calc((100vw - min(100vw, 32rem)) / 2 + 12px))",
     }}
     options={{
