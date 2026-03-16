@@ -27,6 +27,7 @@ interface CartProps {
   onUpdateQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onCheckoutSuccess: (orderNumber: string) => void;
+  onSavePending: () => void;
   userId: string;
 }
 
@@ -38,7 +39,7 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
-export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, userId }: CartProps) {
+export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, onSavePending, userId }: CartProps) {
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -81,6 +82,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
 
       <SheetContent
         side="bottom"
+        showCloseButton={step === "cart"}
         onPointerDownOutside={(event) => {
           if (step === "checkout") {
             event.preventDefault();
@@ -166,6 +168,11 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
               embedded
               open={step === "checkout"}
               onClose={() => setStep("cart")}
+              onSavePending={() => {
+                setOpen(false);
+                setStep("cart");
+                onSavePending();
+              }}
               items={items}
               userId={userId}
               onSuccess={(orderNumber) => {

@@ -132,6 +132,10 @@ export default function POS() {
     toast.success(`Đơn hàng ${orderNumber} đã tạo thành công!`);
   }, []);
 
+  const handleSavePending = useCallback(() => {
+    setCartItems([]);
+  }, []);
+
   const activeCategories = categories.filter((category) => category.is_active);
 
   return (
@@ -211,6 +215,7 @@ export default function POS() {
           onUpdateQty={handleUpdateQty}
           onRemove={handleRemove}
           onCheckoutSuccess={handleCheckoutSuccess}
+          onSavePending={handleSavePending}
           userId={user.id}
         />
       )}
