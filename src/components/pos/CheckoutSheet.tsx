@@ -176,6 +176,7 @@ export default function CheckoutSheet({
   const [autoConfirmTriggered, setAutoConfirmTriggered] = useState(false);
   const latestDraftRef = useRef<DraftOrderState | null>(null);
   const initializedExistingOrderIdRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -259,7 +260,40 @@ export default function CheckoutSheet({
     setCashReceived(formatNumberWithDots(parsed));
   };
 
+  const playKeypadFeedback = () => {
+    if (typeof window === "undefined") return;
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextConstructor();
+    }
+
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") {
+      void ctx.resume();
+    }
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 520;
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  };
+
   const handleCashPadInput = (token: string) => {
+    playKeypadFeedback();
     const currentDigits = cashReceived.replace(/\D/g, "");
     const nextDigits = `${currentDigits}${token}`;
     const parsed = parseInt(nextDigits, 10);
@@ -271,6 +305,7 @@ export default function CheckoutSheet({
   };
 
   const clearCashPadInput = () => {
+    playKeypadFeedback();
     setCashReceived("");
   };
 
@@ -1108,7 +1143,7 @@ export default function CheckoutSheet({
                             key={token}
                             type="button"
                             onClick={() => handleCashPadInput(token)}
-                            className="h-8 rounded-md border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent"
+                            className="h-8 rounded-md border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent transition-colors duration-75 active:bg-primary/15 active:border-primary/50"
                           >
                             {token}
                           </button>
@@ -1117,7 +1152,7 @@ export default function CheckoutSheet({
                       <button
                         type="button"
                         onClick={clearCashPadInput}
-                        className="w-full h-8 rounded-md border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/10"
+                        className="w-full h-8 rounded-md border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-colors duration-75 active:bg-destructive/20"
                       >
                         Xóa hết
                       </button>
@@ -1218,6 +1253,16 @@ export default function CheckoutSheet({
             </Button>
           )}
 
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSubmitting || isDeletingDraft}
+            className="w-full h-12 rounded-xl text-base font-semibold border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            {"Thanh to\u00e1n th\u1ea5t b\u1ea1i! L\u01b0u \u0111\u01a1n h\u00e0ng?"}
+          </Button>
+
           {paymentMethod === "transfer" && !draftOrder?.incomeReceiptCode && (
             <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
               Chờ thanh toán
@@ -1252,6 +1297,8 @@ export default function CheckoutSheet({
     >
       <SheetContent
         side="bottom"
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
         showCloseButton={false}
         className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[90vh] max-h-[90vh] flex flex-col p-0"
       >

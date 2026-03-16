@@ -81,6 +81,16 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
 
       <SheetContent
         side="bottom"
+        onPointerDownOutside={(event) => {
+          if (step === "checkout") {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (step === "checkout") {
+            event.preventDefault();
+          }
+        }}
         className={cn(
           "inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl flex flex-col p-0",
           step === "checkout" ? "h-[90vh] max-h-[90vh]" : "max-h-[80vh]"
