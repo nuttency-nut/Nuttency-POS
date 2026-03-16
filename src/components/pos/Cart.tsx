@@ -46,15 +46,15 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
   const [step, setStep] = useState<"cart" | "checkout">("cart");
 
   useEffect(() => {
-    const root = document.documentElement;
-    const previous = root.style.getPropertyValue("--toast-offset-bottom");
-    root.style.setProperty("--toast-offset-bottom", "132px");
+    const body = document.body;
+    const previous = body.getAttribute("data-cart-overlay");
+    body.setAttribute("data-cart-overlay", "true");
 
     return () => {
-      if (previous) {
-        root.style.setProperty("--toast-offset-bottom", previous);
+      if (previous === null) {
+        body.removeAttribute("data-cart-overlay");
       } else {
-        root.style.removeProperty("--toast-offset-bottom");
+        body.setAttribute("data-cart-overlay", previous);
       }
     };
   }, []);
