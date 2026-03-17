@@ -65,7 +65,6 @@ export default function Declarations() {
   const [roleForm, setRoleForm] = useState(() => ({
     name: "",
     description: "",
-    roleLevel: "parent" as "parent" | "child",
     parentRoleId: "",
     permissions: getDefaultPermissions(),
   }));
@@ -85,7 +84,7 @@ export default function Declarations() {
     return `${code} - ${store}`;
   }, [storeForm.storeName, storeForm.warehouseCode]);
 
-  const parentRoleOptions = useMemo(() => {
+  /* const parentRoleOptionsLegacy = useMemo(() => {
     const options = roleDeclarations.filter((role) => role.id !== editingRoleId);
     if (roleForm.parentRoleId && !options.some((role) => role.id === roleForm.parentRoleId)) {
       return [
@@ -100,7 +99,117 @@ export default function Declarations() {
       ];
     }
     return options;
-  }, [roleDeclarations, editingRoleId, roleForm.parentRoleId]);
+  }, [roleDeclarations, editingRoleId, roleForm.parentRoleId]); */
+
+  const roleById = useMemo(() => {
+    return new Map(roleDeclarations.map((role) => [role.id, role]));
+  }, [roleDeclarations]);
+
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, RoleDeclaration[]>();
+    roleDeclarations.forEach((role) => {
+      const parentId = role.parentRoleId && roleById.has(role.parentRoleId) ? role.parentRoleId : null;
+      const list = map.get(parentId) ?? [];
+      list.push(role);
+      map.set(parentId, list);
+    });
+    map.forEach((list) => {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return map;
+  }, [roleDeclarations, roleById]);
+
+  const descendantsById = useMemo(() => {
+    const memo = new Map<string, Set<string>>();
+    const walk = (id: string, stack: Set<string>) => {
+      if (memo.has(id)) return memo.get(id)!;
+      if (stack.has(id)) return new Set<string>();
+      const nextStack = new Set(stack);
+      nextStack.add(id);
+      const children = childrenByParent.get(id) ?? [];
+      const result = new Set<string>();
+      children.forEach((child) => {
+        result.add(child.id);
+        walk(child.id, nextStack).forEach((desc) => result.add(desc));
+      });
+      memo.set(id, result);
+      return result;
+    };
+    roleDeclarations.forEach((role) => {
+      walk(role.id, new Set());
+    });
+    return memo;
+  }, [roleDeclarations, childrenByParent]);
+
+  const parentRoleOptions = useMemo(() => {
+    const disallowed = new Set<string>();
+    if (editingRoleId) {
+      disallowed.add(editingRoleId);
+      const descendants = descendantsById.get(editingRoleId);
+      if (descendants) {
+        descendants.forEach((id) => disallowed.add(id));
+      }
+    }
+
+    const options: Array<{ id: string; label: string; level: number }> = [];
+    const buildOptions = (parentId: string | null, level: number) => {
+      const children = childrenByParent.get(parentId) ?? [];
+      children.forEach((role) => {
+        if (disallowed.has(role.id)) return;
+        options.push({ id: role.id, label: role.name, level });
+        buildOptions(role.id, level + 1);
+      });
+    };
+    buildOptions(null, 0);
+
+    if (roleForm.parentRoleId && !options.some((option) => option.id === roleForm.parentRoleId)) {
+      options.push({ id: roleForm.parentRoleId, label: "Role cha không tồn tại", level: 0 });
+    }
+
+    return options;
+  }, [childrenByParent, descendantsById, editingRoleId, roleForm.parentRoleId]);
+
+  const rolePathById = useMemo(() => {
+    const memo = new Map<string, string>();
+    const visiting = new Set<string>();
+    const resolve = (id: string): string => {
+      if (memo.has(id)) return memo.get(id)!;
+      if (visiting.has(id)) return roleById.get(id)?.name ?? "Không xác định";
+      const role = roleById.get(id);
+      if (!role) return "Không xác định";
+      visiting.add(id);
+      if (!role.parentRoleId || !roleById.has(role.parentRoleId)) {
+        memo.set(id, role.name);
+        visiting.delete(id);
+        return role.name;
+      }
+      const parentPath = resolve(role.parentRoleId);
+      const path = `${parentPath} > ${role.name}`;
+      memo.set(id, path);
+      visiting.delete(id);
+      return path;
+    };
+    roleDeclarations.forEach((role) => {
+      resolve(role.id);
+    });
+    return memo;
+  }, [roleDeclarations, roleById]);
+
+  const roleDisplayOrder = useMemo(() => {
+    const ordered: Array<{ role: RoleDeclaration; level: number }> = [];
+    const visited = new Set<string>();
+    const build = (parentId: string | null, level: number) => {
+      const children = childrenByParent.get(parentId) ?? [];
+      children.forEach((role) => {
+        if (visited.has(role.id)) return;
+        visited.add(role.id);
+        ordered.push({ role, level });
+        build(role.id, level + 1);
+      });
+    };
+    build(null, 0);
+    return ordered;
+  }, [childrenByParent]);
 
   const loadRoles = async () => {
     setLoadingRoles(true);
@@ -145,7 +254,6 @@ export default function Declarations() {
     setRoleForm({
       name: "",
       description: "",
-      roleLevel: "parent",
       parentRoleId: "",
       permissions: getDefaultPermissions(),
     });
@@ -167,17 +275,12 @@ export default function Declarations() {
       toast.error("Vui lòng nhập tên role");
       return;
     }
-    if (roleForm.roleLevel === "child" && !roleForm.parentRoleId) {
-      toast.error("Vui lòng chọn role cha");
-      return;
-    }
-
     try {
       if (editingRoleId) {
         const payload = {
           name,
           description: roleForm.description.trim(),
-          parent_role_id: roleForm.roleLevel === "child" ? roleForm.parentRoleId : null,
+          parent_role_id: roleForm.parentRoleId || null,
           permissions: roleForm.permissions,
         };
         const { data, error } = await db
@@ -198,7 +301,7 @@ export default function Declarations() {
       const payload = {
         name,
         description: roleForm.description.trim(),
-        parent_role_id: roleForm.roleLevel === "child" ? roleForm.parentRoleId : null,
+        parent_role_id: roleForm.parentRoleId || null,
         permissions: roleForm.permissions,
       };
       const { data, error } = await db
@@ -241,7 +344,6 @@ export default function Declarations() {
     setRoleForm({
       name: role.name,
       description: role.description ?? "",
-      roleLevel: role.parentRoleId ? "child" : "parent",
       parentRoleId: role.parentRoleId ?? "",
       permissions: { ...getDefaultPermissions(), ...role.permissions },
     });
@@ -390,51 +492,37 @@ export default function Declarations() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Cấp bậc</label>
+                  <label className="text-xs text-muted-foreground">Role cha</label>
                   <Select
-                    value={roleForm.roleLevel}
+                    value={roleForm.parentRoleId || "__none__"}
                     onValueChange={(value) =>
                       setRoleForm((prev) => ({
                         ...prev,
-                        roleLevel: value as "parent" | "child",
-                        parentRoleId: value === "parent" ? "" : prev.parentRoleId,
+                        parentRoleId: value === "__none__" ? "" : value,
                       }))
                     }
                   >
                     <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Chọn cấp bậc" />
+                      <SelectValue placeholder="Không có (cấp cao nhất)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="parent">Cấp bậc cha</SelectItem>
-                      <SelectItem value="child">Cấp bậc con</SelectItem>
+                      <SelectItem value="__none__">Không có (cấp cao nhất)</SelectItem>
+                      {parentRoleOptions.length === 0 ? (
+                        <SelectItem value="__empty__" disabled>
+                          Chưa có role để làm cha
+                        </SelectItem>
+                      ) : (
+                        parentRoleOptions.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {`${role.level > 0 ? "- ".repeat(role.level) : ""}${role.label}`}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
-                  {roleForm.roleLevel === "child" && (
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Role cha</label>
-                      <Select
-                        value={roleForm.parentRoleId}
-                        onValueChange={(value) => setRoleForm((prev) => ({ ...prev, parentRoleId: value }))}
-                      >
-                        <SelectTrigger className="h-10">
-                          <SelectValue placeholder="Chọn role cha" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {parentRoleOptions.length === 0 ? (
-                            <SelectItem value="__none__" disabled>
-                              Chưa có role cha
-                            </SelectItem>
-                          ) : (
-                            parentRoleOptions.map((role) => (
-                              <SelectItem key={role.id} value={role.id}>
-                                {role.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Chọn role cha để tạo nhiều cấp bậc. Để trống nếu là cấp cao nhất.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground">Cấp quyền</label>
@@ -494,22 +582,22 @@ export default function Declarations() {
                 <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
                   Đang tải danh sách role...
                 </div>
-              ) : roleDeclarations.length === 0 ? (
+              ) : roleDisplayOrder.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
                   Chưa có role nào được khai báo.
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {roleDeclarations.map((role) => {
+                  {roleDisplayOrder.map(({ role, level }) => {
                     const enabledCount = permissionIndex.allKeys.filter((key) => role.permissions?.[key]).length;
-                    const parentRole = role.parentRoleId
-                      ? roleDeclarations.find((item) => item.id === role.parentRoleId)
-                      : null;
-                    const hierarchyLabel = role.parentRoleId
-                      ? `Con của ${parentRole?.name ?? "Không xác định"}`
-                      : "Cấp cha";
+                    const hierarchyLabel = rolePathById.get(role.id) ?? role.name;
+                    const indent = level * 12;
                     return (
-                      <div key={role.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
+                      <div
+                        key={role.id}
+                        className="rounded-xl border border-border bg-card p-3 space-y-2"
+                        style={{ marginLeft: indent }}
+                      >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">{role.name}</p>
