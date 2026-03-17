@@ -90,6 +90,7 @@ type PaymentMethod = "cash" | "transfer";
 interface CheckoutSheetProps {
   open: boolean;
   onClose: () => void;
+  onSavePending?: (orderNumber: string | null) => void;
   items: CartItem[];
   onSuccess: (orderNumber: string) => void;
   userId: string;
@@ -138,6 +139,7 @@ const CASH_KEYPAD_TOKENS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "0
 export default function CheckoutSheet({
   open,
   onClose,
+  onSavePending,
   items,
   onSuccess,
   userId,
@@ -176,6 +178,8 @@ export default function CheckoutSheet({
   const [autoConfirmTriggered, setAutoConfirmTriggered] = useState(false);
   const latestDraftRef = useRef<DraftOrderState | null>(null);
   const initializedExistingOrderIdRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const preserveDraftOnCloseRef = useRef(false);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -259,7 +263,40 @@ export default function CheckoutSheet({
     setCashReceived(formatNumberWithDots(parsed));
   };
 
+  const playKeypadFeedback = () => {
+    if (typeof window === "undefined") return;
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextConstructor();
+    }
+
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") {
+      void ctx.resume();
+    }
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 520;
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  };
+
   const handleCashPadInput = (token: string) => {
+    playKeypadFeedback();
     const currentDigits = cashReceived.replace(/\D/g, "");
     const nextDigits = `${currentDigits}${token}`;
     const parsed = parseInt(nextDigits, 10);
@@ -271,6 +308,7 @@ export default function CheckoutSheet({
   };
 
   const clearCashPadInput = () => {
+    playKeypadFeedback();
     setCashReceived("");
   };
 
@@ -307,6 +345,12 @@ export default function CheckoutSheet({
     setUseLoyalty(true);
     setCustomerPhone(scannedPhone);
   };
+
+  useEffect(() => {
+    if (open) {
+      preserveDraftOnCloseRef.current = false;
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -496,6 +540,7 @@ export default function CheckoutSheet({
   };
 
   const handleBackToCart = async () => {
+    preserveDraftOnCloseRef.current = false;
     if (existingDraftOrder) {
       onClose();
       return;
@@ -516,6 +561,15 @@ export default function CheckoutSheet({
       toast.error("Không thể hủy đơn hàng: " + (error.message || ""));
     } finally {
       setIsDeletingDraft(false);
+    }
+  };
+
+  const handleSavePendingOrder = () => {
+    preserveDraftOnCloseRef.current = true;
+    if (onSavePending) {
+      onSavePending(draftOrder?.orderNumber ?? null);
+    } else {
+      onClose();
     }
   };
 
@@ -596,6 +650,7 @@ export default function CheckoutSheet({
   useEffect(() => {
     return () => {
       if (existingDraftOrder) return;
+      if (preserveDraftOnCloseRef.current) return;
       const latest = latestDraftRef.current;
       if (latest?.id && latest.status === "pending") {
         void supabase.from("orders").delete().eq("id", latest.id).eq("status", "pending");
@@ -1093,13 +1148,29 @@ export default function CheckoutSheet({
               {paymentMethod === "cash" && (
                 <div className="space-y-1.5">
                   <div className="grid grid-cols-2 gap-2 items-start">
-                    <Input
+                    <div className="space-y-2">
+                      <Input
                       placeholder="Tiền nhận từ khách"
                       value={cashReceived}
                       onChange={(e) => handleCashReceivedChange(e.target.value)}
                       className="h-9 rounded-lg text-sm"
                       inputMode="numeric"
                     />
+
+                      {cashReceivedNum > 0 && (
+                        <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
+                          <span className="font-medium text-foreground">{"Ti\u1ec1n th\u1ed1i"}</span>
+                          <span
+                            className={cn(
+                              "font-extrabold",
+                              changeAmount >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-destructive"
+                            )}
+                          >
+                            {changeAmount >= 0 ? formatPrice(changeAmount) : "Ch\u01b0a \u0111\u1ee7"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
                     <div className="rounded-lg border border-border bg-card p-1.5 space-y-1.5">
                       <div className="grid grid-cols-4 gap-1">
@@ -1108,7 +1179,7 @@ export default function CheckoutSheet({
                             key={token}
                             type="button"
                             onClick={() => handleCashPadInput(token)}
-                            className="h-8 rounded-md border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent"
+                            className="h-8 rounded-md border border-border bg-background text-sm font-semibold text-foreground hover:bg-accent transition-colors duration-75 active:bg-primary/15 active:border-primary/50"
                           >
                             {token}
                           </button>
@@ -1117,14 +1188,14 @@ export default function CheckoutSheet({
                       <button
                         type="button"
                         onClick={clearCashPadInput}
-                        className="w-full h-8 rounded-md border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/10"
+                        className="w-full h-8 rounded-md border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-colors duration-75 active:bg-destructive/20"
                       >
                         Xóa hết
                       </button>
                     </div>
                   </div>
 
-                  {cashReceivedNum > 0 && (
+                  {false && cashReceivedNum > 0 && (
                     <div className="flex items-center justify-between px-2 py-1.5 rounded-lg border text-sm bg-emerald-50/80 border-emerald-200 dark:bg-emerald-950/35 dark:border-emerald-800">
                       <span className="font-medium text-foreground">Tiền thối</span>
                       <span
@@ -1218,6 +1289,16 @@ export default function CheckoutSheet({
             </Button>
           )}
 
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSavePendingOrder}
+            disabled={isSubmitting || isDeletingDraft}
+            className="w-full h-12 rounded-xl text-base font-semibold border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            {"Thanh to\u00e1n th\u1ea5t b\u1ea1i! L\u01b0u \u0111\u01a1n h\u00e0ng?"}
+          </Button>
+
           {paymentMethod === "transfer" && !draftOrder?.incomeReceiptCode && (
             <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
               Chờ thanh toán
@@ -1252,6 +1333,8 @@ export default function CheckoutSheet({
     >
       <SheetContent
         side="bottom"
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
         showCloseButton={false}
         className="inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl h-[90vh] max-h-[90vh] flex flex-col p-0"
       >
