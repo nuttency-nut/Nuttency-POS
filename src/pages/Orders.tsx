@@ -84,7 +84,7 @@ const STATUS_META: Record<
     icon: <CircleCheckBig className="w-3.5 h-3.5" />,
   },
   cancelled: {
-    label: "Đơn hàng đã hủy do chưa thanh toán",
+    label: "Đơn hàng đã hủy",
     chipClass:
       "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-700",
     dotColor: "bg-rose-500",
