@@ -363,16 +363,30 @@ export default function Declarations() {
                   {PERMISSION_TREE.map((node) => {
                     const renderNode = (item: PermissionNode, level: number) => {
                       const isChecked = !!roleForm.permissions[item.key];
+                      const isChild = level > 0;
                       return (
                         <div key={item.key} className="space-y-2">
                           <div
-                            className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2"
-                            style={{ paddingLeft: 12 + level * 16 }}
+                            className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                              isChild ? "border-border/60 bg-muted/30" : "border-border bg-card"
+                            }`}
                           >
-                            <span className="text-sm text-foreground">{item.label}</span>
-                            <Switch checked={isChecked} onCheckedChange={(checked) => handleTogglePermission(item.key, checked)} />
+                            <div className="flex items-center gap-2">
+                              {isChild && <span className="h-2 w-2 rounded-full bg-muted-foreground/60" />}
+                              <span className={`text-sm ${isChild ? "text-foreground" : "text-foreground font-medium"}`}>
+                                {item.label}
+                              </span>
+                            </div>
+                            <Switch
+                              checked={isChecked}
+                              onCheckedChange={(checked) => handleTogglePermission(item.key, checked)}
+                            />
                           </div>
-                          {item.children?.map((child) => renderNode(child, level + 1))}
+                          {item.children && item.children.length > 0 && (
+                            <div className="ml-4 border-l border-border/50 pl-4 space-y-2">
+                              {item.children.map((child) => renderNode(child, level + 1))}
+                            </div>
+                          )}
                         </div>
                       );
                     };
