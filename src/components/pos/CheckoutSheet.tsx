@@ -1255,7 +1255,7 @@ export default function CheckoutSheet({
         </div>
 
         {/* Summary */}
-        <div className="border-t border-border p-4 safe-bottom space-y-2">
+        <div className="border-t border-border p-4 safe-bottom flex flex-col gap-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Tổng cộng</span>
             <span className="text-foreground font-semibold">{formatPrice(totalPrice)}</span>
@@ -1294,13 +1294,13 @@ export default function CheckoutSheet({
             variant="outline"
             onClick={handleSavePendingOrder}
             disabled={isSubmitting || isDeletingDraft}
-            className="w-full h-12 rounded-xl text-base font-semibold border-destructive/50 text-destructive hover:bg-destructive/10"
+            className="w-full h-12 rounded-xl text-base font-semibold border-destructive/50 text-destructive hover:bg-destructive/10 order-2"
           >
             {"Thanh to\u00e1n th\u1ea5t b\u1ea1i! L\u01b0u \u0111\u01a1n h\u00e0ng?"}
           </Button>
 
           {paymentMethod === "transfer" && !draftOrder?.incomeReceiptCode && (
-            <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium">
+            <div className="h-12 rounded-xl border border-border bg-muted/40 flex items-center justify-center text-sm text-muted-foreground font-medium order-1">
               Chờ thanh toán
             </div>
           )}

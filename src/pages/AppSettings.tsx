@@ -462,8 +462,8 @@ export default function AppSettings() {
                   <ReceiptText className="h-5 w-5" />
                 </span>
                 <div className="text-left">
-                  <p className="font-semibold text-foreground">Quản lý thu/chi ngân hàng</p>
-                  <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu/chi</p>
+                  <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
+                  <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
