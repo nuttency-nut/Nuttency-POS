@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
 
-type PermissionTemplate = { key: string; label: string };
+type PermissionNode = { key: string; label: string; children?: PermissionNode[] };
 type RoleDeclaration = {
   id: string;
   name: string;
@@ -28,16 +28,61 @@ type StoreDeclaration = {
 const ROLE_STORAGE_KEY = "nut_pos_role_declarations";
 const STORE_STORAGE_KEY = "nut_pos_store_declarations";
 
-const PERMISSION_TEMPLATES: PermissionTemplate[] = [
+const PERMISSION_TREE: PermissionNode[] = [
   { key: "pos", label: "Bán hàng" },
-  { key: "orders", label: "Đơn hàng" },
+  { key: "orders", label: "Đơn hàng", children: [{ key: "orders.update", label: "Cập nhật đơn hàng" }] },
   { key: "products", label: "Sản phẩm" },
-  { key: "reports", label: "Báo cáo" },
+  { key: "reports", label: "Báo cáo", children: [{ key: "reports.export", label: "Xuất báo cáo" }] },
+  {
+    key: "settings",
+    label: "Cài đặt",
+    children: [
+      {
+        key: "settings.roles",
+        label: "Phân quyền",
+        children: [{ key: "settings.roles.qr", label: "Xác thực (QRcode)" }],
+      },
+      { key: "settings.transfer_lookup", label: "Tra cứu giao dịch chuyển khoản" },
+      { key: "settings.role_declaration", label: "Khai báo role" },
+      { key: "settings.store_declaration", label: "Khai báo cửa hàng làm việc" },
+    ],
+  },
 ];
 
+const buildPermissionIndex = (nodes: PermissionNode[], parents: string[] = []) => {
+  const ancestors = new Map<string, string[]>();
+  const descendants = new Map<string, string[]>();
+  const allKeys: string[] = [];
+
+  const walk = (items: PermissionNode[], parentChain: string[]) => {
+    items.forEach((node) => {
+      allKeys.push(node.key);
+      ancestors.set(node.key, parentChain);
+
+      if (node.children && node.children.length > 0) {
+        const childKeys: string[] = [];
+        const collectDescendants = (children: PermissionNode[]) => {
+          children.forEach((child) => {
+            childKeys.push(child.key);
+            if (child.children) collectDescendants(child.children);
+          });
+        };
+        collectDescendants(node.children);
+        descendants.set(node.key, childKeys);
+        walk(node.children, [...parentChain, node.key]);
+      }
+    });
+  };
+
+  walk(nodes, parents);
+  return { ancestors, descendants, allKeys };
+};
+
+const permissionIndex = buildPermissionIndex(PERMISSION_TREE);
+
 const getDefaultPermissions = () =>
-  PERMISSION_TEMPLATES.reduce<Record<string, boolean>>((acc, item) => {
-    acc[item.key] = false;
+  permissionIndex.allKeys.reduce<Record<string, boolean>>((acc, key) => {
+    acc[key] = false;
     return acc;
   }, {});
 
@@ -166,6 +211,26 @@ export default function Declarations() {
     resetRoleForm();
   };
 
+  const handleTogglePermission = (key: string, checked: boolean) => {
+    setRoleForm((prev) => {
+      const nextPermissions = { ...prev.permissions, [key]: checked };
+
+      if (checked) {
+        const parentKeys = permissionIndex.ancestors.get(key) ?? [];
+        parentKeys.forEach((parentKey) => {
+          nextPermissions[parentKey] = true;
+        });
+      } else {
+        const childKeys = permissionIndex.descendants.get(key) ?? [];
+        childKeys.forEach((childKey) => {
+          nextPermissions[childKey] = false;
+        });
+      }
+
+      return { ...prev, permissions: nextPermissions };
+    });
+  };
+
   const handleEditRole = (role: RoleDeclaration) => {
     setEditingRoleId(role.id);
     setRoleForm({
@@ -292,31 +357,32 @@ export default function Declarations() {
                     className="min-h-[72px]"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Cấp quyền</label>
-                  <div className="grid gap-2">
-                    {PERMISSION_TEMPLATES.map((permission) => (
-                      <div
-                        key={permission.key}
-                        className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2"
-                      >
-                        <span className="text-sm text-foreground">{permission.label}</span>
-                        <Switch
-                          checked={!!roleForm.permissions[permission.key]}
-                          onCheckedChange={(checked) =>
-                            setRoleForm((prev) => ({
-                              ...prev,
-                              permissions: { ...prev.permissions, [permission.key]: checked },
-                            }))
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Danh sách quyền sẽ được cấu hình chi tiết sau.
-                  </p>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Cấp quyền</label>
+                <div className="grid gap-2">
+                  {PERMISSION_TREE.map((node) => {
+                    const renderNode = (item: PermissionNode, level: number) => {
+                      const isChecked = !!roleForm.permissions[item.key];
+                      return (
+                        <div key={item.key} className="space-y-2">
+                          <div
+                            className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2"
+                            style={{ paddingLeft: 12 + level * 16 }}
+                          >
+                            <span className="text-sm text-foreground">{item.label}</span>
+                            <Switch checked={isChecked} onCheckedChange={(checked) => handleTogglePermission(item.key, checked)} />
+                          </div>
+                          {item.children?.map((child) => renderNode(child, level + 1))}
+                        </div>
+                      );
+                    };
+                    return renderNode(node, 0);
+                  })}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Bật quyền con sẽ tự bật quyền cha tương ứng.
+                </p>
+              </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -338,7 +404,7 @@ export default function Declarations() {
               ) : (
                 <div className="space-y-2">
                   {roleDeclarations.map((role) => {
-                    const enabledCount = Object.values(role.permissions || {}).filter(Boolean).length;
+                    const enabledCount = permissionIndex.allKeys.filter((key) => role.permissions?.[key]).length;
                     return (
                       <div key={role.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
