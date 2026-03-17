@@ -183,7 +183,8 @@ function SummaryCard({
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const canUpdateOrders = hasPermission("orders.update");
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
@@ -763,15 +764,17 @@ export default function Orders() {
                   </div>
 
                   {selectedOrder.status === "pending" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        className="h-11 rounded-xl"
-                        disabled={updateStatus.isPending}
-                        onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
-                      >
-                        Hủy đơn hàng
-                      </Button>
+                    <div className={`grid gap-3 ${canUpdateOrders ? "grid-cols-2" : "grid-cols-1"}`}>
+                      {canUpdateOrders && (
+                        <Button
+                          variant="outline"
+                          className="h-11 rounded-xl"
+                          disabled={updateStatus.isPending}
+                          onClick={() => updateStatus.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
+                        >
+                          Hủy đơn hàng
+                        </Button>
+                      )}
                       <Button
                         className="h-11 rounded-xl"
                         onClick={() => {

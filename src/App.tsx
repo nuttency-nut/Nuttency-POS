@@ -24,8 +24,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-type AppRole = "admin" | "manager" | "staff" | "no_role";
-
 function isAuthRecoveryFlow() {
   if (typeof window === "undefined") return false;
   const search = new URLSearchParams(window.location.search);
@@ -44,12 +42,12 @@ function AppResumeSync() {
 
 function ProtectedRoute({
   children,
-  allowedRoles,
+  requiredPermissions,
 }: {
   children: React.ReactNode;
-  allowedRoles?: AppRole[];
+  requiredPermissions?: string[];
 }) {
-  const { session, role, loading } = useAuth();
+  const { session, loading, hasPermission } = useAuth();
 
   if (loading) {
     return (
@@ -66,16 +64,18 @@ function ProtectedRoute({
     return <Navigate to="/auth" replace />;
   }
 
-  const effectiveRole = role ?? "no_role";
-  if (allowedRoles && !allowedRoles.includes(effectiveRole)) {
-    return <Navigate to={effectiveRole === "no_role" ? "/settings" : "/pos"} replace />;
+  if (requiredPermissions && requiredPermissions.length > 0) {
+    const hasAccess = requiredPermissions.some((permission) => hasPermission(permission));
+    if (!hasAccess) {
+      return <Navigate to="/settings" replace />;
+    }
   }
 
   return <>{children}</>;
 }
 
 function AppRoutes() {
-  const { session, role, loading } = useAuth();
+  const { session, loading, hasPermission } = useAuth();
   const allowAuthForRecovery = isAuthRecoveryFlow();
 
   if (loading) {
@@ -89,6 +89,16 @@ function AppRoutes() {
     );
   }
 
+  const defaultRoute = hasPermission("pos")
+    ? "/pos"
+    : hasPermission("orders")
+      ? "/orders"
+      : hasPermission("products")
+        ? "/products"
+        : hasPermission("reports")
+          ? "/reports"
+          : "/settings";
+
   return (
     <Routes>
       <Route
@@ -99,7 +109,7 @@ function AppRoutes() {
         path="/"
         element={
           session ? (
-            <Navigate to={(role ?? "no_role") === "no_role" ? "/settings" : "/pos"} replace />
+            <Navigate to={defaultRoute} replace />
           ) : (
             <Navigate to="/auth" replace />
           )
@@ -108,7 +118,7 @@ function AppRoutes() {
       <Route
         path="/pos"
         element={
-          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
+          <ProtectedRoute requiredPermissions={["pos"]}>
             <POS />
           </ProtectedRoute>
         }
@@ -116,7 +126,7 @@ function AppRoutes() {
       <Route
         path="/orders"
         element={
-          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
+          <ProtectedRoute requiredPermissions={["orders"]}>
             <Orders />
           </ProtectedRoute>
         }
@@ -124,7 +134,7 @@ function AppRoutes() {
       <Route
         path="/products"
         element={
-          <ProtectedRoute allowedRoles={["admin"]}>
+          <ProtectedRoute requiredPermissions={["products"]}>
             <Products />
           </ProtectedRoute>
         }
@@ -132,7 +142,7 @@ function AppRoutes() {
       <Route
         path="/reports"
         element={
-          <ProtectedRoute allowedRoles={["admin", "manager"]}>
+          <ProtectedRoute requiredPermissions={["reports"]}>
             <Reports />
           </ProtectedRoute>
         }
@@ -148,7 +158,7 @@ function AppRoutes() {
       <Route
         path="/payment-lookup"
         element={
-          <ProtectedRoute allowedRoles={["admin", "manager", "staff"]}>
+          <ProtectedRoute requiredPermissions={["settings.transfer_lookup"]}>
             <PaymentLookup />
           </ProtectedRoute>
         }
@@ -156,7 +166,7 @@ function AppRoutes() {
       <Route
         path="/declarations"
         element={
-          <ProtectedRoute allowedRoles={["admin", "manager"]}>
+          <ProtectedRoute requiredPermissions={["settings.role_declaration", "settings.store_declaration"]}>
             <Declarations />
           </ProtectedRoute>
         }

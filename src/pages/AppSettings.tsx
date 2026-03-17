@@ -14,15 +14,22 @@ import { toast } from "@/components/ui/sonner";
 import QrScannerDialog from "@/components/common/QrScannerDialog";
 import { isValidRegistrationQrPayload } from "@/lib/registration-qr";
 
-type AppRole = "admin" | "manager" | "staff" | "no_role";
+type SystemRole = "admin" | "manager" | "staff" | "no_role";
 type SettingsTab = "general" | "roles";
 
 interface RoleUser {
   user_id: string;
   email: string | null;
   full_name: string | null;
-  role: AppRole;
+  declared_role_id: string | null;
 }
+
+type DeclaredRole = {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions?: Record<string, boolean>;
+};
 
 const avatarCache = new Map<string, string | null>();
 
@@ -36,33 +43,20 @@ const getInitialTheme = () => {
   return document.documentElement.classList.contains("dark");
 };
 
-const ROLE_LABEL: Record<AppRole, string> = {
+const SYSTEM_ROLE_LABEL: Record<SystemRole, string> = {
   admin: "Quản trị viên",
   manager: "Quản lý",
   staff: "Nhân viên",
   no_role: "Chưa phân quyền",
 };
 
-const ROLE_LEVEL: Record<AppRole, number> = {
-  admin: 4,
-  manager: 3,
-  staff: 2,
-  no_role: 1,
-};
+const UNASSIGNED_ROLE_VALUE = "__none__";
+const UNASSIGNED_STORE_VALUE = "__none__";
 
-const ASSIGNABLE_ROLES: Record<AppRole, AppRole[]> = {
-  admin: ["manager", "staff", "no_role"],
-  manager: ["staff", "no_role"],
-  staff: [],
-  no_role: [],
-};
-
-const WORKPLACE_STORAGE_KEY = "nut_pos_store_declarations";
-
-type WorkplaceOption = { id: string; label: string };
+type WorkplaceOption = { id: string; label: string; status: "active" | "inactive" };
 
 export default function AppSettings() {
-  const { user, role, signOut } = useAuth();
+  const { user, role: systemRole, declaredRole, hasPermission, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [isDark, setIsDark] = useState(getInitialTheme);
@@ -71,7 +65,11 @@ export default function AppSettings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([]);
   const [loadingRoleUsers, setLoadingRoleUsers] = useState(false);
+  const [declaredRoles, setDeclaredRoles] = useState<DeclaredRole[]>([]);
+  const [loadingDeclaredRoles, setLoadingDeclaredRoles] = useState(false);
+  const [loadingStores, setLoadingStores] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [savingWorkplaceUserId, setSavingWorkplaceUserId] = useState<string | null>(null);
   const [registrationScannerOpen, setRegistrationScannerOpen] = useState(false);
   const [approvingRegistrationQr, setApprovingRegistrationQr] = useState(false);
   const [workplaceOpenFor, setWorkplaceOpenFor] = useState<string | null>(null);
@@ -81,11 +79,14 @@ export default function AppSettings() {
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const db = supabase as any;
 
-  const currentRole: AppRole = role ?? "no_role";
-  const canManageRoles = currentRole === "admin" || currentRole === "manager";
-  const canAccessPaymentLookup = currentRole !== "no_role";
-  const roleLabel = ROLE_LABEL[currentRole];
+  const currentSystemRole: SystemRole = systemRole ?? "no_role";
+  const canManageRoles = hasPermission("settings.roles");
+  const canAccessPaymentLookup = hasPermission("settings.transfer_lookup");
+  const canDeclareRoles = hasPermission("settings.role_declaration");
+  const canDeclareStores = hasPermission("settings.store_declaration");
+  const roleLabel = declaredRole?.name ?? SYSTEM_ROLE_LABEL[currentSystemRole];
 
   useEffect(() => {
     const loadAvatar = async () => {
@@ -170,12 +171,12 @@ export default function AppSettings() {
     }
   };
   const normalizeAndSortUsers = useCallback(
-    (rows: Array<{ user_id: string; email: string | null; full_name: string | null; role: AppRole }>) => {
+    (rows: Array<{ user_id: string; email: string | null; full_name: string | null }>) => {
       const users = rows.map((u) => ({
         user_id: u.user_id,
         email: u.email,
         full_name: u.full_name,
-        role: u.role ?? "no_role",
+        declared_role_id: null,
       }));
 
       users.sort((a, b) => {
@@ -203,52 +204,63 @@ export default function AppSettings() {
       try {
         const rpcRes = await supabase.rpc("list_users_for_role_management");
 
+        let baseUsers: RoleUser[] | null = null;
+
         if (!rpcRes.error && rpcRes.data) {
-          if (loadSeqRef.current === currentSeq) {
-            setRoleUsers(
-              normalizeAndSortUsers(
-                rpcRes.data as Array<{
-                  user_id: string;
-                  email: string | null;
-                  full_name: string | null;
-                  role: AppRole;
-                }>
-              )
-            );
+          baseUsers = normalizeAndSortUsers(
+            rpcRes.data as Array<{
+              user_id: string;
+              email: string | null;
+              full_name: string | null;
+            }>
+          );
+        } else {
+          const profilesRes = await supabase.from("profiles").select("user_id, full_name");
+
+          if (profilesRes.error) {
+            toast.error("Không tải được danh sách tài khoản");
+            return;
           }
-          return;
+
+          const merged: RoleUser[] = (profilesRes.data ?? []).map((p) => ({
+            user_id: p.user_id,
+            email: p.user_id === user?.id ? user.email ?? null : null,
+            full_name: p.full_name ?? null,
+            declared_role_id: null,
+          }));
+          baseUsers = normalizeAndSortUsers(merged);
         }
 
-        const [profilesRes, rolesRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, full_name"),
-          supabase.from("user_roles").select("user_id, role"),
+        const [assignmentsRes, storeAssignmentsRes] = await Promise.all([
+          db.from("user_role_assignments").select("user_id, role_id"),
+          db.from("user_store_assignments").select("user_id, store_id"),
         ]);
 
-        if (profilesRes.error || rolesRes.error) {
-          toast.error("Không tải được danh sách tài khoản");
+        if (assignmentsRes.error || storeAssignmentsRes.error) {
+          toast.error("Không tải được phân quyền chi tiết");
           return;
         }
 
-        const roleMap = new Map<string, AppRole>();
-        (rolesRes.data ?? []).forEach((r) => {
-          roleMap.set(r.user_id, (r.role as AppRole) ?? "no_role");
+        const roleAssignmentMap = new Map<string, string>();
+        (assignmentsRes.data ?? []).forEach((item: { user_id: string; role_id: string }) => {
+          roleAssignmentMap.set(item.user_id, item.role_id);
         });
 
-        const profileMap = new Map<string, string | null>();
-        (profilesRes.data ?? []).forEach((p) => {
-          profileMap.set(p.user_id, p.full_name);
-          if (!roleMap.has(p.user_id)) roleMap.set(p.user_id, "no_role");
+        const storeAssignmentMap = new Map<string, string>();
+        (storeAssignmentsRes.data ?? []).forEach((item: { user_id: string; store_id: string }) => {
+          storeAssignmentMap.set(item.user_id, item.store_id);
         });
 
-        const merged: RoleUser[] = Array.from(roleMap.entries()).map(([userId, userRole]) => ({
-          user_id: userId,
-          email: userId === user?.id ? user.email ?? null : null,
-          full_name: profileMap.get(userId) ?? null,
-          role: userRole,
-        }));
-
-        if (loadSeqRef.current === currentSeq) {
-          setRoleUsers(normalizeAndSortUsers(merged));
+        if (loadSeqRef.current === currentSeq && baseUsers) {
+          setRoleUsers(
+            baseUsers.map((u) => ({
+              ...u,
+              declared_role_id: roleAssignmentMap.get(u.user_id) ?? null,
+            }))
+          );
+          setWorkplaceByUser(
+            Object.fromEntries(Array.from(storeAssignmentMap.entries()))
+          );
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Lỗi kết nối";
@@ -260,39 +272,72 @@ export default function AppSettings() {
         }
       }
     },
-    [canManageRoles, normalizeAndSortUsers, user?.email, user?.id]
+    [canManageRoles, db, normalizeAndSortUsers, user?.email, user?.id]
+  );
+
+  const loadDeclaredRoles = useCallback(
+    async (silent = false) => {
+      if (!canManageRoles) return;
+      if (!silent) setLoadingDeclaredRoles(true);
+
+      try {
+        const { data, error } = await db
+          .from("role_definitions")
+          .select("id,name,description,permissions,created_at")
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+        const nextRoles = (data ?? []).map((item: any) => ({
+          id: String(item.id ?? ""),
+          name: String(item.name ?? ""),
+          description: item.description ?? null,
+          permissions: item.permissions ?? {},
+        }));
+        setDeclaredRoles(nextRoles);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Không tải được role khai báo";
+        toast.error(message);
+      } finally {
+        if (!silent) setLoadingDeclaredRoles(false);
+      }
+    },
+    [canManageRoles, db]
+  );
+
+  const loadStoreOptions = useCallback(
+    async (silent = false) => {
+      if (!canManageRoles) return;
+      if (!silent) setLoadingStores(true);
+
+      try {
+        const { data, error } = await db
+          .from("store_definitions")
+          .select("id,display_name,status,created_at")
+          .order("created_at", { ascending: true });
+
+        if (error) throw error;
+        const nextStores = (data ?? []).map((item: any) => ({
+          id: String(item.id ?? ""),
+          label: String(item.display_name ?? ""),
+          status: item.status === "inactive" ? "inactive" : "active",
+        }));
+        setWorkplaceOptions(nextStores);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Không tải được danh sách cửa hàng";
+        toast.error(message);
+      } finally {
+        if (!silent) setLoadingStores(false);
+      }
+    },
+    [canManageRoles, db]
   );
 
   useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
-  }, [activeTab, canManageRoles, loadRoleUsers]);
-
-  useEffect(() => {
-    if (activeTab !== "roles") return;
-    if (typeof window === "undefined") return;
-
-    const raw = window.localStorage.getItem(WORKPLACE_STORAGE_KEY);
-    if (!raw) {
-      setWorkplaceOptions([]);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as Array<{ id?: string; displayName?: string }> | null;
-      if (!Array.isArray(parsed)) {
-        setWorkplaceOptions([]);
-        return;
-      }
-
-      const nextOptions = parsed
-        .filter((item) => typeof item?.id === "string" && typeof item?.displayName === "string")
-        .map((item) => ({ id: item.id as string, label: item.displayName as string }));
-      setWorkplaceOptions(nextOptions);
-    } catch {
-      setWorkplaceOptions([]);
-    }
-  }, [activeTab]);
+    void loadDeclaredRoles();
+    void loadStoreOptions();
+  }, [activeTab, canManageRoles, loadRoleUsers, loadDeclaredRoles, loadStoreOptions]);
 
   useEffect(() => {
     if (!canManageRoles) return;
@@ -301,6 +346,8 @@ export default function AppSettings() {
       if (document.visibilityState !== "visible") return;
       if (activeTab !== "roles") return;
       void loadRoleUsers(true);
+      void loadDeclaredRoles(true);
+      void loadStoreOptions(true);
     };
 
     document.addEventListener("visibilitychange", handleResume);
@@ -309,64 +356,98 @@ export default function AppSettings() {
       document.removeEventListener("visibilitychange", handleResume);
       window.removeEventListener("focus", handleResume);
     };
-  }, [activeTab, canManageRoles, loadRoleUsers]);
+  }, [activeTab, canManageRoles, loadRoleUsers, loadDeclaredRoles, loadStoreOptions]);
 
-  const canEditTarget = (targetUserId: string, targetRole: AppRole) => {
+  const canEditTarget = (targetUserId: string) => {
     if (!canManageRoles) return false;
     if (!user?.id) return false;
     if (targetUserId === user.id) return false;
-    return ROLE_LEVEL[currentRole] > ROLE_LEVEL[targetRole];
+    return true;
   };
 
-  const optionsForTarget = useMemo(() => ASSIGNABLE_ROLES[currentRole], [currentRole]);
-
-  const handleChangeRole = async (targetUser: RoleUser, nextRole: AppRole) => {
+  const handleChangeRole = async (targetUser: RoleUser, nextRoleId: string) => {
     if (!user?.id || !canManageRoles) return;
 
-    if (!canEditTarget(targetUser.user_id, targetUser.role)) {
-      toast.error("Bạn chỉ có thể phân quyền cho tài khoản thấp hơn");
-      return;
-    }
-
-    if (ROLE_LEVEL[currentRole] <= ROLE_LEVEL[nextRole]) {
-      toast.error("Không thể gán quyền ngang hoặc cao hơn quyền của bạn");
+    if (!canEditTarget(targetUser.user_id)) {
+      toast.error("Bạn không thể chỉnh sửa quyền tài khoản này");
       return;
     }
 
     setSavingUserId(targetUser.user_id);
 
-    const { data: existingRole, error: existingRoleError } = await supabase
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", targetUser.user_id)
-      .maybeSingle();
+    try {
+      if (nextRoleId === UNASSIGNED_ROLE_VALUE) {
+        const { error } = await db
+          .from("user_role_assignments")
+          .delete()
+          .eq("user_id", targetUser.user_id);
+        if (error) throw error;
+        setRoleUsers((prev) =>
+          prev.map((u) =>
+            u.user_id === targetUser.user_id ? { ...u, declared_role_id: null } : u
+          )
+        );
+        toast.success("Đã gỡ role");
+        return;
+      }
 
-    if (existingRoleError) {
-      toast.error(existingRoleError.message || "Không kiểm tra được quyền hiện tại");
+      const { error } = await db
+        .from("user_role_assignments")
+        .upsert({ user_id: targetUser.user_id, role_id: nextRoleId }, { onConflict: "user_id" });
+      if (error) throw error;
+
+      setRoleUsers((prev) =>
+        prev.map((u) =>
+          u.user_id === targetUser.user_id ? { ...u, declared_role_id: nextRoleId } : u
+        )
+      );
+      toast.success("Đã cập nhật quyền");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Cập nhật quyền thất bại";
+      toast.error(message);
+    } finally {
       setSavingUserId(null);
-      return;
     }
+  };
 
-    const { error } = existingRole
-      ? await supabase.from("user_roles").update({ role: nextRole }).eq("id", existingRole.id)
-      : await supabase.from("user_roles").insert({ user_id: targetUser.user_id, role: nextRole });
+  const handleChangeWorkplace = async (targetUserId: string, nextStoreId: string) => {
+    if (!user?.id || !canManageRoles) return;
 
-    if (error) {
-      toast.error(error.message || "Cập nhật quyền thất bại");
-      setSavingUserId(null);
-      return;
+    setSavingWorkplaceUserId(targetUserId);
+    try {
+      if (nextStoreId === UNASSIGNED_STORE_VALUE) {
+        const { error } = await db
+          .from("user_store_assignments")
+          .delete()
+          .eq("user_id", targetUserId);
+        if (error) throw error;
+        setWorkplaceByUser((prev) => {
+          const next = { ...prev };
+          delete next[targetUserId];
+          return next;
+        });
+        toast.success("Đã bỏ chọn cửa hàng");
+        return;
+      }
+
+      const { error } = await db
+        .from("user_store_assignments")
+        .upsert({ user_id: targetUserId, store_id: nextStoreId }, { onConflict: "user_id" });
+      if (error) throw error;
+
+      setWorkplaceByUser((prev) => ({ ...prev, [targetUserId]: nextStoreId }));
+      toast.success("Đã cập nhật cửa hàng làm việc");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể cập nhật cửa hàng";
+      toast.error(message);
+    } finally {
+      setSavingWorkplaceUserId(null);
     }
-
-    setRoleUsers((prev) =>
-      prev.map((u) => (u.user_id === targetUser.user_id ? { ...u, role: nextRole } : u))
-    );
-    toast.success("Đã cập nhật quyền");
-    setSavingUserId(null);
   };
 
   const handleApproveRegistrationQr = async (rawValue: string) => {
-    if (currentRole !== "admin") {
-      toast.error("Chỉ quản trị viên mới có quyền xác thực QR đăng ký");
+    if (!hasPermission("settings.roles.qr")) {
+      toast.error("Bạn không có quyền xác thực QR đăng ký");
       return;
     }
 
@@ -507,50 +588,50 @@ export default function AppSettings() {
         </Card>
       )}
 
-      {canManageRoles && (
-        <>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <button
-                type="button"
-                onClick={() => navigate("/declarations?section=role")}
-                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Shield className="h-5 w-5" />
-                  </span>
-                  <div className="text-left">
-                    <p className="font-semibold text-foreground">Khai báo role</p>
-                    <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa role.</p>
-                  </div>
+      {canDeclareRoles && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <button
+              type="button"
+              onClick={() => navigate("/declarations?section=role")}
+              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Shield className="h-5 w-5" />
+                </span>
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">Khai báo role</p>
+                  <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa role.</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </button>
-            </CardContent>
-          </Card>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </button>
+          </CardContent>
+        </Card>
+      )}
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <button
-                type="button"
-                onClick={() => navigate("/declarations?section=store")}
-                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Building2 className="h-5 w-5" />
-                  </span>
-                  <div className="text-left">
-                    <p className="font-semibold text-foreground">Khai báo cửa hàng làm việc</p>
-                    <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa cửa hàng.</p>
-                  </div>
+      {canDeclareStores && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <button
+              type="button"
+              onClick={() => navigate("/declarations?section=store")}
+              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Building2 className="h-5 w-5" />
+                </span>
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">Khai báo cửa hàng làm việc</p>
+                  <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa cửa hàng.</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </button>
-            </CardContent>
-          </Card>
-        </>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </button>
+          </CardContent>
+        </Card>
       )}
 
       <Button
@@ -586,7 +667,7 @@ export default function AppSettings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {currentRole === "admin" && (
+                    {hasPermission("settings.roles.qr") && (
                       <Button
                         variant="outline"
                         size="icon"
@@ -604,7 +685,11 @@ export default function AppSettings() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => void loadRoleUsers()}
+                      onClick={() => {
+                        void loadRoleUsers();
+                        void loadDeclaredRoles();
+                        void loadStoreOptions();
+                      }}
                       disabled={loadingRoleUsers}
                     >
                       <RefreshCw className={`w-4 h-4 ${loadingRoleUsers ? "animate-spin" : ""}`} />
@@ -632,14 +717,34 @@ export default function AppSettings() {
                   </Card>
                 ) : (
                   roleUsers.map((u) => {
-                    const editable = canEditTarget(u.user_id, u.role);
+                    const editable = canEditTarget(u.user_id);
                     const isSaving = savingUserId === u.user_id;
-                    const roleOptions = editable ? optionsForTarget : [u.role];
+                    const selectedRole = declaredRoles.find((role) => role.id === u.declared_role_id) ?? null;
+                    const missingRole = u.declared_role_id && !selectedRole
+                      ? { id: u.declared_role_id, name: "Role không tồn tại", description: null }
+                      : null;
+                    const roleValue = u.declared_role_id ?? UNASSIGNED_ROLE_VALUE;
+                    const roleOptions = editable
+                      ? missingRole
+                        ? [...declaredRoles, missingRole]
+                        : declaredRoles
+                      : selectedRole
+                        ? [selectedRole]
+                        : missingRole
+                          ? [missingRole]
+                          : [];
                     const selectedWorkplaceId = workplaceByUser[u.user_id] ?? "";
                     const selectedWorkplace = workplaceOptions.find((option) => option.id === selectedWorkplaceId);
-                    const workplaceLabel =
-                      selectedWorkplace?.label ?? (workplaceOptions.length > 0 ? "Chọn cửa hàng làm việc" : "Chưa khai báo cửa hàng");
+                    const workplaceLabel = selectedWorkplace
+                      ? selectedWorkplace.status === "inactive"
+                        ? `${selectedWorkplace.label} (Tạm dừng)`
+                        : selectedWorkplace.label
+                      : workplaceOptions.length > 0
+                        ? "Chọn cửa hàng làm việc"
+                        : "Chưa khai báo cửa hàng";
                     const workplaceOpen = workplaceOpenFor === u.user_id;
+                    const isSavingWorkplace = savingWorkplaceUserId === u.user_id;
+                    const roleSelectDisabled = !editable || isSaving || loadingDeclaredRoles;
 
                     return (
                       <Card key={u.user_id} className="border-0 shadow-sm">
@@ -652,17 +757,20 @@ export default function AppSettings() {
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <Select
-                                value={u.role}
-                                onValueChange={(v) => void handleChangeRole(u, v as AppRole)}
-                                disabled={!editable || isSaving}
+                                value={roleValue}
+                                onValueChange={(v) => void handleChangeRole(u, v)}
+                                disabled={roleSelectDisabled}
                               >
                                 <SelectTrigger className="h-9">
-                                  <SelectValue />
+                                  <SelectValue placeholder="Chọn role" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  {editable && (
+                                    <SelectItem value={UNASSIGNED_ROLE_VALUE}>Chưa phân quyền</SelectItem>
+                                  )}
                                   {roleOptions.map((r) => (
-                                    <SelectItem key={r} value={r}>
-                                      {ROLE_LABEL[r]}
+                                    <SelectItem key={r.id} value={r.id}>
+                                      {r.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -682,7 +790,7 @@ export default function AppSettings() {
                                     role="combobox"
                                     aria-expanded={workplaceOpen}
                                     className="w-full justify-between h-9"
-                                    disabled={!editable || workplaceOptions.length === 0}
+                                    disabled={!editable || workplaceOptions.length === 0 || loadingStores || isSavingWorkplace}
                                   >
                                     <span className="truncate">{workplaceLabel}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
@@ -694,22 +802,38 @@ export default function AppSettings() {
                                     <CommandList>
                                       <CommandEmpty>Không tìm thấy cửa hàng.</CommandEmpty>
                                       <CommandGroup>
+                                        <CommandItem
+                                          key={UNASSIGNED_STORE_VALUE}
+                                          value="Chưa chọn cửa hàng"
+                                          onSelect={() => {
+                                            void handleChangeWorkplace(u.user_id, UNASSIGNED_STORE_VALUE);
+                                            setWorkplaceOpenFor(null);
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${
+                                              !selectedWorkplaceId ? "opacity-100" : "opacity-0"
+                                            }`}
+                                          />
+                                          Chưa chọn cửa hàng
+                                        </CommandItem>
                                         {workplaceOptions.map((option) => {
                                           const isSelected = option.id === selectedWorkplaceId;
+                                          const optionLabel =
+                                            option.status === "inactive"
+                                              ? `${option.label} (Tạm dừng)`
+                                              : option.label;
                                           return (
                                             <CommandItem
                                               key={option.id}
-                                              value={option.label}
+                                              value={optionLabel}
                                               onSelect={() => {
-                                                setWorkplaceByUser((prev) => ({
-                                                  ...prev,
-                                                  [u.user_id]: option.id,
-                                                }));
+                                                void handleChangeWorkplace(u.user_id, option.id);
                                                 setWorkplaceOpenFor(null);
                                               }}
                                             >
                                               <Check className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`} />
-                                              {option.label}
+                                              {optionLabel}
                                             </CommandItem>
                                           );
                                         })}
@@ -718,11 +842,17 @@ export default function AppSettings() {
                                   </Command>
                                 </PopoverContent>
                               </Popover>
+                              {isSavingWorkplace && (
+                                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                              )}
                             </div>
                           </div>
 
                           {!editable && (
                             <p className="text-xs text-muted-foreground">Không thể chỉnh sửa quyền tài khoản này.</p>
+                          )}
+                          {declaredRoles.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Chưa khai báo role để phân quyền.</p>
                           )}
                         </CardContent>
                       </Card>

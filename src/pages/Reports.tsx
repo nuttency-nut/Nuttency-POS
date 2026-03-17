@@ -2,6 +2,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -150,6 +151,8 @@ function KpiCard({
 }
 
 export default function Reports() {
+  const { hasPermission } = useAuth();
+  const canExport = hasPermission("reports.export");
   const [chartTab, setChartTab] = useState<"revenue-week" | "orders-week" | "revenue-12m">("revenue-week");
   const queryClient = useQueryClient();
   const [isDark, setIsDark] = useState(() => {
@@ -387,10 +390,12 @@ export default function Reports() {
       title="Báo cáo"
       headerRight={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-9 rounded-xl gap-1.5" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Xuất báo cáo</span>
-          </Button>
+          {canExport && (
+            <Button variant="outline" size="sm" className="h-9 rounded-xl gap-1.5" onClick={handleExport}>
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Xuất báo cáo</span>
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl" onClick={handleRefresh}>
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </Button>

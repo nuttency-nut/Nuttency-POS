@@ -3,30 +3,27 @@ import { ShoppingCart, ClipboardList, Package, BarChart3, Settings } from "lucid
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-type AppRole = "admin" | "manager" | "staff" | "no_role";
-
 interface NavItem {
   path: string;
   label: string;
   icon: React.ElementType;
-  allowedRoles: AppRole[];
+  permission?: string;
 }
 
 const navItems: NavItem[] = [
-  { path: "/pos", label: "Bán hàng", icon: ShoppingCart, allowedRoles: ["admin", "manager", "staff"] },
-  { path: "/orders", label: "Đơn hàng", icon: ClipboardList, allowedRoles: ["admin", "manager", "staff"] },
-  { path: "/products", label: "Sản phẩm", icon: Package, allowedRoles: ["admin"] },
-  { path: "/reports", label: "Báo cáo", icon: BarChart3, allowedRoles: ["admin", "manager"] },
-  { path: "/settings", label: "Cài đặt", icon: Settings, allowedRoles: ["admin", "manager", "staff", "no_role"] },
+  { path: "/pos", label: "Bán hàng", icon: ShoppingCart, permission: "pos" },
+  { path: "/orders", label: "Đơn hàng", icon: ClipboardList, permission: "orders" },
+  { path: "/products", label: "Sản phẩm", icon: Package, permission: "products" },
+  { path: "/reports", label: "Báo cáo", icon: BarChart3, permission: "reports" },
+  { path: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { hasPermission } = useAuth();
 
-  const effectiveRole = role ?? "no_role";
-  const visibleItems = navItems.filter((item) => item.allowedRoles.includes(effectiveRole));
+  const visibleItems = navItems.filter((item) => !item.permission || hasPermission(item.permission));
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-strong safe-bottom">
@@ -44,25 +41,13 @@ export default function BottomNav() {
               onClick={() => navigate(item.path)}
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 min-w-[56px]",
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground active:scale-95"
+                isActive ? "text-primary" : "text-muted-foreground active:scale-95",
               )}
             >
-              <div
-                className={cn(
-                  "p-1.5 rounded-xl transition-all duration-200",
-                  isActive && "bg-primary/10"
-                )}
-              >
+              <div className={cn("p-1.5 rounded-xl transition-all duration-200", isActive && "bg-primary/10")}>
                 <Icon className={cn("w-5 h-5", isActive && "stroke-[2.5]")} />
               </div>
-              <span
-                className={cn(
-                  "text-[10px] leading-tight",
-                  isActive ? "font-semibold" : "font-medium"
-                )}
-              >
+              <span className={cn("text-[10px] leading-tight", isActive ? "font-semibold" : "font-medium")}>
                 {item.label}
               </span>
             </button>

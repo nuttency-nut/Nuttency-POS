@@ -9,14 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { PERMISSION_TREE, PermissionNode, getDefaultPermissions, permissionIndex } from "@/lib/permissions";
 
-type PermissionNode = { key: string; label: string; children?: PermissionNode[] };
 type RoleDeclaration = {
   id: string;
   name: string;
   description: string;
   permissions: Record<string, boolean>;
 };
+
 type StoreDeclaration = {
   id: string;
   storeName: string;
@@ -25,106 +27,38 @@ type StoreDeclaration = {
   status: "active" | "inactive";
 };
 
-const ROLE_STORAGE_KEY = "nut_pos_role_declarations";
-const STORE_STORAGE_KEY = "nut_pos_store_declarations";
-
-const PERMISSION_TREE: PermissionNode[] = [
-  { key: "pos", label: "Bán hàng" },
-  { key: "orders", label: "Đơn hàng", children: [{ key: "orders.update", label: "Cập nhật đơn hàng" }] },
-  { key: "products", label: "Sản phẩm" },
-  { key: "reports", label: "Báo cáo", children: [{ key: "reports.export", label: "Xuất báo cáo" }] },
-  {
-    key: "settings",
-    label: "Cài đặt",
-    children: [
-      {
-        key: "settings.roles",
-        label: "Phân quyền",
-        children: [{ key: "settings.roles.qr", label: "Xác thực (QRcode)" }],
-      },
-      { key: "settings.transfer_lookup", label: "Tra cứu giao dịch chuyển khoản" },
-      { key: "settings.role_declaration", label: "Khai báo role" },
-      { key: "settings.store_declaration", label: "Khai báo cửa hàng làm việc" },
-    ],
+const mapRoleRow = (row: any): RoleDeclaration => ({
+  id: String(row?.id ?? ""),
+  name: String(row?.name ?? ""),
+  description: String(row?.description ?? ""),
+  permissions: {
+    ...getDefaultPermissions(),
+    ...((row?.permissions as Record<string, boolean>) ?? {}),
   },
-];
+});
 
-const buildPermissionIndex = (nodes: PermissionNode[], parents: string[] = []) => {
-  const ancestors = new Map<string, string[]>();
-  const descendants = new Map<string, string[]>();
-  const allKeys: string[] = [];
-
-  const walk = (items: PermissionNode[], parentChain: string[]) => {
-    items.forEach((node) => {
-      allKeys.push(node.key);
-      ancestors.set(node.key, parentChain);
-
-      if (node.children && node.children.length > 0) {
-        const childKeys: string[] = [];
-        const collectDescendants = (children: PermissionNode[]) => {
-          children.forEach((child) => {
-            childKeys.push(child.key);
-            if (child.children) collectDescendants(child.children);
-          });
-        };
-        collectDescendants(node.children);
-        descendants.set(node.key, childKeys);
-        walk(node.children, [...parentChain, node.key]);
-      }
-    });
-  };
-
-  walk(nodes, parents);
-  return { ancestors, descendants, allKeys };
-};
-
-const permissionIndex = buildPermissionIndex(PERMISSION_TREE);
-
-const getDefaultPermissions = () =>
-  permissionIndex.allKeys.reduce<Record<string, boolean>>((acc, key) => {
-    acc[key] = false;
-    return acc;
-  }, {});
-
-const createId = () => {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const readStorage = <T,>(key: string, fallback: T): T => {
-  if (typeof window === "undefined") return fallback;
-  const raw = window.localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    const parsed = JSON.parse(raw) as T;
-    return parsed ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const writeStorage = (key: string, value: unknown) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-};
+const mapStoreRow = (row: any): StoreDeclaration => ({
+  id: String(row?.id ?? ""),
+  storeName: String(row?.store_name ?? ""),
+  warehouseCode: String(row?.warehouse_code ?? ""),
+  displayName: String(row?.display_name ?? ""),
+  status: row?.status === "inactive" ? "inactive" : "active",
+});
 
 export default function Declarations() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const db = supabase as any;
 
   const section = searchParams.get("section");
   const showRole = section !== "store";
   const showStore = section !== "role";
   const pageTitle = section === "role" ? "Khai báo role" : section === "store" ? "Khai báo cửa hàng" : "Khai báo";
 
-  const [roleDeclarations, setRoleDeclarations] = useState<RoleDeclaration[]>(() =>
-    readStorage<RoleDeclaration[]>(ROLE_STORAGE_KEY, []),
-  );
-  const [storeDeclarations, setStoreDeclarations] = useState<StoreDeclaration[]>(() =>
-    readStorage<StoreDeclaration[]>(STORE_STORAGE_KEY, []),
-  );
+  const [roleDeclarations, setRoleDeclarations] = useState<RoleDeclaration[]>([]);
+  const [storeDeclarations, setStoreDeclarations] = useState<StoreDeclaration[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [loadingStores, setLoadingStores] = useState(false);
 
   const [roleForm, setRoleForm] = useState(() => ({
     name: "",
@@ -147,13 +81,44 @@ export default function Declarations() {
     return `${code} - ${store}`;
   }, [storeForm.storeName, storeForm.warehouseCode]);
 
-  useEffect(() => {
-    writeStorage(ROLE_STORAGE_KEY, roleDeclarations);
-  }, [roleDeclarations]);
+  const loadRoles = async () => {
+    setLoadingRoles(true);
+    try {
+      const { data, error } = await db
+        .from("role_definitions")
+        .select("id,name,description,permissions,created_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      setRoleDeclarations((data ?? []).map(mapRoleRow));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không tải được danh sách role";
+      toast.error(message);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  const loadStores = async () => {
+    setLoadingStores(true);
+    try {
+      const { data, error } = await db
+        .from("store_definitions")
+        .select("id,store_name,warehouse_code,display_name,status,created_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      setStoreDeclarations((data ?? []).map(mapStoreRow));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không tải được danh sách cửa hàng";
+      toast.error(message);
+    } finally {
+      setLoadingStores(false);
+    }
+  };
 
   useEffect(() => {
-    writeStorage(STORE_STORAGE_KEY, storeDeclarations);
-  }, [storeDeclarations]);
+    void loadRoles();
+    void loadStores();
+  }, []);
 
   const resetRoleForm = () => {
     setRoleForm({
@@ -173,42 +138,53 @@ export default function Declarations() {
     setEditingStoreId(null);
   };
 
-  const handleSaveRole = () => {
+  const handleSaveRole = async () => {
     const name = roleForm.name.trim();
     if (!name) {
       toast.error("Vui lòng nhập tên role");
       return;
     }
 
-    if (editingRoleId) {
-      setRoleDeclarations((prev) =>
-        prev.map((role) =>
-          role.id === editingRoleId
-            ? {
-                ...role,
-                name,
-                description: roleForm.description.trim(),
-                permissions: { ...roleForm.permissions },
-              }
-            : role,
-        ),
-      );
-      toast.success("Đã cập nhật role");
-      resetRoleForm();
-      return;
-    }
+    try {
+      if (editingRoleId) {
+        const payload = {
+          name,
+          description: roleForm.description.trim(),
+          permissions: roleForm.permissions,
+        };
+        const { data, error } = await db
+          .from("role_definitions")
+          .update(payload)
+          .eq("id", editingRoleId)
+          .select("id,name,description,permissions")
+          .single();
+        if (error) throw error;
+        setRoleDeclarations((prev) =>
+          prev.map((role) => (role.id === editingRoleId ? mapRoleRow(data ?? payload) : role)),
+        );
+        toast.success("Đã cập nhật role");
+        resetRoleForm();
+        return;
+      }
 
-    setRoleDeclarations((prev) => [
-      ...prev,
-      {
-        id: createId(),
+      const payload = {
         name,
         description: roleForm.description.trim(),
-        permissions: { ...roleForm.permissions },
-      },
-    ]);
-    toast.success("Đã thêm role mới");
-    resetRoleForm();
+        permissions: roleForm.permissions,
+      };
+      const { data, error } = await db
+        .from("role_definitions")
+        .insert(payload)
+        .select("id,name,description,permissions")
+        .single();
+      if (error) throw error;
+      setRoleDeclarations((prev) => [...prev, mapRoleRow(data ?? payload)]);
+      toast.success("Đã thêm role mới");
+      resetRoleForm();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể lưu role";
+      toast.error(message);
+    }
   };
 
   const handleTogglePermission = (key: string, checked: boolean) => {
@@ -240,16 +216,23 @@ export default function Declarations() {
     });
   };
 
-  const handleDeleteRole = (role: RoleDeclaration) => {
+  const handleDeleteRole = async (role: RoleDeclaration) => {
     if (!window.confirm(`Xóa role "${role.name}"?`)) return;
-    setRoleDeclarations((prev) => prev.filter((item) => item.id !== role.id));
-    if (editingRoleId === role.id) {
-      resetRoleForm();
+    try {
+      const { error } = await db.from("role_definitions").delete().eq("id", role.id);
+      if (error) throw error;
+      setRoleDeclarations((prev) => prev.filter((item) => item.id !== role.id));
+      if (editingRoleId === role.id) {
+        resetRoleForm();
+      }
+      toast.success("Đã xóa role");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể xóa role";
+      toast.error(message);
     }
-    toast.success("Đã xóa role");
   };
 
-  const handleSaveStore = () => {
+  const handleSaveStore = async () => {
     const storeName = storeForm.storeName.trim();
     const warehouseCode = storeForm.warehouseCode.trim();
     if (!storeName || !warehouseCode) {
@@ -258,37 +241,48 @@ export default function Declarations() {
     }
 
     const displayName = `${warehouseCode} - ${storeName}`;
-    if (editingStoreId) {
-      setStoreDeclarations((prev) =>
-        prev.map((store) =>
-          store.id === editingStoreId
-            ? {
-                ...store,
-                storeName,
-                warehouseCode,
-                displayName,
-                status: storeForm.status,
-              }
-            : store,
-        ),
-      );
-      toast.success("Đã cập nhật cửa hàng");
-      resetStoreForm();
-      return;
-    }
+    try {
+      if (editingStoreId) {
+        const payload = {
+          store_name: storeName,
+          warehouse_code: warehouseCode,
+          display_name: displayName,
+          status: storeForm.status,
+        };
+        const { data, error } = await db
+          .from("store_definitions")
+          .update(payload)
+          .eq("id", editingStoreId)
+          .select("id,store_name,warehouse_code,display_name,status")
+          .single();
+        if (error) throw error;
+        setStoreDeclarations((prev) =>
+          prev.map((store) => (store.id === editingStoreId ? mapStoreRow(data ?? payload) : store)),
+        );
+        toast.success("Đã cập nhật cửa hàng");
+        resetStoreForm();
+        return;
+      }
 
-    setStoreDeclarations((prev) => [
-      ...prev,
-      {
-        id: createId(),
-        storeName,
-        warehouseCode,
-        displayName,
+      const payload = {
+        store_name: storeName,
+        warehouse_code: warehouseCode,
+        display_name: displayName,
         status: storeForm.status,
-      },
-    ]);
-    toast.success("Đã thêm cửa hàng mới");
-    resetStoreForm();
+      };
+      const { data, error } = await db
+        .from("store_definitions")
+        .insert(payload)
+        .select("id,store_name,warehouse_code,display_name,status")
+        .single();
+      if (error) throw error;
+      setStoreDeclarations((prev) => [...prev, mapStoreRow(data ?? payload)]);
+      toast.success("Đã thêm cửa hàng mới");
+      resetStoreForm();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể lưu cửa hàng";
+      toast.error(message);
+    }
   };
 
   const handleEditStore = (store: StoreDeclaration) => {
@@ -300,13 +294,20 @@ export default function Declarations() {
     });
   };
 
-  const handleDeleteStore = (store: StoreDeclaration) => {
+  const handleDeleteStore = async (store: StoreDeclaration) => {
     if (!window.confirm(`Xóa cửa hàng "${store.displayName}"?`)) return;
-    setStoreDeclarations((prev) => prev.filter((item) => item.id !== store.id));
-    if (editingStoreId === store.id) {
-      resetStoreForm();
+    try {
+      const { error } = await db.from("store_definitions").delete().eq("id", store.id);
+      if (error) throw error;
+      setStoreDeclarations((prev) => prev.filter((item) => item.id !== store.id));
+      if (editingStoreId === store.id) {
+        resetStoreForm();
+      }
+      toast.success("Đã xóa cửa hàng");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể xóa cửa hàng";
+      toast.error(message);
     }
-    toast.success("Đã xóa cửa hàng");
   };
 
   return (
@@ -357,50 +358,50 @@ export default function Declarations() {
                     className="min-h-[72px]"
                   />
                 </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground">Cấp quyền</label>
-                <div className="grid gap-2">
-                  {PERMISSION_TREE.map((node) => {
-                    const renderNode = (item: PermissionNode, level: number) => {
-                      const isChecked = !!roleForm.permissions[item.key];
-                      const isChild = level > 0;
-                      return (
-                        <div key={item.key} className="space-y-2">
-                          <div
-                            className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
-                              isChild ? "border-border/60 bg-muted/30" : "border-border bg-card"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {isChild && <span className="h-2 w-2 rounded-full bg-muted-foreground/60" />}
-                              <span className={`text-sm ${isChild ? "text-foreground" : "text-foreground font-medium"}`}>
-                                {item.label}
-                              </span>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Cấp quyền</label>
+                  <div className="grid gap-2">
+                    {PERMISSION_TREE.map((node) => {
+                      const renderNode = (item: PermissionNode, level: number) => {
+                        const isChecked = !!roleForm.permissions[item.key];
+                        const isChild = level > 0;
+                        return (
+                          <div key={item.key} className="space-y-2">
+                            <div
+                              className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                                isChild ? "border-border/60 bg-muted/30" : "border-border bg-card"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {isChild && <span className="h-2 w-2 rounded-full bg-muted-foreground/60" />}
+                                <span className={`text-sm ${isChild ? "text-foreground" : "text-foreground font-medium"}`}>
+                                  {item.label}
+                                </span>
+                              </div>
+                              <Switch
+                                checked={isChecked}
+                                onCheckedChange={(checked) => handleTogglePermission(item.key, checked)}
+                              />
                             </div>
-                            <Switch
-                              checked={isChecked}
-                              onCheckedChange={(checked) => handleTogglePermission(item.key, checked)}
-                            />
+                            {item.children && item.children.length > 0 && (
+                              <div className="ml-4 border-l border-border/50 pl-4 space-y-2">
+                                {item.children.map((child) => renderNode(child, level + 1))}
+                              </div>
+                            )}
                           </div>
-                          {item.children && item.children.length > 0 && (
-                            <div className="ml-4 border-l border-border/50 pl-4 space-y-2">
-                              {item.children.map((child) => renderNode(child, level + 1))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    };
-                    return renderNode(node, 0);
-                  })}
+                        );
+                      };
+                      return renderNode(node, 0);
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Bật quyền con sẽ tự bật quyền cha tương ứng.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Bật quyền con sẽ tự bật quyền cha tương ứng.
-                </p>
-              </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleSaveRole} className="h-10 rounded-xl gap-2">
+                <Button onClick={handleSaveRole} className="h-10 rounded-xl gap-2" disabled={loadingRoles}>
                   <Plus className="h-4 w-4" />
                   {editingRoleId ? "Cập nhật role" : "Thêm role"}
                 </Button>
@@ -411,7 +412,11 @@ export default function Declarations() {
                 )}
               </div>
 
-              {roleDeclarations.length === 0 ? (
+              {loadingRoles ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Đang tải danh sách role...
+                </div>
+              ) : roleDeclarations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
                   Chưa có role nào được khai báo.
                 </div>
@@ -518,7 +523,7 @@ export default function Declarations() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleSaveStore} className="h-10 rounded-xl gap-2">
+                <Button onClick={handleSaveStore} className="h-10 rounded-xl gap-2" disabled={loadingStores}>
                   <Plus className="h-4 w-4" />
                   {editingStoreId ? "Cập nhật cửa hàng" : "Thêm cửa hàng"}
                 </Button>
@@ -529,7 +534,11 @@ export default function Declarations() {
                 )}
               </div>
 
-              {storeDeclarations.length === 0 ? (
+              {loadingStores ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Đang tải danh sách cửa hàng...
+                </div>
+              ) : storeDeclarations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
                   Chưa có cửa hàng nào được khai báo.
                 </div>
@@ -540,9 +549,7 @@ export default function Declarations() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Mã kho: {store.warehouseCode || "-"}
-                          </p>
+                          <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
                         </div>
                         <span className="text-xs text-muted-foreground">
                           {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
