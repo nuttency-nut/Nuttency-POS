@@ -57,11 +57,9 @@ const ASSIGNABLE_ROLES: Record<AppRole, AppRole[]> = {
   no_role: [],
 };
 
-const WORKPLACE_OPTIONS = [
-  { id: "store-1", label: "Cửa hàng 1" },
-  { id: "store-2", label: "Cửa hàng 2" },
-  { id: "store-3", label: "Cửa hàng 3" },
-];
+const WORKPLACE_STORAGE_KEY = "nut_pos_store_declarations";
+
+type WorkplaceOption = { id: string; label: string };
 
 export default function AppSettings() {
   const { user, role, signOut } = useAuth();
@@ -78,13 +76,11 @@ export default function AppSettings() {
   const [approvingRegistrationQr, setApprovingRegistrationQr] = useState(false);
   const [workplaceOpenFor, setWorkplaceOpenFor] = useState<string | null>(null);
   const [workplaceByUser, setWorkplaceByUser] = useState<Record<string, string>>({});
-  const [pendingDeclarationScroll, setPendingDeclarationScroll] = useState<"role" | "workplace" | null>(null);
+  const [workplaceOptions, setWorkplaceOptions] = useState<WorkplaceOption[]>([]);
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const roleSectionRef = useRef<HTMLDivElement>(null);
-  const workplaceSectionRef = useRef<HTMLParagraphElement>(null);
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
@@ -273,18 +269,30 @@ export default function AppSettings() {
   }, [activeTab, canManageRoles, loadRoleUsers]);
 
   useEffect(() => {
-    if (activeTab !== "roles" || !pendingDeclarationScroll) return;
-    if (pendingDeclarationScroll === "workplace" && (loadingRoleUsers || roleUsers.length === 0)) return;
+    if (activeTab !== "roles") return;
+    if (typeof window === "undefined") return;
 
-    const target =
-      pendingDeclarationScroll === "workplace" ? workplaceSectionRef.current : roleSectionRef.current;
-    if (!target) return;
+    const raw = window.localStorage.getItem(WORKPLACE_STORAGE_KEY);
+    if (!raw) {
+      setWorkplaceOptions([]);
+      return;
+    }
 
-    requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    setPendingDeclarationScroll(null);
-  }, [activeTab, loadingRoleUsers, pendingDeclarationScroll, roleUsers.length]);
+    try {
+      const parsed = JSON.parse(raw) as Array<{ id?: string; displayName?: string }> | null;
+      if (!Array.isArray(parsed)) {
+        setWorkplaceOptions([]);
+        return;
+      }
+
+      const nextOptions = parsed
+        .filter((item) => typeof item?.id === "string" && typeof item?.displayName === "string")
+        .map((item) => ({ id: item.id as string, label: item.displayName as string }));
+      setWorkplaceOptions(nextOptions);
+    } catch {
+      setWorkplaceOptions([]);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!canManageRoles) return;
@@ -355,11 +363,6 @@ export default function AppSettings() {
     toast.success("Đã cập nhật quyền");
     setSavingUserId(null);
   };
-
-  const handleOpenDeclaration = useCallback((section: "role" | "workplace") => {
-    setActiveTab("roles");
-    setPendingDeclarationScroll(section);
-  }, []);
 
   const handleApproveRegistrationQr = async (rawValue: string) => {
     if (currentRole !== "admin") {
@@ -504,52 +507,54 @@ export default function AppSettings() {
         </Card>
       )}
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4 space-y-3">
-          <div>
-            <p className="font-semibold text-foreground">Khai báo</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Thiết lập nhanh các thông tin phân quyền và cửa hàng làm việc.
-            </p>
-          </div>
+      {canManageRoles && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <div>
+              <p className="font-semibold text-foreground">Khai báo</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Thiết lập nhanh các thông tin phân quyền và cửa hàng làm việc.
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => handleOpenDeclaration("role")}
-              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Shield className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Khai báo role</p>
-                  <p className="text-xs text-muted-foreground">Thiết lập quyền cho nhân viên.</p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => navigate("/declarations?section=role")}
+                className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Shield className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Khai báo role</p>
+                    <p className="text-xs text-muted-foreground">Thiết lập quyền cho nhân viên.</p>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
 
-            <button
-              type="button"
-              onClick={() => handleOpenDeclaration("workplace")}
-              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Building2 className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Khai báo cửa hàng làm việc</p>
-                  <p className="text-xs text-muted-foreground">Chọn cửa hàng áp dụng.</p>
+              <button
+                type="button"
+                onClick={() => navigate("/declarations?section=store")}
+                className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Building2 className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Khai báo cửa hàng làm việc</p>
+                    <p className="text-xs text-muted-foreground">Chọn cửa hàng áp dụng.</p>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Button
         variant="outline"
@@ -611,7 +616,7 @@ export default function AppSettings() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-2" ref={roleSectionRef}>
+              <div className="space-y-2">
                 {loadingRoleUsers ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -629,15 +634,15 @@ export default function AppSettings() {
                     </CardContent>
                   </Card>
                 ) : (
-                  roleUsers.map((u, index) => {
+                  roleUsers.map((u) => {
                     const editable = canEditTarget(u.user_id, u.role);
                     const isSaving = savingUserId === u.user_id;
                     const roleOptions = editable ? optionsForTarget : [u.role];
                     const selectedWorkplaceId = workplaceByUser[u.user_id] ?? "";
-                    const selectedWorkplace = WORKPLACE_OPTIONS.find((option) => option.id === selectedWorkplaceId);
-                    const workplaceLabel = selectedWorkplace?.label ?? "Chọn cửa hàng làm việc";
+                    const selectedWorkplace = workplaceOptions.find((option) => option.id === selectedWorkplaceId);
+                    const workplaceLabel =
+                      selectedWorkplace?.label ?? (workplaceOptions.length > 0 ? "Chọn cửa hàng làm việc" : "Chưa khai báo cửa hàng");
                     const workplaceOpen = workplaceOpenFor === u.user_id;
-                    const workplaceLabelRef = index === 0 ? workplaceSectionRef : undefined;
 
                     return (
                       <Card key={u.user_id} className="border-0 shadow-sm">
@@ -669,9 +674,7 @@ export default function AppSettings() {
                             </div>
 
                             <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground" ref={workplaceLabelRef}>
-                                Cửa hàng làm việc
-                              </p>
+                              <p className="text-xs text-muted-foreground">Cửa hàng làm việc</p>
                               <Popover
                                 open={workplaceOpen}
                                 onOpenChange={(open) => setWorkplaceOpenFor(open ? u.user_id : null)}
@@ -682,7 +685,7 @@ export default function AppSettings() {
                                     role="combobox"
                                     aria-expanded={workplaceOpen}
                                     className="w-full justify-between h-9"
-                                    disabled={!editable}
+                                    disabled={!editable || workplaceOptions.length === 0}
                                   >
                                     <span className="truncate">{workplaceLabel}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
@@ -694,7 +697,7 @@ export default function AppSettings() {
                                     <CommandList>
                                       <CommandEmpty>Không tìm thấy cửa hàng.</CommandEmpty>
                                       <CommandGroup>
-                                        {WORKPLACE_OPTIONS.map((option) => {
+                                        {workplaceOptions.map((option) => {
                                           const isSelected = option.id === selectedWorkplaceId;
                                           return (
                                             <CommandItem

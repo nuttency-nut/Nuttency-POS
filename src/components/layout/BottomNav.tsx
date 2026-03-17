@@ -34,7 +34,8 @@ export default function BottomNav() {
         {visibleItems.map((item) => {
           const isActive =
             location.pathname === item.path ||
-            (item.path === "/settings" && location.pathname === "/payment-lookup");
+            (item.path === "/settings" &&
+              (location.pathname === "/payment-lookup" || location.pathname === "/declarations"));
           const Icon = item.icon;
 
           return (
