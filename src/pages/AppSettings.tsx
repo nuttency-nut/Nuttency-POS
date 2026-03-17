@@ -1,11 +1,13 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, ChevronRight, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
+import { Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
@@ -55,6 +57,12 @@ const ASSIGNABLE_ROLES: Record<AppRole, AppRole[]> = {
   no_role: [],
 };
 
+const WORKPLACE_OPTIONS = [
+  { id: "store-1", label: "Cửa hàng 1" },
+  { id: "store-2", label: "Cửa hàng 2" },
+  { id: "store-3", label: "Cửa hàng 3" },
+];
+
 export default function AppSettings() {
   const { user, role, signOut } = useAuth();
   const navigate = useNavigate();
@@ -68,10 +76,15 @@ export default function AppSettings() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [registrationScannerOpen, setRegistrationScannerOpen] = useState(false);
   const [approvingRegistrationQr, setApprovingRegistrationQr] = useState(false);
+  const [workplaceOpenFor, setWorkplaceOpenFor] = useState<string | null>(null);
+  const [workplaceByUser, setWorkplaceByUser] = useState<Record<string, string>>({});
+  const [pendingDeclarationScroll, setPendingDeclarationScroll] = useState<"role" | "workplace" | null>(null);
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const roleSectionRef = useRef<HTMLDivElement>(null);
+  const workplaceSectionRef = useRef<HTMLParagraphElement>(null);
 
   const currentRole: AppRole = role ?? "no_role";
   const canManageRoles = currentRole === "admin" || currentRole === "manager";
@@ -260,6 +273,20 @@ export default function AppSettings() {
   }, [activeTab, canManageRoles, loadRoleUsers]);
 
   useEffect(() => {
+    if (activeTab !== "roles" || !pendingDeclarationScroll) return;
+    if (pendingDeclarationScroll === "workplace" && (loadingRoleUsers || roleUsers.length === 0)) return;
+
+    const target =
+      pendingDeclarationScroll === "workplace" ? workplaceSectionRef.current : roleSectionRef.current;
+    if (!target) return;
+
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    setPendingDeclarationScroll(null);
+  }, [activeTab, loadingRoleUsers, pendingDeclarationScroll, roleUsers.length]);
+
+  useEffect(() => {
     if (!canManageRoles) return;
 
     const handleResume = () => {
@@ -328,6 +355,11 @@ export default function AppSettings() {
     toast.success("Đã cập nhật quyền");
     setSavingUserId(null);
   };
+
+  const handleOpenDeclaration = useCallback((section: "role" | "workplace") => {
+    setActiveTab("roles");
+    setPendingDeclarationScroll(section);
+  }, []);
 
   const handleApproveRegistrationQr = async (rawValue: string) => {
     if (currentRole !== "admin") {
@@ -472,6 +504,53 @@ export default function AppSettings() {
         </Card>
       )}
 
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4 space-y-3">
+          <div>
+            <p className="font-semibold text-foreground">Khai báo</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Thiết lập nhanh các thông tin phân quyền và cửa hàng làm việc.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => handleOpenDeclaration("role")}
+              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Shield className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Khai báo role</p>
+                  <p className="text-xs text-muted-foreground">Thiết lập quyền cho nhân viên.</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenDeclaration("workplace")}
+              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Building2 className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Khai báo cửa hàng làm việc</p>
+                  <p className="text-xs text-muted-foreground">Chọn cửa hàng áp dụng.</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Button
         variant="outline"
         onClick={handleSignOut}
@@ -532,7 +611,7 @@ export default function AppSettings() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-2">
+              <div className="space-y-2" ref={roleSectionRef}>
                 {loadingRoleUsers ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -550,10 +629,15 @@ export default function AppSettings() {
                     </CardContent>
                   </Card>
                 ) : (
-                  roleUsers.map((u) => {
+                  roleUsers.map((u, index) => {
                     const editable = canEditTarget(u.user_id, u.role);
                     const isSaving = savingUserId === u.user_id;
                     const roleOptions = editable ? optionsForTarget : [u.role];
+                    const selectedWorkplaceId = workplaceByUser[u.user_id] ?? "";
+                    const selectedWorkplace = WORKPLACE_OPTIONS.find((option) => option.id === selectedWorkplaceId);
+                    const workplaceLabel = selectedWorkplace?.label ?? "Chọn cửa hàng làm việc";
+                    const workplaceOpen = workplaceOpenFor === u.user_id;
+                    const workplaceLabelRef = index === 0 ? workplaceSectionRef : undefined;
 
                     return (
                       <Card key={u.user_id} className="border-0 shadow-sm">
@@ -563,24 +647,78 @@ export default function AppSettings() {
                             <p className="text-xs text-muted-foreground truncate">{u.email || "Chưa có email"}</p>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <Select
-                              value={u.role}
-                              onValueChange={(v) => void handleChangeRole(u, v as AppRole)}
-                              disabled={!editable || isSaving}
-                            >
-                              <SelectTrigger className="h-9">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {roleOptions.map((r) => (
-                                  <SelectItem key={r} value={r}>
-                                    {ROLE_LABEL[r]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {isSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Select
+                                value={u.role}
+                                onValueChange={(v) => void handleChangeRole(u, v as AppRole)}
+                                disabled={!editable || isSaving}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {roleOptions.map((r) => (
+                                    <SelectItem key={r} value={r}>
+                                      {ROLE_LABEL[r]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {isSaving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground" ref={workplaceLabelRef}>
+                                Cửa hàng làm việc
+                              </p>
+                              <Popover
+                                open={workplaceOpen}
+                                onOpenChange={(open) => setWorkplaceOpenFor(open ? u.user_id : null)}
+                              >
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={workplaceOpen}
+                                    className="w-full justify-between h-9"
+                                    disabled={!editable}
+                                  >
+                                    <span className="truncate">{workplaceLabel}</span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Tìm cửa hàng..." />
+                                    <CommandList>
+                                      <CommandEmpty>Không tìm thấy cửa hàng.</CommandEmpty>
+                                      <CommandGroup>
+                                        {WORKPLACE_OPTIONS.map((option) => {
+                                          const isSelected = option.id === selectedWorkplaceId;
+                                          return (
+                                            <CommandItem
+                                              key={option.id}
+                                              value={option.label}
+                                              onSelect={() => {
+                                                setWorkplaceByUser((prev) => ({
+                                                  ...prev,
+                                                  [u.user_id]: option.id,
+                                                }));
+                                                setWorkplaceOpenFor(null);
+                                              }}
+                                            >
+                                              <Check className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                                              {option.label}
+                                            </CommandItem>
+                                          );
+                                        })}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
                           </div>
 
                           {!editable && (
