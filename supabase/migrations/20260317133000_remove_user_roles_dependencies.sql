@@ -111,8 +111,8 @@ BEGIN
 
   v_expires_at := to_timestamp((v_slot + 1) * 60 + 5);
 
-  DELETE FROM public.registration_qr_approvals
-  WHERE expires_at <= NOW();
+  DELETE FROM public.registration_qr_approvals r
+  WHERE r.expires_at <= NOW();
 
   INSERT INTO public.registration_qr_approvals (payload, approved_by, approved_at, expires_at)
   VALUES (v_payload, auth.uid(), NOW(), v_expires_at)
@@ -133,6 +133,7 @@ DO $$
 BEGIN
   IF to_regclass('public.profiles') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can view all profiles" ON public.profiles;
+    DROP POLICY IF EXISTS "Roles can view all profiles" ON public.profiles;
     CREATE POLICY "Roles can view all profiles"
       ON public.profiles FOR SELECT
       TO authenticated
@@ -147,6 +148,7 @@ BEGIN
     DROP POLICY IF EXISTS "Managers can insert categories" ON public.categories;
     DROP POLICY IF EXISTS "Managers can update categories" ON public.categories;
     DROP POLICY IF EXISTS "Managers can delete categories" ON public.categories;
+    DROP POLICY IF EXISTS "Roles can manage categories" ON public.categories;
     CREATE POLICY "Roles can manage categories"
       ON public.categories FOR ALL
       TO authenticated
@@ -162,6 +164,7 @@ BEGIN
     DROP POLICY IF EXISTS "Managers can insert products" ON public.products;
     DROP POLICY IF EXISTS "Managers can update products" ON public.products;
     DROP POLICY IF EXISTS "Managers can delete products" ON public.products;
+    DROP POLICY IF EXISTS "Roles can manage products" ON public.products;
     CREATE POLICY "Roles can manage products"
       ON public.products FOR ALL
       TO authenticated
@@ -177,6 +180,7 @@ BEGIN
     DROP POLICY IF EXISTS "Managers can insert variants" ON public.product_variants;
     DROP POLICY IF EXISTS "Managers can update variants" ON public.product_variants;
     DROP POLICY IF EXISTS "Managers can delete variants" ON public.product_variants;
+    DROP POLICY IF EXISTS "Roles can manage product variants" ON public.product_variants;
     CREATE POLICY "Roles can manage product variants"
       ON public.product_variants FOR ALL
       TO authenticated
@@ -192,6 +196,7 @@ BEGIN
     DROP POLICY IF EXISTS "Managers can insert classification groups" ON public.product_classification_groups;
     DROP POLICY IF EXISTS "Managers can update classification groups" ON public.product_classification_groups;
     DROP POLICY IF EXISTS "Managers can delete classification groups" ON public.product_classification_groups;
+    DROP POLICY IF EXISTS "Roles can manage product classification groups" ON public.product_classification_groups;
     CREATE POLICY "Roles can manage product classification groups"
       ON public.product_classification_groups FOR ALL
       TO authenticated
@@ -206,6 +211,7 @@ BEGIN
     DROP POLICY IF EXISTS "Managers can insert classification options" ON public.product_classification_options;
     DROP POLICY IF EXISTS "Managers can update classification options" ON public.product_classification_options;
     DROP POLICY IF EXISTS "Managers can delete classification options" ON public.product_classification_options;
+    DROP POLICY IF EXISTS "Roles can manage product classification options" ON public.product_classification_options;
     CREATE POLICY "Roles can manage product classification options"
       ON public.product_classification_options FOR ALL
       TO authenticated
@@ -219,6 +225,7 @@ DO $$
 BEGIN
   IF to_regclass('public.classification_group_catalog') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can manage classification group catalog" ON public.classification_group_catalog;
+    DROP POLICY IF EXISTS "Roles can manage classification group catalog" ON public.classification_group_catalog;
     CREATE POLICY "Roles can manage classification group catalog"
       ON public.classification_group_catalog FOR ALL
       TO authenticated
@@ -231,6 +238,7 @@ DO $$
 BEGIN
   IF to_regclass('public.classification_option_catalog') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can manage classification option catalog" ON public.classification_option_catalog;
+    DROP POLICY IF EXISTS "Roles can manage classification option catalog" ON public.classification_option_catalog;
     CREATE POLICY "Roles can manage classification option catalog"
       ON public.classification_option_catalog FOR ALL
       TO authenticated
@@ -243,6 +251,7 @@ DO $$
 BEGIN
   IF to_regclass('public.product_classification_group_links') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can manage product classification group links" ON public.product_classification_group_links;
+    DROP POLICY IF EXISTS "Roles can manage product classification group links" ON public.product_classification_group_links;
     CREATE POLICY "Roles can manage product classification group links"
       ON public.product_classification_group_links FOR ALL
       TO authenticated
@@ -255,6 +264,7 @@ DO $$
 BEGIN
   IF to_regclass('public.product_classification_option_links') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can manage product classification option links" ON public.product_classification_option_links;
+    DROP POLICY IF EXISTS "Roles can manage product classification option links" ON public.product_classification_option_links;
     CREATE POLICY "Roles can manage product classification option links"
       ON public.product_classification_option_links FOR ALL
       TO authenticated
@@ -269,6 +279,8 @@ BEGIN
   IF to_regclass('public.orders') IS NOT NULL THEN
     DROP POLICY IF EXISTS "Managers can update orders" ON public.orders;
     DROP POLICY IF EXISTS "Managers can delete orders" ON public.orders;
+    DROP POLICY IF EXISTS "Roles can update orders" ON public.orders;
+    DROP POLICY IF EXISTS "Roles can delete orders" ON public.orders;
     CREATE POLICY "Roles can update orders"
       ON public.orders FOR UPDATE
       TO authenticated

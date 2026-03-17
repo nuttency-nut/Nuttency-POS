@@ -16,6 +16,7 @@ type RoleDeclaration = {
   id: string;
   name: string;
   description: string;
+  parentRoleId: string | null;
   permissions: Record<string, boolean>;
 };
 
@@ -31,6 +32,7 @@ const mapRoleRow = (row: any): RoleDeclaration => ({
   id: String(row?.id ?? ""),
   name: String(row?.name ?? ""),
   description: String(row?.description ?? ""),
+  parentRoleId: row?.parent_role_id ? String(row.parent_role_id) : null,
   permissions: {
     ...getDefaultPermissions(),
     ...((row?.permissions as Record<string, boolean>) ?? {}),
@@ -63,6 +65,8 @@ export default function Declarations() {
   const [roleForm, setRoleForm] = useState(() => ({
     name: "",
     description: "",
+    roleLevel: "parent" as "parent" | "child",
+    parentRoleId: "",
     permissions: getDefaultPermissions(),
   }));
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
@@ -81,12 +85,29 @@ export default function Declarations() {
     return `${code} - ${store}`;
   }, [storeForm.storeName, storeForm.warehouseCode]);
 
+  const parentRoleOptions = useMemo(() => {
+    const options = roleDeclarations.filter((role) => role.id !== editingRoleId);
+    if (roleForm.parentRoleId && !options.some((role) => role.id === roleForm.parentRoleId)) {
+      return [
+        ...options,
+        {
+          id: roleForm.parentRoleId,
+          name: "Role cha không tồn tại",
+          description: "",
+          parentRoleId: null,
+          permissions: {},
+        } as RoleDeclaration,
+      ];
+    }
+    return options;
+  }, [roleDeclarations, editingRoleId, roleForm.parentRoleId]);
+
   const loadRoles = async () => {
     setLoadingRoles(true);
     try {
       const { data, error } = await db
         .from("role_definitions")
-        .select("id,name,description,permissions,created_at")
+        .select("id,name,description,parent_role_id,permissions,created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       setRoleDeclarations((data ?? []).map(mapRoleRow));
@@ -124,6 +145,8 @@ export default function Declarations() {
     setRoleForm({
       name: "",
       description: "",
+      roleLevel: "parent",
+      parentRoleId: "",
       permissions: getDefaultPermissions(),
     });
     setEditingRoleId(null);
@@ -144,19 +167,24 @@ export default function Declarations() {
       toast.error("Vui lòng nhập tên role");
       return;
     }
+    if (roleForm.roleLevel === "child" && !roleForm.parentRoleId) {
+      toast.error("Vui lòng chọn role cha");
+      return;
+    }
 
     try {
       if (editingRoleId) {
         const payload = {
           name,
           description: roleForm.description.trim(),
+          parent_role_id: roleForm.roleLevel === "child" ? roleForm.parentRoleId : null,
           permissions: roleForm.permissions,
         };
         const { data, error } = await db
           .from("role_definitions")
           .update(payload)
           .eq("id", editingRoleId)
-          .select("id,name,description,permissions")
+          .select("id,name,description,parent_role_id,permissions")
           .single();
         if (error) throw error;
         setRoleDeclarations((prev) =>
@@ -170,12 +198,13 @@ export default function Declarations() {
       const payload = {
         name,
         description: roleForm.description.trim(),
+        parent_role_id: roleForm.roleLevel === "child" ? roleForm.parentRoleId : null,
         permissions: roleForm.permissions,
       };
       const { data, error } = await db
         .from("role_definitions")
         .insert(payload)
-        .select("id,name,description,permissions")
+        .select("id,name,description,parent_role_id,permissions")
         .single();
       if (error) throw error;
       setRoleDeclarations((prev) => [...prev, mapRoleRow(data ?? payload)]);
@@ -212,6 +241,8 @@ export default function Declarations() {
     setRoleForm({
       name: role.name,
       description: role.description ?? "",
+      roleLevel: role.parentRoleId ? "child" : "parent",
+      parentRoleId: role.parentRoleId ?? "",
       permissions: { ...getDefaultPermissions(), ...role.permissions },
     });
   };
@@ -359,6 +390,53 @@ export default function Declarations() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Cấp bậc</label>
+                  <Select
+                    value={roleForm.roleLevel}
+                    onValueChange={(value) =>
+                      setRoleForm((prev) => ({
+                        ...prev,
+                        roleLevel: value as "parent" | "child",
+                        parentRoleId: value === "parent" ? "" : prev.parentRoleId,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Chọn cấp bậc" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="parent">Cấp bậc cha</SelectItem>
+                      <SelectItem value="child">Cấp bậc con</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {roleForm.roleLevel === "child" && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Role cha</label>
+                      <Select
+                        value={roleForm.parentRoleId}
+                        onValueChange={(value) => setRoleForm((prev) => ({ ...prev, parentRoleId: value }))}
+                      >
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Chọn role cha" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {parentRoleOptions.length === 0 ? (
+                            <SelectItem value="__none__" disabled>
+                              Chưa có role cha
+                            </SelectItem>
+                          ) : (
+                            parentRoleOptions.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                {role.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
                   <label className="text-xs text-muted-foreground">Cấp quyền</label>
                   <div className="grid gap-2">
                     {PERMISSION_TREE.map((node) => {
@@ -424,12 +502,19 @@ export default function Declarations() {
                 <div className="space-y-2">
                   {roleDeclarations.map((role) => {
                     const enabledCount = permissionIndex.allKeys.filter((key) => role.permissions?.[key]).length;
+                    const parentRole = role.parentRoleId
+                      ? roleDeclarations.find((item) => item.id === role.parentRoleId)
+                      : null;
+                    const hierarchyLabel = role.parentRoleId
+                      ? `Con của ${parentRole?.name ?? "Không xác định"}`
+                      : "Cấp cha";
                     return (
                       <div key={role.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">{role.name}</p>
                             <p className="text-xs text-muted-foreground">{role.description || "Chưa có mô tả"}</p>
+                            <p className="text-xs text-muted-foreground">Cấp bậc: {hierarchyLabel}</p>
                           </div>
                           <span className="text-xs text-muted-foreground">{enabledCount} quyền bật</span>
                         </div>
