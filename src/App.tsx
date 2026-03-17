@@ -12,6 +12,7 @@ import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import PaymentLookup from "./pages/PaymentLookup";
 import Declarations from "./pages/Declarations";
+import PendingApproval from "./pages/PendingApproval";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
@@ -43,11 +44,14 @@ function AppResumeSync() {
 function ProtectedRoute({
   children,
   requiredPermissions,
+  allowWithoutPermissions,
 }: {
   children: React.ReactNode;
   requiredPermissions?: string[];
+  allowWithoutPermissions?: boolean;
 }) {
-  const { session, loading, hasPermission } = useAuth();
+  const { session, loading, hasPermission, permissions } = useAuth();
+  const hasAnyPermission = Object.values(permissions ?? {}).some(Boolean);
 
   if (loading) {
     return (
@@ -64,6 +68,10 @@ function ProtectedRoute({
     return <Navigate to="/auth" replace />;
   }
 
+  if (!hasAnyPermission && !allowWithoutPermissions) {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   if (requiredPermissions && requiredPermissions.length > 0) {
     const hasAccess = requiredPermissions.some((permission) => hasPermission(permission));
     if (!hasAccess) {
@@ -75,8 +83,9 @@ function ProtectedRoute({
 }
 
 function AppRoutes() {
-  const { session, loading, hasPermission } = useAuth();
+  const { session, loading, hasPermission, permissions } = useAuth();
   const allowAuthForRecovery = isAuthRecoveryFlow();
+  const hasAnyPermission = Object.values(permissions ?? {}).some(Boolean);
 
   if (loading) {
     return (
@@ -89,21 +98,23 @@ function AppRoutes() {
     );
   }
 
-  const defaultRoute = hasPermission("pos")
-    ? "/pos"
-    : hasPermission("orders")
-      ? "/orders"
-      : hasPermission("products")
-        ? "/products"
-        : hasPermission("reports")
-          ? "/reports"
-          : "/settings";
+  const defaultRoute = !hasAnyPermission
+    ? "/pending-approval"
+    : hasPermission("pos")
+      ? "/pos"
+      : hasPermission("orders")
+        ? "/orders"
+        : hasPermission("products")
+          ? "/products"
+          : hasPermission("reports")
+            ? "/reports"
+            : "/settings";
 
   return (
     <Routes>
       <Route
         path="/auth"
-        element={session && !allowAuthForRecovery ? <Navigate to="/pos" replace /> : <Auth />}
+        element={session && !allowAuthForRecovery ? <Navigate to={defaultRoute} replace /> : <Auth />}
       />
       <Route
         path="/"
@@ -152,6 +163,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pending-approval"
+        element={
+          <ProtectedRoute allowWithoutPermissions>
+            <PendingApproval />
           </ProtectedRoute>
         }
       />

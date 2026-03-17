@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { getAllPermissions, getDefaultPermissions } from "@/lib/permissions";
 
 type SystemRole = "admin" | "manager" | "staff" | "no_role";
 type DeclaredRole = {
@@ -35,18 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
   const db = supabase as any;
 
-  const fetchRole = async (userId: string): Promise<SystemRole> => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (error) {
-      return "no_role";
-    }
-
-    return (data?.role as SystemRole) ?? "no_role";
+  const fetchRole = async (_userId: string): Promise<SystemRole> => {
+    return "no_role";
   };
 
   const fetchDeclaredRole = async (userId: string): Promise<DeclaredRole | null> => {
@@ -77,36 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const getFallbackPermissions = (systemRole: SystemRole | null) => {
-    if (!systemRole || systemRole === "no_role") return {};
-    if (systemRole === "admin") return getAllPermissions();
-
-    const fallback = getDefaultPermissions();
-    if (systemRole === "manager") {
-      [
-        "pos",
-        "orders",
-        "orders.update",
-        "reports",
-        "settings",
-        "settings.roles",
-        "settings.transfer_lookup",
-        "settings.role_declaration",
-        "settings.store_declaration",
-      ].forEach((key) => {
-        fallback[key] = true;
-      });
-      return fallback;
-    }
-
-    if (systemRole === "staff") {
-      ["pos", "orders", "orders.update", "settings", "settings.transfer_lookup"].forEach((key) => {
-        fallback[key] = true;
-      });
-      return fallback;
-    }
-
-    return fallback;
+  const getFallbackPermissions = (_systemRole: SystemRole | null) => {
+    return {};
   };
 
   const resolvePermissions = (systemRole: SystemRole | null, roleData: DeclaredRole | null) => {
