@@ -53,6 +53,8 @@ export default function QrScannerDialog({
   const detectorRef = useRef<BarcodeLikeDetector | null>(null);
   const zxingReaderRef = useRef<MultiFormatReader | null>(null);
   const detectedRef = useRef(false);
+  const onDetectedRef = useRef(onDetected);
+  const onOpenChangeRef = useRef(onOpenChange);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const stopScanner = () => {
@@ -71,9 +73,17 @@ export default function QrScannerDialog({
     if (detectedRef.current) return;
     detectedRef.current = true;
     stopScanner();
-    onDetected(value);
-    onOpenChange(false);
+    onDetectedRef.current(value);
+    onOpenChangeRef.current(false);
   };
+
+  useEffect(() => {
+    onDetectedRef.current = onDetected;
+  }, [onDetected]);
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
 
   useEffect(() => {
     if (!open) {
@@ -220,7 +230,7 @@ export default function QrScannerDialog({
       cancelled = true;
       stopScanner();
     };
-  }, [open, onDetected, onOpenChange]);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
