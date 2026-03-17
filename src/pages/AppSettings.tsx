@@ -508,52 +508,49 @@ export default function AppSettings() {
       )}
 
       {canManageRoles && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4 space-y-3">
-            <div>
-              <p className="font-semibold text-foreground">Khai báo</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Thiết lập nhanh các thông tin phân quyền và cửa hàng làm việc.
-              </p>
-            </div>
-
-            <div className="space-y-2">
+        <>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
               <button
                 type="button"
                 onClick={() => navigate("/declarations?section=role")}
-                className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Shield className="h-4 w-4" />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Shield className="h-5 w-5" />
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Khai báo role</p>
-                    <p className="text-xs text-muted-foreground">Thiết lập quyền cho nhân viên.</p>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Khai báo role</p>
+                    <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa role.</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </button>
+            </CardContent>
+          </Card>
 
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
               <button
                 type="button"
                 onClick={() => navigate("/declarations?section=store")}
-                className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-left transition hover:bg-muted/40 active:scale-[0.99]"
+                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Building2 className="h-4 w-4" />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Building2 className="h-5 w-5" />
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Khai báo cửa hàng làm việc</p>
-                    <p className="text-xs text-muted-foreground">Chọn cửa hàng áp dụng.</p>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Khai báo cửa hàng làm việc</p>
+                    <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa cửa hàng.</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Button
