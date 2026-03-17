@@ -28,6 +28,7 @@ type DeclaredRole = {
   id: string;
   name: string;
   description: string | null;
+  parentRoleId: string | null;
   permissions?: Record<string, boolean>;
 };
 
@@ -87,6 +88,77 @@ export default function AppSettings() {
   const canDeclareRoles = hasPermission("settings.role_declaration");
   const canDeclareStores = hasPermission("settings.store_declaration");
   const roleLabel = declaredRole?.name ?? SYSTEM_ROLE_LABEL[currentSystemRole];
+  const currentRoleId = declaredRole?.id ?? null;
+
+  const roleById = useMemo(() => {
+    return new Map(declaredRoles.map((role) => [role.id, role]));
+  }, [declaredRoles]);
+
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, string[]>();
+    declaredRoles.forEach((role) => {
+      const parentId = role.parentRoleId && roleById.has(role.parentRoleId) ? role.parentRoleId : null;
+      const list = map.get(parentId) ?? [];
+      list.push(role.id);
+      map.set(parentId, list);
+    });
+    return map;
+  }, [declaredRoles, roleById]);
+
+  const descendantsById = useMemo(() => {
+    const memo = new Map<string, Set<string>>();
+    const walk = (id: string, stack: Set<string>) => {
+      if (memo.has(id)) return memo.get(id)!;
+      if (stack.has(id)) return new Set<string>();
+      const nextStack = new Set(stack);
+      nextStack.add(id);
+      const children = childrenByParent.get(id) ?? [];
+      const result = new Set<string>();
+      children.forEach((childId) => {
+        result.add(childId);
+        walk(childId, nextStack).forEach((desc) => result.add(desc));
+      });
+      memo.set(id, result);
+      return result;
+    };
+    declaredRoles.forEach((role) => {
+      walk(role.id, new Set());
+    });
+    return memo;
+  }, [declaredRoles, childrenByParent]);
+
+  const currentStoreId = workplaceByUser[user?.id ?? ""] ?? "";
+
+  const assignableRoleIds = useMemo(() => {
+    if (!currentRoleId) return new Set<string>();
+    return descendantsById.get(currentRoleId) ?? new Set<string>();
+  }, [currentRoleId, descendantsById]);
+
+  const canEditTarget = useCallback(
+    (targetUserId: string, targetRoleId: string | null) => {
+      if (!canManageRoles) return false;
+      if (!user?.id) return false;
+      if (targetUserId === user.id) return false;
+      if (!currentRoleId) return false;
+
+      const targetStoreId = workplaceByUser[targetUserId] ?? "";
+      const storeAllowed = !targetStoreId || (currentStoreId && targetStoreId === currentStoreId);
+      if (!storeAllowed) return false;
+
+      if (!targetRoleId) return true;
+      if (targetRoleId === currentRoleId) return false;
+      const descendants = descendantsById.get(currentRoleId);
+      return descendants ? descendants.has(targetRoleId) : false;
+    },
+    [canManageRoles, user?.id, currentRoleId, workplaceByUser, currentStoreId, descendantsById]
+  );
+
+  const visibleRoleUsers = useMemo(() => {
+    if (!user?.id) return [];
+    return roleUsers.filter(
+      (u) => u.user_id === user.id || canEditTarget(u.user_id, u.declared_role_id)
+    );
+  }, [roleUsers, user?.id, canEditTarget]);
 
   useEffect(() => {
     const loadAvatar = async () => {
@@ -283,7 +355,7 @@ export default function AppSettings() {
       try {
         const { data, error } = await db
           .from("role_definitions")
-          .select("id,name,description,permissions,created_at")
+          .select("id,name,description,parent_role_id,permissions,created_at")
           .order("created_at", { ascending: true });
 
         if (error) throw error;
@@ -291,6 +363,7 @@ export default function AppSettings() {
           id: String(item.id ?? ""),
           name: String(item.name ?? ""),
           description: item.description ?? null,
+          parentRoleId: item.parent_role_id ? String(item.parent_role_id) : null,
           permissions: item.permissions ?? {},
         }));
         setDeclaredRoles(nextRoles);
@@ -358,17 +431,10 @@ export default function AppSettings() {
     };
   }, [activeTab, canManageRoles, loadRoleUsers, loadDeclaredRoles, loadStoreOptions]);
 
-  const canEditTarget = (targetUserId: string) => {
-    if (!canManageRoles) return false;
-    if (!user?.id) return false;
-    if (targetUserId === user.id) return false;
-    return true;
-  };
-
   const handleChangeRole = async (targetUser: RoleUser, nextRoleId: string) => {
     if (!user?.id || !canManageRoles) return;
 
-    if (!canEditTarget(targetUser.user_id)) {
+    if (!canEditTarget(targetUser.user_id, targetUser.declared_role_id)) {
       toast.error("Bạn không thể chỉnh sửa quyền tài khoản này");
       return;
     }
@@ -412,6 +478,12 @@ export default function AppSettings() {
 
   const handleChangeWorkplace = async (targetUserId: string, nextStoreId: string) => {
     if (!user?.id || !canManageRoles) return;
+    const targetRoleId = roleUsers.find((u) => u.user_id === targetUserId)?.declared_role_id ?? null;
+
+    if (!canEditTarget(targetUserId, targetRoleId)) {
+      toast.error("Bạn không thể chỉnh sửa quyền tài khoản này");
+      return;
+    }
 
     setSavingWorkplaceUserId(targetUserId);
     try {
@@ -706,28 +778,29 @@ export default function AppSettings() {
                       
                     </CardContent>
                   </Card>
-                ) : roleUsers.length === 0 ? (
+                ) : visibleRoleUsers.length === 0 ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">Chưa lấy được danh sách tài khoản.</p>
+                      <p className="text-sm text-muted-foreground">Không có tài khoản phù hợp để phân quyền.</p>
                       <Button variant="outline" size="sm" onClick={() => void loadRoleUsers()}>
                         Tải lại
                       </Button>
                     </CardContent>
                   </Card>
                 ) : (
-                  roleUsers.map((u) => {
-                    const editable = canEditTarget(u.user_id);
+                  visibleRoleUsers.map((u) => {
+                    const editable = canEditTarget(u.user_id, u.declared_role_id);
                     const isSaving = savingUserId === u.user_id;
                     const selectedRole = declaredRoles.find((role) => role.id === u.declared_role_id) ?? null;
+                    const assignableRoles = declaredRoles.filter((role) => assignableRoleIds.has(role.id));
                     const missingRole = u.declared_role_id && !selectedRole
                       ? { id: u.declared_role_id, name: "Role không tồn tại", description: null }
                       : null;
                     const roleValue = u.declared_role_id ?? UNASSIGNED_ROLE_VALUE;
                     const roleOptions = editable
                       ? missingRole
-                        ? [...declaredRoles, missingRole]
-                        : declaredRoles
+                        ? [...assignableRoles, missingRole]
+                        : assignableRoles
                       : selectedRole
                         ? [selectedRole]
                         : missingRole
