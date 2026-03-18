@@ -1,12 +1,13 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Shield, Sun, User } from "lucide-react";
+import { Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,6 +77,7 @@ export default function AppSettings() {
   const [workplaceOpenFor, setWorkplaceOpenFor] = useState<string | null>(null);
   const [workplaceByUser, setWorkplaceByUser] = useState<Record<string, string>>({});
   const [workplaceOptions, setWorkplaceOptions] = useState<WorkplaceOption[]>([]);
+  const [roleSearch, setRoleSearch] = useState("");
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
@@ -159,6 +161,16 @@ export default function AppSettings() {
       (u) => u.user_id === user.id || canEditTarget(u.user_id, u.declared_role_id)
     );
   }, [roleUsers, user?.id, canEditTarget]);
+
+  const filteredRoleUsers = useMemo(() => {
+    const query = roleSearch.trim().toLowerCase();
+    if (!query) return visibleRoleUsers;
+    return visibleRoleUsers.filter((u) => {
+      const name = (u.full_name ?? "").toLowerCase();
+      const email = (u.email ?? "").toLowerCase();
+      return name.includes(query) || email.includes(query);
+    });
+  }, [roleSearch, visibleRoleUsers]);
 
   useEffect(() => {
     const loadAvatar = async () => {
@@ -719,7 +731,7 @@ export default function AppSettings() {
 
   return (
     <AppLayout title="Cài đặt">
-      <div className="p-4 space-y-4">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-24 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">
@@ -770,6 +782,20 @@ export default function AppSettings() {
                 </CardContent>
               </Card>
 
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={roleSearch}
+                      onChange={(event) => setRoleSearch(event.target.value)}
+                      placeholder="Tìm theo tên hoặc email..."
+                      className="h-10 pl-9"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               <div className="space-y-2">
                 {loadingRoleUsers ? (
                   <Card className="border-0 shadow-sm">
@@ -778,17 +804,21 @@ export default function AppSettings() {
                       
                     </CardContent>
                   </Card>
-                ) : visibleRoleUsers.length === 0 ? (
+                ) : filteredRoleUsers.length === 0 ? (
                   <Card className="border-0 shadow-sm">
                     <CardContent className="p-4 space-y-2">
-                      <p className="text-sm text-muted-foreground">Không có tài khoản phù hợp để phân quyền.</p>
+                      <p className="text-sm text-muted-foreground">
+                        {roleSearch.trim()
+                          ? "Không tìm thấy tài khoản phù hợp."
+                          : "Không có tài khoản phù hợp để phân quyền."}
+                      </p>
                       <Button variant="outline" size="sm" onClick={() => void loadRoleUsers()}>
                         Tải lại
                       </Button>
                     </CardContent>
                   </Card>
                 ) : (
-                  visibleRoleUsers.map((u) => {
+                  filteredRoleUsers.map((u) => {
                     const editable = canEditTarget(u.user_id, u.declared_role_id);
                     const isSaving = savingUserId === u.user_id;
                     const selectedRole = declaredRoles.find((role) => role.id === u.declared_role_id) ?? null;
