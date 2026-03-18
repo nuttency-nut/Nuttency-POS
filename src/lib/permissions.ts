@@ -19,6 +19,7 @@ export const PERMISSION_TREE: PermissionNode[] = [
         children: [{ key: "settings.roles.qr", label: "Xác thực (QRcode)" }],
       },
       { key: "settings.transfer_lookup", label: "Tra cứu giao dịch chuyển khoản" },
+      { key: "settings.cash_deposit", label: "Nộp tiền mặt" },
       { key: "settings.role_declaration", label: "Khai báo role" },
       { key: "settings.store_declaration", label: "Khai báo cửa hàng làm việc" },
     ],

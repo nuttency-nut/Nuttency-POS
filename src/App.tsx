@@ -188,7 +188,7 @@ function AppRoutes() {
       <Route
         path="/cash-deposit"
         element={
-          <ProtectedRoute requiredPermissions={["settings.transfer_lookup"]}>
+          <ProtectedRoute requiredPermissions={["settings.cash_deposit"]}>
             <CashDeposit />
           </ProtectedRoute>
         }

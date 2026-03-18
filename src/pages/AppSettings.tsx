@@ -87,6 +87,7 @@ export default function AppSettings() {
   const currentSystemRole: SystemRole = systemRole ?? "no_role";
   const canManageRoles = hasPermission("settings.roles");
   const canAccessPaymentLookup = hasPermission("settings.transfer_lookup");
+  const canAccessCashDeposit = hasPermission("settings.cash_deposit");
   const canDeclareRoles = hasPermission("settings.role_declaration");
   const canDeclareStores = hasPermission("settings.store_declaration");
   const roleLabel = declaredRole?.name ?? SYSTEM_ROLE_LABEL[currentSystemRole];
@@ -94,6 +95,7 @@ export default function AppSettings() {
     (user?.user_metadata as { full_name?: string } | undefined)?.full_name?.trim() || "";
   const currentRoleId = declaredRole?.id ?? null;
   const showDeclarationsGroup = canDeclareRoles || canDeclareStores;
+  const showPaymentsGroup = canAccessPaymentLookup || canAccessCashDeposit;
 
   const roleById = useMemo(() => {
     return new Map(declaredRoles.map((role) => [role.id, role]));
@@ -655,52 +657,56 @@ export default function AppSettings() {
         </CardContent>
       </Card>
 
-      {canAccessPaymentLookup && (
+      {showPaymentsGroup && (
         <Card className="border border-border/60 bg-card/50 shadow-sm">
           <CardContent className="p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground">Giao dịch</p>
             <div className="space-y-3">
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/payment-lookup")}
-                    className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <ReceiptText className="h-5 w-5" />
-                      </span>
-                      <div className="text-left">
-                        <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
-                        <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
+              {canAccessPaymentLookup && (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/payment-lookup")}
+                      className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <ReceiptText className="h-5 w-5" />
+                        </span>
+                        <div className="text-left">
+                          <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
+                          <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
+                        </div>
                       </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                  </button>
-                </CardContent>
-              </Card>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
+                  </CardContent>
+                </Card>
+              )}
 
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-4">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/cash-deposit")}
-                    className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <Banknote className="h-5 w-5" />
-                      </span>
-                      <div className="text-left">
-                        <p className="font-semibold text-foreground">Nộp tiền mặt</p>
-                        <p className="text-xs text-muted-foreground">Tạo yêu cầu nộp tiền vào ngân hàng</p>
+              {canAccessCashDeposit && (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/cash-deposit")}
+                      className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Banknote className="h-5 w-5" />
+                        </span>
+                        <div className="text-left">
+                          <p className="font-semibold text-foreground">Nộp tiền mặt</p>
+                          <p className="text-xs text-muted-foreground">Tạo yêu cầu nộp tiền vào ngân hàng</p>
+                        </div>
                       </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                  </button>
-                </CardContent>
-              </Card>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -10,7 +10,7 @@ import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
 import ProductSearch from "@/components/products/ProductSearch";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface FlyAnimation {
