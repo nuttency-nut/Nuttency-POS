@@ -34,6 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [permissionsReady, setPermissionsReady] = useState(false);
   const mountedRef = useRef(true);
+  const currentUserIdRef = useRef<string | null>(null);
+  const permissionsReadyRef = useRef(false);
   const db = supabase as any;
 
   const fetchRole = async (_userId: string): Promise<SystemRole> => {
@@ -99,6 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === "SIGNED_IN" && newSession?.user) {
+        const isSameUser = currentUserIdRef.current === newSession.user.id;
+        if (isSameUser && permissionsReadyRef.current) {
+          return;
+        }
         setPermissionsReady(false);
         const [nextRole, nextDeclaredRole] = await Promise.all([
           fetchRole(newSession.user.id),
@@ -162,6 +168,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    currentUserIdRef.current = user?.id ?? null;
+  }, [user?.id]);
+
+  useEffect(() => {
+    permissionsReadyRef.current = permissionsReady;
+  }, [permissionsReady]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const { error } = await supabase.auth.signUp({
