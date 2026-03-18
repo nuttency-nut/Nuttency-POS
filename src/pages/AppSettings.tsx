@@ -608,7 +608,7 @@ export default function AppSettings() {
               />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">
+              <p className="text-base font-semibold text-foreground truncate">
                 {userFullName || "Chưa có tên"}
               </p>
               <p className="text-xs text-muted-foreground truncate">{user?.email ?? "Chưa có email"}</p>

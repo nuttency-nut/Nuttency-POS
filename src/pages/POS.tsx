@@ -21,6 +21,28 @@ interface FlyAnimation {
   name: string;
 }
 
+const cashHeldCache = new Map<string, number>();
+const readCachedCashHeld = (userId?: string | null) => {
+  if (!userId) return null;
+  if (cashHeldCache.has(userId)) {
+    return cashHeldCache.get(userId) ?? null;
+  }
+  if (typeof window === "undefined") return null;
+  const stored = window.sessionStorage.getItem(`cashHeld:${userId}`);
+  if (stored === null) return null;
+  const parsed = Number(stored);
+  if (!Number.isFinite(parsed)) return null;
+  cashHeldCache.set(userId, parsed);
+  return parsed;
+};
+
+const writeCachedCashHeld = (userId: string, value: number) => {
+  cashHeldCache.set(userId, value);
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(`cashHeld:${userId}`, String(value));
+  }
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -142,6 +164,8 @@ export default function POS() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  const cachedCashHeld = useMemo(() => readCachedCashHeld(user?.id), [user?.id]);
+
   const loadCashHeld = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -151,7 +175,9 @@ export default function POS() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (error) throw error;
-      setCashHeld(Number(data?.balance || 0));
+      const nextBalance = Number(data?.balance || 0);
+      setCashHeld(nextBalance);
+      writeCachedCashHeld(user.id, nextBalance);
     } catch {
       // Keep the last known value to avoid UI flicker.
     }
@@ -173,7 +199,8 @@ export default function POS() {
 
   const activeCategories = categories.filter((category) => category.is_active);
 
-  const cashHeldLabel = cashHeld === null ? "--" : formatCurrency(cashHeld);
+  const displayedCashHeld = cashHeld ?? cachedCashHeld;
+  const cashHeldLabel = displayedCashHeld === null ? "--" : formatCurrency(displayedCashHeld);
 
   return (
     <AppLayout
