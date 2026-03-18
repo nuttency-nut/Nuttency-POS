@@ -19,6 +19,7 @@ import {
   QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BANK_ACCOUNT_NUMBER, BANK_BIN, BANK_NAME } from "@/lib/bank";
 import { CartItem } from "./Cart";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
@@ -150,8 +151,8 @@ export default function CheckoutSheet({
   existingPaymentMethod,
   existingCheckoutData = null,
 }: CheckoutSheetProps) {
-  const VCB_BANK_BIN = "970436";
-  const VCB_ACCOUNT_NUMBER = "1036448212";
+  const VCB_BANK_BIN = BANK_BIN;
+  const VCB_ACCOUNT_NUMBER = BANK_ACCOUNT_NUMBER;
 
   const [useLoyalty, setUseLoyalty] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -1225,7 +1226,7 @@ export default function CheckoutSheet({
                 <div className="space-y-2 rounded-xl border border-border bg-card p-3">
                   <div className="space-y-0.5 text-xs">
                     <p className="text-muted-foreground">Ngân hàng</p>
-                    <p className="font-semibold text-foreground">Vietcombank (VCB) - STK {VCB_ACCOUNT_NUMBER}</p>
+                    <p className="font-semibold text-foreground">{BANK_NAME} - STK {VCB_ACCOUNT_NUMBER}</p>
                   </div>
 
                   <div className="space-y-1">

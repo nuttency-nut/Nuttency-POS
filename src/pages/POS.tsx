@@ -147,15 +147,32 @@ export default function POS() {
     if (!user?.id) return;
     setLoadingCashHeld(true);
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("total_amount")
-        .eq("status", "completed")
-        .eq("payment_method", "cash")
-        .eq("cashier_id", user.id);
-      if (error) throw error;
-      const total = (data ?? []).reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
-      setCashHeld(total);
+      const [ordersRes, depositsRes] = await Promise.all([
+        supabase
+          .from("orders")
+          .select("total_amount")
+          .eq("status", "completed")
+          .eq("payment_method", "cash")
+          .eq("cashier_id", user.id),
+        supabase
+          .from("cash_deposit_requests")
+          .select("amount")
+          .eq("status", "completed")
+          .eq("created_by_id", user.id),
+      ]);
+
+      if (ordersRes.error) throw ordersRes.error;
+      if (depositsRes.error) throw depositsRes.error;
+
+      const ordersTotal = (ordersRes.data ?? []).reduce(
+        (sum, row) => sum + Number(row.total_amount || 0),
+        0
+      );
+      const depositsTotal = (depositsRes.data ?? []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0
+      );
+      setCashHeld(Math.max(0, ordersTotal - depositsTotal));
     } catch {
       setCashHeld(0);
     } finally {

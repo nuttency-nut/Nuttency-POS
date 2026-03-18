@@ -12,6 +12,7 @@ import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
 import PaymentLookup from "./pages/PaymentLookup";
 import Declarations from "./pages/Declarations";
+import CashDeposit from "./pages/CashDeposit";
 import PendingApproval from "./pages/PendingApproval";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
@@ -181,6 +182,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredPermissions={["settings.transfer_lookup"]}>
             <PaymentLookup />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cash-deposit"
+        element={
+          <ProtectedRoute requiredPermissions={["settings.transfer_lookup"]}>
+            <CashDeposit />
           </ProtectedRoute>
         }
       />

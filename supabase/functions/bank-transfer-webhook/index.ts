@@ -25,6 +25,10 @@ function normalizeText(input: string) {
     .trim();
 }
 
+function formatDateInBangkok(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(date);
+}
+
 function toNumber(value: unknown) {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string") {
@@ -197,6 +201,38 @@ Deno.serve(async (req) => {
     );
   });
 
+  const now = new Date();
+  const todayLocal = formatDateInBangkok(now);
+  let matchedDeposit: { id: string } | null = null;
+
+  if (!match) {
+    const { data: pendingDeposits, error: depositError } = await supabase
+      .from("cash_deposit_requests")
+      .select("id,created_at,amount,status")
+      .eq("status", "pending")
+      .eq("amount", roundedAmount)
+      .order("created_at", { ascending: true })
+      .limit(200);
+
+    if (!depositError) {
+      matchedDeposit =
+        (pendingDeposits ?? []).find((row) => formatDateInBangkok(new Date(row.created_at)) === todayLocal) ?? null;
+
+      if (matchedDeposit) {
+        await supabase
+          .from("cash_deposit_requests")
+          .update({
+            status: "completed",
+            matched_at: now.toISOString(),
+            matched_transaction_id: transactionId || null,
+            payment_payload: payload,
+          })
+          .eq("id", matchedDeposit.id)
+          .eq("status", "pending");
+      }
+    }
+  }
+
   const { data: incomeCode, error: incomeError } = await (supabase as any).rpc("create_income_voucher", {
     p_amount: roundedAmount,
     p_payment_method: "transfer",
@@ -220,6 +256,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         matched: false,
+        deposit_matched: Boolean(matchedDeposit),
+        deposit_id: matchedDeposit?.id ?? null,
         income_receipt_code: String(incomeCode || ""),
         reason: "no_order_match",
       }),
@@ -236,6 +274,8 @@ Deno.serve(async (req) => {
     payment_payload: payload,
     income_receipt_code: String(incomeCode || ""),
     income_recorded_at: new Date().toISOString(),
+    cashier_id: null,
+    cashier_name: "Hệ thống",
   };
 
   if (transactionId) {

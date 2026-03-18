@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
+import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -650,26 +650,49 @@ export default function AppSettings() {
       </Card>
 
       {canAccessPaymentLookup && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <button
-              type="button"
-              onClick={() => navigate("/payment-lookup")}
-              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <ReceiptText className="h-5 w-5" />
-                </span>
-                <div className="text-left">
-                  <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
-                  <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
+        <>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <button
+                type="button"
+                onClick={() => navigate("/payment-lookup")}
+                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <ReceiptText className="h-5 w-5" />
+                  </span>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
+                    <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-            </button>
-          </CardContent>
-        </Card>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4">
+              <button
+                type="button"
+                onClick={() => navigate("/cash-deposit")}
+                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Banknote className="h-5 w-5" />
+                  </span>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Nộp tiền mặt</p>
+                    <p className="text-xs text-muted-foreground">Tạo yêu cầu nộp tiền vào ngân hàng</p>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              </button>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {canDeclareRoles && (
@@ -981,7 +1004,5 @@ export default function AppSettings() {
     </AppLayout>
   );
 }
-
-
 
 
