@@ -34,6 +34,92 @@ type DeclaredRole = {
 };
 
 const avatarCache = new Map<string, string | null>();
+const displaySessionCache = new Map<
+  string,
+  { active_by_id: string; active_by_name: string | null } | null
+>();
+const storeCache = new Map<string, { id: string; warehouseCode: string; displayName: string } | null>();
+
+const readCachedStore = (userId?: string | null) => {
+  if (!userId) return null;
+  if (storeCache.has(userId)) {
+    return storeCache.get(userId) ?? null;
+  }
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(`customerDisplayStore:${userId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { id?: string; warehouseCode?: string; displayName?: string };
+    if (!parsed?.id) return null;
+    const store = {
+      id: String(parsed.id),
+      warehouseCode: String(parsed.warehouseCode ?? ""),
+      displayName: String(parsed.displayName ?? ""),
+    };
+    storeCache.set(userId, store);
+    return store;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedStore = (
+  userId: string,
+  store: { id: string; warehouseCode: string; displayName: string } | null
+) => {
+  if (!userId) return;
+  if (store) {
+    storeCache.set(userId, store);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(`customerDisplayStore:${userId}`, JSON.stringify(store));
+    }
+  } else {
+    storeCache.delete(userId);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(`customerDisplayStore:${userId}`);
+    }
+  }
+};
+
+const readCachedDisplaySession = (storeId?: string | null) => {
+  if (!storeId) return null;
+  if (displaySessionCache.has(storeId)) {
+    return displaySessionCache.get(storeId) ?? null;
+  }
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(`customerDisplaySession:${storeId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { active_by_id?: string; active_by_name?: string | null };
+    if (!parsed?.active_by_id) return null;
+    const session = {
+      active_by_id: String(parsed.active_by_id),
+      active_by_name: parsed.active_by_name ?? null,
+    };
+    displaySessionCache.set(storeId, session);
+    return session;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedDisplaySession = (
+  storeId: string,
+  session: { active_by_id: string; active_by_name: string | null } | null
+) => {
+  if (!storeId) return;
+  if (session) {
+    displaySessionCache.set(storeId, session);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(`customerDisplaySession:${storeId}`, JSON.stringify(session));
+    }
+  } else {
+    displaySessionCache.delete(storeId);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(`customerDisplaySession:${storeId}`);
+    }
+  }
+};
 
 const getInitialTheme = () => {
   if (typeof window === "undefined") return false;
@@ -414,6 +500,15 @@ export default function AppSettings() {
       if (!silent) setLoadingDisplaySession(true);
 
       try {
+        const cachedStore = readCachedStore(user.id);
+        if (cachedStore) {
+          setCurrentStore(cachedStore);
+          const cachedSession = readCachedDisplaySession(cachedStore.id);
+          if (cachedSession) {
+            setDisplaySession(cachedSession);
+          }
+        }
+
         const { data: assignment, error: assignmentError } = await db
           .from("user_store_assignments")
           .select("store_id")
@@ -423,29 +518,35 @@ export default function AppSettings() {
         if (assignmentError || !assignment?.store_id) {
           setCurrentStore(null);
           setDisplaySession(null);
+          writeCachedStore(user.id, null);
           return;
         }
 
         const storeId = String(assignment.store_id);
+        const cachedSession = readCachedDisplaySession(storeId);
+        if (cachedSession) {
+          setDisplaySession(cachedSession);
+        }
         const { data: storeRow } = await db
           .from("store_definitions")
           .select("id,warehouse_code,display_name")
           .eq("id", storeId)
           .maybeSingle();
 
-        setCurrentStore(
-          storeRow
-            ? {
-                id: String(storeRow.id),
-                warehouseCode: String(storeRow.warehouse_code ?? ""),
-                displayName: String(storeRow.display_name ?? ""),
-              }
-            : {
-                id: storeId,
-                warehouseCode: "",
-                displayName: "",
-              }
-        );
+        const nextStore = storeRow
+          ? {
+              id: String(storeRow.id),
+              warehouseCode: String(storeRow.warehouse_code ?? ""),
+              displayName: String(storeRow.display_name ?? ""),
+            }
+          : {
+              id: storeId,
+              warehouseCode: "",
+              displayName: "",
+            };
+
+        setCurrentStore(nextStore);
+        writeCachedStore(user.id, nextStore);
 
         const { data: sessionRow, error: sessionError } = await db
           .from("customer_display_sessions")
@@ -455,14 +556,17 @@ export default function AppSettings() {
 
         if (sessionError) throw sessionError;
 
-        setDisplaySession(
-          sessionRow
-            ? {
-                active_by_id: String(sessionRow.active_by_id),
-                active_by_name: sessionRow.active_by_name ?? null,
-              }
-            : null
-        );
+        if (sessionRow) {
+          const nextSession = {
+            active_by_id: String(sessionRow.active_by_id),
+            active_by_name: sessionRow.active_by_name ?? null,
+          };
+          setDisplaySession(nextSession);
+          writeCachedDisplaySession(storeId, nextSession);
+        } else {
+          setDisplaySession(null);
+          writeCachedDisplaySession(storeId, null);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Không tải được trạng thái màn hình";
         toast.error(message);
@@ -506,6 +610,18 @@ export default function AppSettings() {
   }, [loadCustomerDisplaySession]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    const cachedStore = readCachedStore(user.id);
+    if (cachedStore) {
+      setCurrentStore(cachedStore);
+      const cachedSession = readCachedDisplaySession(cachedStore.id);
+      if (cachedSession) {
+        setDisplaySession(cachedSession);
+      }
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
     void loadDeclaredRoles();
@@ -546,17 +662,21 @@ export default function AppSettings() {
         (payload) => {
           if (payload.eventType === "DELETE") {
             setDisplaySession(null);
+            writeCachedDisplaySession(currentStore.id, null);
             return;
           }
           const row = payload.new as { active_by_id?: string; active_by_name?: string | null } | null;
           if (!row?.active_by_id) {
             setDisplaySession(null);
+            writeCachedDisplaySession(currentStore.id, null);
             return;
           }
-          setDisplaySession({
+          const nextSession = {
             active_by_id: String(row.active_by_id),
             active_by_name: row.active_by_name ?? null,
-          });
+          };
+          setDisplaySession(nextSession);
+          writeCachedDisplaySession(currentStore.id, nextSession);
         }
       )
       .subscribe();
@@ -676,7 +796,9 @@ export default function AppSettings() {
           active_by_name: operatorName,
         });
         if (error) throw error;
-        setDisplaySession({ active_by_id: user.id, active_by_name: operatorName });
+        const nextSession = { active_by_id: user.id, active_by_name: operatorName };
+        setDisplaySession(nextSession);
+        writeCachedDisplaySession(currentStore.id, nextSession);
       } else {
         const { error } = await db
           .from("customer_display_sessions")
@@ -685,6 +807,7 @@ export default function AppSettings() {
           .eq("active_by_id", user.id);
         if (error) throw error;
         setDisplaySession(null);
+        writeCachedDisplaySession(currentStore.id, null);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Không thể cập nhật trạng thái màn hình";
