@@ -82,41 +82,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     mountedRef.current = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        if (!mountedRef.current) return;
+    const handleAuthChange = async (event: string, newSession: Session | null) => {
+      if (!mountedRef.current) return;
 
-        // Always sync latest session from auth events.
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
 
-        if (event === "SIGNED_OUT") {
-          setRole(null);
-          setDeclaredRole(null);
-          setPermissions({});
-          setLoading(false);
-          return;
-        }
-
-        if (newSession?.user) {
-          setTimeout(async () => {
-            const [nextRole, nextDeclaredRole] = await Promise.all([
-              fetchRole(newSession.user.id),
-              fetchDeclaredRole(newSession.user.id),
-            ]);
-            if (!mountedRef.current) return;
-            setRole(nextRole);
-            setDeclaredRole(nextDeclaredRole);
-            setPermissions(resolvePermissions(nextRole, nextDeclaredRole));
-            setLoading(false);
-          }, 0);
-          return;
-        }
-
+      if (event === "SIGNED_OUT") {
         setRole(null);
         setDeclaredRole(null);
         setPermissions({});
         setLoading(false);
+        return;
+      }
+
+      if (newSession?.user) {
+        const shouldHydrate = event === "SIGNED_IN" || event === "USER_UPDATED";
+        if (!shouldHydrate) return;
+
+        setLoading(true);
+        try {
+          const [nextRole, nextDeclaredRole] = await Promise.all([
+            fetchRole(newSession.user.id),
+            fetchDeclaredRole(newSession.user.id),
+          ]);
+          if (!mountedRef.current) return;
+          setRole(nextRole);
+          setDeclaredRole(nextDeclaredRole);
+          setPermissions(resolvePermissions(nextRole, nextDeclaredRole));
+        } finally {
+          if (mountedRef.current) {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
+      setRole(null);
+      setDeclaredRole(null);
+      setPermissions({});
+      setLoading(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, newSession) => {
+        void handleAuthChange(event, newSession);
       }
     );
 

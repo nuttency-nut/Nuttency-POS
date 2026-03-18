@@ -745,7 +745,7 @@ export default function AppSettings() {
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-sm">Xác thực và quản lý phân quyền </p>
+                    <p className="font-semibold text-sm">Quản lý phân quyền </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Nguyên tắc: Chỉ được phân quyền thấp hơn quyền của chính bạn.
                     </p>
