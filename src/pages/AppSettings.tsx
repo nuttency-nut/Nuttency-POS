@@ -99,6 +99,7 @@ export default function AppSettings() {
   const canManageRoles = hasPermission("settings.roles");
   const canAccessPaymentLookup = hasPermission("settings.transfer_lookup");
   const canAccessCashDeposit = hasPermission("settings.cash_deposit");
+  const canAccessCustomerDisplay = hasPermission("settings.customer_display");
   const canDeclareRoles = hasPermission("settings.role_declaration");
   const canDeclareStores = hasPermission("settings.store_declaration");
   const roleLabel = declaredRole?.name ?? SYSTEM_ROLE_LABEL[currentSystemRole];
@@ -408,6 +409,7 @@ export default function AppSettings() {
 
   const loadCustomerDisplaySession = useCallback(
     async (silent = false) => {
+      if (!canAccessCustomerDisplay) return;
       if (!user?.id) return;
       if (!silent) setLoadingDisplaySession(true);
 
@@ -468,7 +470,7 @@ export default function AppSettings() {
         if (!silent) setLoadingDisplaySession(false);
       }
     },
-    [db, user?.id]
+    [canAccessCustomerDisplay, db, user?.id]
   );
 
   const loadStoreOptions = useCallback(
@@ -815,74 +817,76 @@ export default function AppSettings() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between w-full gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (currentStore?.warehouseCode) {
-                  navigate(`/customer-display/${currentStore.warehouseCode}`);
-                } else {
-                  toast.error("Chưa có mã kho để mở màn hình hiển thị");
-                }
-              }}
-              className="flex-1 text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Monitor className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="font-medium text-foreground">Màn hình hiển thị khách hàng</p>
-                  <p className="text-xs text-muted-foreground">
-                    {currentStore?.displayName
-                      ? `${currentStore.displayName}${currentStore.warehouseCode ? ` • ${currentStore.warehouseCode}` : ""}`
-                      : "Chưa gán cửa hàng"}
-                  </p>
+      {canAccessCustomerDisplay && (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between w-full gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentStore?.warehouseCode) {
+                    navigate(`/customer-display/${currentStore.warehouseCode}`);
+                  } else {
+                    toast.error("Chưa có mã kho để mở màn hình hiển thị");
+                  }
+                }}
+                className="flex-1 text-left group"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Monitor className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="font-medium text-foreground">Màn hình hiển thị khách hàng</p>
+                    <p className="text-xs text-muted-foreground">
+                      {currentStore?.displayName
+                        ? `${currentStore.displayName}${currentStore.warehouseCode ? ` • ${currentStore.warehouseCode}` : ""}`
+                        : "Chưa gán cửa hàng"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              {displaySession && displaySession.active_by_id !== user?.id && (
-                <p className="text-xs text-amber-500 mt-2">
-                  Đang bật bởi {displaySession.active_by_name ?? "nhân viên khác"}
-                </p>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleCustomerDisplay}
-              disabled={
-                togglingDisplay ||
-                loadingDisplaySession ||
-                !currentStore?.id ||
-                (displaySession && displaySession.active_by_id !== user?.id)
-              }
-              className="shrink-0"
-              aria-label="Bật tắt màn hình hiển thị khách hàng"
-            >
-              <div
-                className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
-                  displaySession
-                    ? "bg-gradient-to-r from-emerald-400 to-emerald-600 border-emerald-500/60 shadow-inner"
-                    : "bg-gradient-to-r from-slate-600 to-slate-700 border-slate-500/50 shadow-inner"
-                }`}
+                {displaySession && displaySession.active_by_id !== user?.id && (
+                  <p className="text-xs text-amber-500 mt-2">
+                    Đang bật bởi {displaySession.active_by_name ?? "nhân viên khác"}
+                  </p>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleCustomerDisplay}
+                disabled={
+                  togglingDisplay ||
+                  loadingDisplaySession ||
+                  !currentStore?.id ||
+                  (displaySession && displaySession.active_by_id !== user?.id)
+                }
+                className="shrink-0"
+                aria-label="Bật tắt màn hình hiển thị khách hàng"
               >
                 <div
-                  className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 flex items-center justify-center ${
-                    displaySession ? "translate-x-6 left-0.5" : "left-0.5"
+                  className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
+                    displaySession
+                      ? "bg-gradient-to-r from-emerald-400 to-emerald-600 border-emerald-500/60 shadow-inner"
+                      : "bg-gradient-to-r from-slate-600 to-slate-700 border-slate-500/50 shadow-inner"
                   }`}
                 >
-                  {togglingDisplay || loadingDisplaySession ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                  ) : (
-                    <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
-                  )}
+                  <div
+                    className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 flex items-center justify-center ${
+                      displaySession ? "translate-x-6 left-0.5" : "left-0.5"
+                    }`}
+                  >
+                    {togglingDisplay || loadingDisplaySession ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showPaymentsGroup && (
         <Card className="border border-border/60 bg-card/50 shadow-sm">

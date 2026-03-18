@@ -205,7 +205,7 @@ function AppRoutes() {
       <Route
         path="/customer-display/:warehouseCode"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermissions={["settings.customer_display"]}>
             <CustomerDisplay />
           </ProtectedRoute>
         }
