@@ -35,8 +35,7 @@ export default function POS() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
-  const [cashHeld, setCashHeld] = useState(0);
-  const [loadingCashHeld, setLoadingCashHeld] = useState(false);
+  const [cashHeld, setCashHeld] = useState<number | null>(null);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { data: products = [], isLoading } = useProducts();
@@ -145,7 +144,6 @@ export default function POS() {
 
   const loadCashHeld = useCallback(async () => {
     if (!user?.id) return;
-    setLoadingCashHeld(true);
     try {
       const { data, error } = await supabase
         .from("cash_till_balance")
@@ -155,9 +153,7 @@ export default function POS() {
       if (error) throw error;
       setCashHeld(Number(data?.balance || 0));
     } catch {
-      setCashHeld(0);
-    } finally {
-      setLoadingCashHeld(false);
+      // Keep the last known value to avoid UI flicker.
     }
   }, [user?.id]);
 
@@ -177,7 +173,7 @@ export default function POS() {
 
   const activeCategories = categories.filter((category) => category.is_active);
 
-  const cashHeldLabel = loadingCashHeld ? "..." : formatCurrency(cashHeld);
+  const cashHeldLabel = cashHeld === null ? "--" : formatCurrency(cashHeld);
 
   return (
     <AppLayout
