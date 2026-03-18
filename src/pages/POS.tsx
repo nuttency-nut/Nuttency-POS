@@ -10,6 +10,8 @@ import ProductGrid from "@/components/pos/ProductGrid";
 import Cart, { CartItem } from "@/components/pos/Cart";
 import ClassificationDialog, { SelectedClassifications } from "@/components/pos/ClassificationDialog";
 import ProductSearch from "@/components/products/ProductSearch";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FlyAnimation {
   id: string;
@@ -19,17 +21,31 @@ interface FlyAnimation {
   name: string;
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default function POS() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
+  const [cashHeld, setCashHeld] = useState(0);
+  const [loadingCashHeld, setLoadingCashHeld] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const { data: products = [], isLoading } = useProducts();
   const { data: categories = [] } = useCategories();
   const { user } = useAuth();
+  const operatorName =
+    (user?.user_metadata as { full_name?: string } | undefined)?.full_name ||
+    user?.email ||
+    "Không rõ";
 
   const filtered = products.filter((product) => {
     if (!product.is_active) return false;
@@ -127,10 +143,35 @@ export default function POS() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  const loadCashHeld = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingCashHeld(true);
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("total_amount")
+        .eq("status", "completed")
+        .eq("payment_method", "cash")
+        .eq("cashier_id", user.id);
+      if (error) throw error;
+      const total = (data ?? []).reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+      setCashHeld(total);
+    } catch {
+      setCashHeld(0);
+    } finally {
+      setLoadingCashHeld(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadCashHeld();
+  }, [loadCashHeld]);
+
   const handleCheckoutSuccess = useCallback((orderNumber: string) => {
     setCartItems([]);
     toast.success(`Đơn hàng ${orderNumber} đã tạo thành công!`);
-  }, []);
+    void loadCashHeld();
+  }, [loadCashHeld]);
 
   const handleSavePending = useCallback(() => {
     setCartItems([]);
@@ -138,8 +179,17 @@ export default function POS() {
 
   const activeCategories = categories.filter((category) => category.is_active);
 
+  const cashHeldLabel = loadingCashHeld ? "..." : formatCurrency(cashHeld);
+
   return (
-    <AppLayout title="Bán hàng">
+    <AppLayout
+      title="Bán hàng"
+      headerRight={
+        <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+          Tiền mặt đang giữ: {cashHeldLabel}
+        </div>
+      }
+    >
       <div className="flex flex-col h-full overflow-hidden">
         <div className="shrink-0 bg-background border-b border-border/50">
           <div className="p-4 pb-2">
@@ -217,6 +267,7 @@ export default function POS() {
           onCheckoutSuccess={handleCheckoutSuccess}
           onSavePending={handleSavePending}
           userId={user.id}
+          userName={operatorName}
         />
       )}
 

@@ -29,6 +29,7 @@ interface CartProps {
   onCheckoutSuccess: (orderNumber: string) => void;
   onSavePending: () => void;
   userId: string;
+  userName?: string;
 }
 
 function formatPrice(price: number) {
@@ -39,7 +40,7 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
-export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, onSavePending, userId }: CartProps) {
+export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, onSavePending, userId, userName }: CartProps) {
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -175,6 +176,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
               }}
               items={items}
               userId={userId}
+              userName={userName}
               onSuccess={(orderNumber) => {
                 setOpen(false);
                 setStep("cart");

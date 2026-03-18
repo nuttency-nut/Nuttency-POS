@@ -94,6 +94,7 @@ interface CheckoutSheetProps {
   items: CartItem[];
   onSuccess: (orderNumber: string) => void;
   userId: string;
+  userName?: string;
   embedded?: boolean;
   existingDraftOrder?: DraftOrderState | null;
   existingPaymentMethod?: PaymentMethod;
@@ -143,6 +144,7 @@ export default function CheckoutSheet({
   items,
   onSuccess,
   userId,
+  userName,
   embedded = false,
   existingDraftOrder = null,
   existingPaymentMethod,
@@ -180,6 +182,8 @@ export default function CheckoutSheet({
   const initializedExistingOrderIdRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const preserveDraftOnCloseRef = useRef(false);
+
+  const operatorName = userName?.trim() || "Không rõ";
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
@@ -484,6 +488,8 @@ export default function CheckoutSheet({
         .from("orders")
         .insert({
           user_id: userId,
+          created_by_id: userId,
+          created_by_name: operatorName,
           total_amount: finalAmount,
           order_number: "",
           customer_name: "Khách lẻ",
@@ -494,6 +500,8 @@ export default function CheckoutSheet({
           loyalty_points_used: 0,
           customer_id: null,
           note: null,
+          cashier_id: null,
+          cashier_name: null,
         })
         .select("id, order_number, status")
         .single();
@@ -828,6 +836,8 @@ export default function CheckoutSheet({
           loyalty_points_used: useLoyaltyPoints ? loyaltyPointsToUse : 0,
           customer_id: customerId,
           note: orderNote || null,
+          cashier_id: paymentMethod === "transfer" ? null : userId,
+          cashier_name: paymentMethod === "transfer" ? "Hệ thống" : operatorName,
         })
         .eq("id", draftOrder.id)
         .select("id, order_number, status")

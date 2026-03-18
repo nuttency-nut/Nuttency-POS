@@ -277,6 +277,11 @@ export default function Declarations() {
       toast.error("Vui lòng nhập tên role");
       return;
     }
+    const hasAnyPermission = Object.values(roleForm.permissions ?? {}).some(Boolean);
+    if (!hasAnyPermission) {
+      toast.error("Vui lòng chọn ít nhất 1 quyền");
+      return;
+    }
     try {
       if (editingRoleId) {
         const payload = {
@@ -535,7 +540,9 @@ export default function Declarations() {
 
               <div ref={roleFormRef} className="grid gap-3 pt-2">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Tên role</label>
+                  <label className="text-xs text-muted-foreground">
+                    Tên role <span className="text-destructive">*</span>
+                  </label>
                   <Input
                     value={roleForm.name}
                     onChange={(e) => setRoleForm((prev) => ({ ...prev, name: e.target.value }))}
@@ -586,7 +593,9 @@ export default function Declarations() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">Cấp quyền</label>
+                  <label className="text-xs text-muted-foreground">
+                    Cấp quyền <span className="text-destructive">*</span>
+                  </label>
                   <div className="grid gap-2">
                     {PERMISSION_TREE.map((node) => {
                       const renderNode = (item: PermissionNode, level: number) => {
@@ -709,7 +718,9 @@ export default function Declarations() {
 
               <div ref={storeFormRef} className="grid gap-3 pt-2">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Cửa hàng</label>
+                  <label className="text-xs text-muted-foreground">
+                    Cửa hàng <span className="text-destructive">*</span>
+                  </label>
                   <Input
                     value={storeForm.storeName}
                     onChange={(e) => setStoreForm((prev) => ({ ...prev, storeName: e.target.value }))}
@@ -718,7 +729,9 @@ export default function Declarations() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Mã kho</label>
+                  <label className="text-xs text-muted-foreground">
+                    Mã kho <span className="text-destructive">*</span>
+                  </label>
                   <Input
                     value={storeForm.warehouseCode}
                     onChange={(e) => setStoreForm((prev) => ({ ...prev, warehouseCode: e.target.value }))}

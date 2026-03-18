@@ -185,6 +185,10 @@ export default function Orders() {
   const queryClient = useQueryClient();
   const { user, hasPermission } = useAuth();
   const canUpdateOrders = hasPermission("orders.update");
+  const operatorName =
+    (user?.user_metadata as { full_name?: string } | undefined)?.full_name ||
+    user?.email ||
+    "Không rõ";
   const [search, setSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
@@ -798,6 +802,7 @@ export default function Orders() {
           open={!!repayOrder}
           onClose={() => setRepayOrder(null)}
           userId={user.id}
+          userName={operatorName}
           items={repayOrder.order_items.map(
             (item, idx): CartItem => ({
               id: `repay-${repayOrder.id}-${idx}`,
