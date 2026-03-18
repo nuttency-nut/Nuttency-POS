@@ -731,7 +731,7 @@ export default function AppSettings() {
 
   return (
     <AppLayout title="Cài đặt">
-      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-24 space-y-4">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">

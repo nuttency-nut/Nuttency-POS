@@ -21,7 +21,7 @@ export default function AppLayout({ children, title, headerRight }: AppLayoutPro
       )}
 
       {/* Content */}
-      <main className="flex-1 min-h-0 pb-20 max-w-lg mx-auto w-full overflow-hidden">
+      <main className="flex-1 min-h-0 pb-[calc(4rem+env(safe-area-inset-bottom))] max-w-lg mx-auto w-full overflow-hidden">
         {children}
       </main>
 
