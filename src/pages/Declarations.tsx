@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, ChevronLeft, Pencil, Plus, Shield, Trash2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
@@ -76,6 +76,8 @@ export default function Declarations() {
     status: "active" as StoreDeclaration["status"],
   }));
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
+  const roleFormRef = useRef<HTMLDivElement | null>(null);
+  const storeFormRef = useRef<HTMLDivElement | null>(null);
 
   const storeDisplayName = useMemo(() => {
     const store = storeForm.storeName.trim();
@@ -339,6 +341,14 @@ export default function Declarations() {
     });
   };
 
+  const scrollToForm = (ref: RefObject<HTMLDivElement>) => {
+    if (typeof window === "undefined") return;
+    if (!ref.current) return;
+    requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const handleEditRole = (role: RoleDeclaration) => {
     setEditingRoleId(role.id);
     setRoleForm({
@@ -347,6 +357,7 @@ export default function Declarations() {
       parentRoleId: role.parentRoleId ?? "",
       permissions: { ...getDefaultPermissions(), ...role.permissions },
     });
+    scrollToForm(roleFormRef);
   };
 
   const handleDeleteRole = async (role: RoleDeclaration) => {
@@ -425,6 +436,7 @@ export default function Declarations() {
       warehouseCode: store.warehouseCode,
       status: store.status,
     });
+    scrollToForm(storeFormRef);
   };
 
   const handleDeleteStore = async (store: StoreDeclaration) => {
@@ -472,7 +484,56 @@ export default function Declarations() {
                 </span>
               </div>
 
-              <div className="grid gap-3">
+              {loadingRoles ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Đang tải danh sách role...
+                </div>
+              ) : roleDisplayOrder.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Chưa có role nào được khai báo.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {roleDisplayOrder.map(({ role, level }) => {
+                    const enabledCount = permissionIndex.allKeys.filter((key) => role.permissions?.[key]).length;
+                    const hierarchyLabel = rolePathById.get(role.id) ?? role.name;
+                    const indent = level * 12;
+                    return (
+                      <div
+                        key={role.id}
+                        className="rounded-xl border border-border bg-card p-3 space-y-2"
+                        style={{ marginLeft: indent }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{role.name}</p>
+                            <p className="text-xs text-muted-foreground">{role.description || "Chưa có mô tả"}</p>
+                            <p className="text-xs text-muted-foreground">Cấp bậc: {hierarchyLabel}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{enabledCount} quyền bật</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleEditRole(role)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            Sửa
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteRole(role)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Xóa
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div ref={roleFormRef} className="grid gap-3 pt-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Tên role</label>
                   <Input
@@ -567,7 +628,13 @@ export default function Declarations() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleSaveRole} className="h-10 rounded-xl gap-2" disabled={loadingRoles}>
+                <Button
+                  onClick={handleSaveRole}
+                  className={`h-10 rounded-xl gap-2 ${
+                    editingRoleId ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""
+                  }`}
+                  disabled={loadingRoles}
+                >
                   <Plus className="h-4 w-4" />
                   {editingRoleId ? "Cập nhật role" : "Thêm role"}
                 </Button>
@@ -577,55 +644,6 @@ export default function Declarations() {
                   </Button>
                 )}
               </div>
-
-              {loadingRoles ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
-                  Đang tải danh sách role...
-                </div>
-              ) : roleDisplayOrder.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
-                  Chưa có role nào được khai báo.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {roleDisplayOrder.map(({ role, level }) => {
-                    const enabledCount = permissionIndex.allKeys.filter((key) => role.permissions?.[key]).length;
-                    const hierarchyLabel = rolePathById.get(role.id) ?? role.name;
-                    const indent = level * 12;
-                    return (
-                      <div
-                        key={role.id}
-                        className="rounded-xl border border-border bg-card p-3 space-y-2"
-                        style={{ marginLeft: indent }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{role.name}</p>
-                            <p className="text-xs text-muted-foreground">{role.description || "Chưa có mô tả"}</p>
-                            <p className="text-xs text-muted-foreground">Cấp bậc: {hierarchyLabel}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{enabledCount} quyền bật</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleEditRole(role)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                            Sửa
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteRole(role)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Xóa
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
@@ -648,7 +666,48 @@ export default function Declarations() {
                 </span>
               </div>
 
-              <div className="grid gap-3">
+              {loadingStores ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Đang tải danh sách cửa hàng...
+                </div>
+              ) : storeDeclarations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
+                  Chưa có cửa hàng nào được khai báo.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {storeDeclarations.map((store) => (
+                    <div key={store.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
+                          <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleEditStore(store)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Sửa
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteStore(store)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Xóa
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div ref={storeFormRef} className="grid gap-3 pt-2">
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Cửa hàng</label>
                   <Input
@@ -696,7 +755,13 @@ export default function Declarations() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={handleSaveStore} className="h-10 rounded-xl gap-2" disabled={loadingStores}>
+                <Button
+                  onClick={handleSaveStore}
+                  className={`h-10 rounded-xl gap-2 ${
+                    editingStoreId ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""
+                  }`}
+                  disabled={loadingStores}
+                >
                   <Plus className="h-4 w-4" />
                   {editingStoreId ? "Cập nhật cửa hàng" : "Thêm cửa hàng"}
                 </Button>
@@ -706,47 +771,6 @@ export default function Declarations() {
                   </Button>
                 )}
               </div>
-
-              {loadingStores ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
-                  Đang tải danh sách cửa hàng...
-                </div>
-              ) : storeDeclarations.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/70 p-4 text-sm text-muted-foreground">
-                  Chưa có cửa hàng nào được khai báo.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {storeDeclarations.map((store) => (
-                    <div key={store.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
-                          <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleEditStore(store)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          Sửa
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteStore(store)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Xóa
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
