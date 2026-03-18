@@ -90,7 +90,10 @@ export default function AppSettings() {
   const canDeclareRoles = hasPermission("settings.role_declaration");
   const canDeclareStores = hasPermission("settings.store_declaration");
   const roleLabel = declaredRole?.name ?? SYSTEM_ROLE_LABEL[currentSystemRole];
+  const userFullName =
+    (user?.user_metadata as { full_name?: string } | undefined)?.full_name?.trim() || "";
   const currentRoleId = declaredRole?.id ?? null;
+  const showDeclarationsGroup = canDeclareRoles || canDeclareStores;
 
   const roleById = useMemo(() => {
     return new Map(declaredRoles.map((role) => [role.id, role]));
@@ -605,8 +608,11 @@ export default function AppSettings() {
               />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-foreground truncate">{user?.email}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-sm font-semibold text-foreground truncate">
+                {userFullName || "Chưa có tên"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "Chưa có email"}</p>
+              <div className="flex items-center gap-1.5 mt-1">
                 <Shield className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-medium text-primary">{roleLabel}</span>
               </div>
@@ -650,93 +656,107 @@ export default function AppSettings() {
       </Card>
 
       {canAccessPaymentLookup && (
-        <>
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <button
-                type="button"
-                onClick={() => navigate("/payment-lookup")}
-                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <ReceiptText className="h-5 w-5" />
-                  </span>
-                  <div className="text-left">
-                    <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
-                    <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </button>
-            </CardContent>
-          </Card>
+        <Card className="border border-border/60 bg-card/50 shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground">Giao dịch</p>
+            <div className="space-y-3">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/payment-lookup")}
+                    className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <ReceiptText className="h-5 w-5" />
+                      </span>
+                      <div className="text-left">
+                        <p className="font-semibold text-foreground">Tra cứu giao dịch chuyển khoản</p>
+                        <p className="text-xs text-muted-foreground">Tra cứu thông tin phiếu thu</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <button
-                type="button"
-                onClick={() => navigate("/cash-deposit")}
-                className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Banknote className="h-5 w-5" />
-                  </span>
-                  <div className="text-left">
-                    <p className="font-semibold text-foreground">Nộp tiền mặt</p>
-                    <p className="text-xs text-muted-foreground">Tạo yêu cầu nộp tiền vào ngân hàng</p>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-              </button>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {canDeclareRoles && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <button
-              type="button"
-              onClick={() => navigate("/declarations?section=role")}
-              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Shield className="h-5 w-5" />
-                </span>
-                <div className="text-left">
-                  <p className="font-semibold text-foreground">Khai báo role</p>
-                  <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa role.</p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-            </button>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/cash-deposit")}
+                    className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Banknote className="h-5 w-5" />
+                      </span>
+                      <div className="text-left">
+                        <p className="font-semibold text-foreground">Nộp tiền mặt</p>
+                        <p className="text-xs text-muted-foreground">Tạo yêu cầu nộp tiền vào ngân hàng</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                </CardContent>
+              </Card>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {canDeclareStores && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <button
-              type="button"
-              onClick={() => navigate("/declarations?section=store")}
-              className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Building2 className="h-5 w-5" />
-                </span>
-                <div className="text-left">
-                  <p className="font-semibold text-foreground">Khai báo cửa hàng làm việc</p>
-                  <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa cửa hàng.</p>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-            </button>
+      {showDeclarationsGroup && (
+        <Card className="border border-border/60 bg-card/50 shadow-sm">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground">Khai báo</p>
+            <div className="space-y-3">
+              {canDeclareRoles && (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/declarations?section=role")}
+                      className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Shield className="h-5 w-5" />
+                        </span>
+                        <div className="text-left">
+                          <p className="font-semibold text-foreground">Khai báo role</p>
+                          <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa role.</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {canDeclareStores && (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/declarations?section=store")}
+                      className="flex items-center justify-between w-full group active:scale-[0.99] transition-transform"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Building2 className="h-5 w-5" />
+                        </span>
+                        <div className="text-left">
+                          <p className="font-semibold text-foreground">Khai báo cửa hàng làm việc</p>
+                          <p className="text-xs text-muted-foreground">Thêm mới, chỉnh sửa, xóa cửa hàng.</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    </button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -1004,5 +1024,3 @@ export default function AppSettings() {
     </AppLayout>
   );
 }
-
-
