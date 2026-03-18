@@ -14,6 +14,7 @@ import PaymentLookup from "./pages/PaymentLookup";
 import Declarations from "./pages/Declarations";
 import CashDeposit from "./pages/CashDeposit";
 import PendingApproval from "./pages/PendingApproval";
+import CustomerDisplay from "./pages/CustomerDisplay";
 import NotFound from "./pages/NotFound";
 import AppErrorBoundary from "@/components/common/AppErrorBoundary";
 
@@ -198,6 +199,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredPermissions={["settings.role_declaration", "settings.store_declaration"]}>
             <Declarations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/customer-display/:warehouseCode"
+        element={
+          <ProtectedRoute>
+            <CustomerDisplay />
           </ProtectedRoute>
         }
       />

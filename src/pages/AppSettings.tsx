@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
+import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,6 +78,17 @@ export default function AppSettings() {
   const [workplaceByUser, setWorkplaceByUser] = useState<Record<string, string>>({});
   const [workplaceOptions, setWorkplaceOptions] = useState<WorkplaceOption[]>([]);
   const [roleSearch, setRoleSearch] = useState("");
+  const [currentStore, setCurrentStore] = useState<{
+    id: string;
+    warehouseCode: string;
+    displayName: string;
+  } | null>(null);
+  const [displaySession, setDisplaySession] = useState<{
+    active_by_id: string;
+    active_by_name: string | null;
+  } | null>(null);
+  const [loadingDisplaySession, setLoadingDisplaySession] = useState(false);
+  const [togglingDisplay, setTogglingDisplay] = useState(false);
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
@@ -96,6 +107,7 @@ export default function AppSettings() {
   const currentRoleId = declaredRole?.id ?? null;
   const showDeclarationsGroup = canDeclareRoles || canDeclareStores;
   const showPaymentsGroup = canAccessPaymentLookup || canAccessCashDeposit;
+  const operatorName = userFullName || user?.email || "Không rõ";
 
   const roleById = useMemo(() => {
     return new Map(declaredRoles.map((role) => [role.id, role]));
@@ -394,6 +406,71 @@ export default function AppSettings() {
     [canManageRoles, db]
   );
 
+  const loadCustomerDisplaySession = useCallback(
+    async (silent = false) => {
+      if (!user?.id) return;
+      if (!silent) setLoadingDisplaySession(true);
+
+      try {
+        const { data: assignment, error: assignmentError } = await db
+          .from("user_store_assignments")
+          .select("store_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (assignmentError || !assignment?.store_id) {
+          setCurrentStore(null);
+          setDisplaySession(null);
+          return;
+        }
+
+        const storeId = String(assignment.store_id);
+        const { data: storeRow } = await db
+          .from("store_definitions")
+          .select("id,warehouse_code,display_name")
+          .eq("id", storeId)
+          .maybeSingle();
+
+        setCurrentStore(
+          storeRow
+            ? {
+                id: String(storeRow.id),
+                warehouseCode: String(storeRow.warehouse_code ?? ""),
+                displayName: String(storeRow.display_name ?? ""),
+              }
+            : {
+                id: storeId,
+                warehouseCode: "",
+                displayName: "",
+              }
+        );
+
+        const { data: sessionRow, error: sessionError } = await db
+          .from("customer_display_sessions")
+          .select("store_id,active_by_id,active_by_name")
+          .eq("store_id", storeId)
+          .maybeSingle();
+
+        if (sessionError) throw sessionError;
+
+        setDisplaySession(
+          sessionRow
+            ? {
+                active_by_id: String(sessionRow.active_by_id),
+                active_by_name: sessionRow.active_by_name ?? null,
+              }
+            : null
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Không tải được trạng thái màn hình";
+        toast.error(message);
+      } finally {
+        if (!silent) setLoadingDisplaySession(false);
+      }
+    },
+    [db, user?.id]
+  );
+
   const loadStoreOptions = useCallback(
     async (silent = false) => {
       if (!canManageRoles) return;
@@ -423,6 +500,10 @@ export default function AppSettings() {
   );
 
   useEffect(() => {
+    void loadCustomerDisplaySession(true);
+  }, [loadCustomerDisplaySession]);
+
+  useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
     void loadDeclaredRoles();
@@ -447,6 +528,41 @@ export default function AppSettings() {
       window.removeEventListener("focus", handleResume);
     };
   }, [activeTab, canManageRoles, loadRoleUsers, loadDeclaredRoles, loadStoreOptions]);
+
+  useEffect(() => {
+    if (!currentStore?.id) return;
+    const channel = supabase
+      .channel(`customer-display-${currentStore.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "customer_display_sessions",
+          filter: `store_id=eq.${currentStore.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setDisplaySession(null);
+            return;
+          }
+          const row = payload.new as { active_by_id?: string; active_by_name?: string | null } | null;
+          if (!row?.active_by_id) {
+            setDisplaySession(null);
+            return;
+          }
+          setDisplaySession({
+            active_by_id: String(row.active_by_id),
+            active_by_name: row.active_by_name ?? null,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentStore?.id]);
 
   const handleChangeRole = async (targetUser: RoleUser, nextRoleId: string) => {
     if (!user?.id || !canManageRoles) return;
@@ -531,6 +647,48 @@ export default function AppSettings() {
       toast.error(message);
     } finally {
       setSavingWorkplaceUserId(null);
+    }
+  };
+
+  const handleToggleCustomerDisplay = async () => {
+    if (!user?.id) return;
+    if (!currentStore?.id) {
+      toast.error("Bạn chưa được gán cửa hàng làm việc");
+      return;
+    }
+
+    const isActive = Boolean(displaySession);
+    const isOwner = displaySession?.active_by_id === user.id;
+    if (isActive && !isOwner) {
+      const ownerName = displaySession?.active_by_name ?? "nhân viên khác";
+      toast.error(`Màn hình đang bật bởi ${ownerName}`);
+      return;
+    }
+
+    setTogglingDisplay(true);
+    try {
+      if (!isActive) {
+        const { error } = await db.from("customer_display_sessions").insert({
+          store_id: currentStore.id,
+          active_by_id: user.id,
+          active_by_name: operatorName,
+        });
+        if (error) throw error;
+        setDisplaySession({ active_by_id: user.id, active_by_name: operatorName });
+      } else {
+        const { error } = await db
+          .from("customer_display_sessions")
+          .delete()
+          .eq("store_id", currentStore.id)
+          .eq("active_by_id", user.id);
+        if (error) throw error;
+        setDisplaySession(null);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể cập nhật trạng thái màn hình";
+      toast.error(message);
+    } finally {
+      setTogglingDisplay(false);
     }
   };
 
@@ -654,6 +812,75 @@ export default function AppSettings() {
               </div>
             </div>
           </button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between w-full gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (currentStore?.warehouseCode) {
+                  navigate(`/customer-display/${currentStore.warehouseCode}`);
+                } else {
+                  toast.error("Chưa có mã kho để mở màn hình hiển thị");
+                }
+              }}
+              className="flex-1 text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Monitor className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="font-medium text-foreground">Màn hình hiển thị khách hàng</p>
+                  <p className="text-xs text-muted-foreground">
+                    {currentStore?.displayName
+                      ? `${currentStore.displayName}${currentStore.warehouseCode ? ` • ${currentStore.warehouseCode}` : ""}`
+                      : "Chưa gán cửa hàng"}
+                  </p>
+                </div>
+              </div>
+              {displaySession && displaySession.active_by_id !== user?.id && (
+                <p className="text-xs text-amber-500 mt-2">
+                  Đang bật bởi {displaySession.active_by_name ?? "nhân viên khác"}
+                </p>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleCustomerDisplay}
+              disabled={
+                togglingDisplay ||
+                loadingDisplaySession ||
+                !currentStore?.id ||
+                (displaySession && displaySession.active_by_id !== user?.id)
+              }
+              className="shrink-0"
+              aria-label="Bật tắt màn hình hiển thị khách hàng"
+            >
+              <div
+                className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
+                  displaySession
+                    ? "bg-gradient-to-r from-emerald-400 to-emerald-600 border-emerald-500/60 shadow-inner"
+                    : "bg-gradient-to-r from-slate-600 to-slate-700 border-slate-500/50 shadow-inner"
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 flex items-center justify-center ${
+                    displaySession ? "translate-x-6 left-0.5" : "left-0.5"
+                  }`}
+                >
+                  {togglingDisplay || loadingDisplaySession ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+            </button>
+          </div>
         </CardContent>
       </Card>
 
