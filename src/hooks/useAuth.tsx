@@ -17,6 +17,7 @@ interface AuthContextType {
   permissions: Record<string, boolean>;
   hasPermission: (key: string) => boolean;
   loading: boolean;
+  permissionsReady: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [declaredRole, setDeclaredRole] = useState<DeclaredRole | null>(null);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [permissionsReady, setPermissionsReady] = useState(false);
   const mountedRef = useRef(true);
   const db = supabase as any;
 
@@ -92,36 +94,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setDeclaredRole(null);
         setPermissions({});
-        setLoading(false);
+        setPermissionsReady(true);
         return;
       }
 
-      if (newSession?.user) {
-        const shouldHydrate = event === "SIGNED_IN" || event === "USER_UPDATED";
-        if (!shouldHydrate) return;
-
-        setLoading(true);
-        try {
-          const [nextRole, nextDeclaredRole] = await Promise.all([
-            fetchRole(newSession.user.id),
-            fetchDeclaredRole(newSession.user.id),
-          ]);
-          if (!mountedRef.current) return;
-          setRole(nextRole);
-          setDeclaredRole(nextDeclaredRole);
-          setPermissions(resolvePermissions(nextRole, nextDeclaredRole));
-        } finally {
-          if (mountedRef.current) {
-            setLoading(false);
-          }
-        }
-        return;
+      if (event === "SIGNED_IN" && newSession?.user) {
+        setPermissionsReady(false);
+        const [nextRole, nextDeclaredRole] = await Promise.all([
+          fetchRole(newSession.user.id),
+          fetchDeclaredRole(newSession.user.id),
+        ]);
+        if (!mountedRef.current) return;
+        setRole(nextRole);
+        setDeclaredRole(nextDeclaredRole);
+        setPermissions(resolvePermissions(nextRole, nextDeclaredRole));
+        setPermissionsReady(true);
       }
-
-      setRole(null);
-      setDeclaredRole(null);
-      setPermissions({});
-      setLoading(false);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -135,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (!mountedRef.current) return;
 
+        setPermissionsReady(false);
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
 
@@ -161,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissions({});
       } finally {
         if (!mountedRef.current) return;
+        setPermissionsReady(true);
         setLoading(false);
       }
     };
@@ -195,10 +185,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(null);
     setDeclaredRole(null);
     setPermissions({});
+    setPermissionsReady(true);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, declaredRole, permissions, hasPermission, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, declaredRole, permissions, hasPermission, loading, permissionsReady, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -50,10 +50,11 @@ function ProtectedRoute({
   requiredPermissions?: string[];
   allowWithoutPermissions?: boolean;
 }) {
-  const { session, loading, hasPermission, permissions } = useAuth();
+  const { session, loading, hasPermission, permissions, permissionsReady } = useAuth();
   const hasAnyPermission = Object.values(permissions ?? {}).some(Boolean);
+  const waitingForPermissions = Boolean(session) && !permissionsReady;
 
-  if (loading) {
+  if (loading || waitingForPermissions) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -83,11 +84,12 @@ function ProtectedRoute({
 }
 
 function AppRoutes() {
-  const { session, loading, hasPermission, permissions } = useAuth();
+  const { session, loading, hasPermission, permissions, permissionsReady } = useAuth();
   const allowAuthForRecovery = isAuthRecoveryFlow();
   const hasAnyPermission = Object.values(permissions ?? {}).some(Boolean);
+  const waitingForPermissions = Boolean(session) && !permissionsReady;
 
-  if (loading) {
+  if (loading || waitingForPermissions) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-2 text-muted-foreground">
