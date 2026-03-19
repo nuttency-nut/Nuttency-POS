@@ -963,7 +963,7 @@ export default function AppSettings() {
                     <p className="font-medium text-foreground">Màn hình hiển thị khách hàng</p>
                     <p className="text-xs text-muted-foreground">
                       {currentStore?.displayName
-                        ? `${currentStore.displayName}${currentStore.warehouseCode ? ` • ${currentStore.warehouseCode}` : ""}`
+                        ? currentStore.displayName
                         : "Chưa gán cửa hàng"}
                     </p>
                   </div>
