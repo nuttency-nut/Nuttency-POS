@@ -55,18 +55,18 @@ const PROMOTIONS = [
   {
     id: "promo-1",
     tag: "Ưu đãi hôm nay",
-    title: "Combo giải nhiệt",
-    description: "Giảm 20% cho các món nước đá theo mùa.",
+    title: "Giảm bình giữ nhiệt",
+    description: "Giảm 50% cho các bình giữ nhiệt trong BST MITMATCHES.",
     image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+      "https://bizweb.dktcdn.net/100/487/455/themes/917232/assets/slider_1.jpg?1773743590836",
   },
   {
     id: "promo-2",
-    tag: "Khách thân thiết",
-    title: "Bánh tươi buổi sáng",
-    description: "Tặng thêm 1 điểm cho mỗi sản phẩm bánh.",
+    tag: "Giá mới",
+    title: "PHIN DI",
+    description: "Ưu đãi giá tốt cho cà phê việt.",
     image:
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80",
+      "https://bizweb.dktcdn.net/100/487/455/themes/917232/assets/slider_2.jpg?1773743590836",
   },
 ];
 
@@ -192,8 +192,8 @@ export default function CustomerDisplay() {
       <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative h-screen w-full p-4">
-        <div className="grid h-full w-full gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
+      <div className="relative min-h-screen w-full p-[clamp(12px,2vw,24px)]">
+        <div className="grid min-h-full w-full gap-[clamp(12px,2vw,20px)] lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
           <motion.aside
             className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
@@ -402,7 +402,7 @@ export default function CustomerDisplay() {
                 </div>
               </div>
 
-              <div className="mt-6 space-y-4">
+              <div className="mt-6">
                 <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
@@ -414,19 +414,22 @@ export default function CustomerDisplay() {
                   {paymentMethod === "transfer" && transferContent && (
                     <p className="mt-1 text-xs text-slate-300">Nội dung: {transferContent}</p>
                   )}
-                </div>
-
-                {transferQrUrl && (
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4 text-center">
-                    <div className="text-xs font-semibold text-slate-400 mb-2">
-                      Quét QR chuyển khoản · {BANK_NAME}
+                  {transferQrUrl && (
+                    <div className="mt-4 rounded-2xl bg-white/10 p-4 text-center text-white">
+                      <div className="text-xs font-semibold text-slate-200 mb-2">
+                        Quét QR chuyển khoản · {BANK_NAME}
+                      </div>
+                      <img
+                        src={transferQrUrl}
+                        alt="QR chuyển khoản"
+                        className="mx-auto w-full max-w-[clamp(180px,22vw,260px)] aspect-square object-contain"
+                      />
+                      <p className="mt-2 text-xs text-slate-200">
+                        {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
+                      </p>
                     </div>
-                    <img src={transferQrUrl} alt="QR chuyển khoản" className="mx-auto w-40 h-40 object-contain" />
-                    <p className="mt-2 text-xs text-slate-500">
-                      {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </motion.aside>
