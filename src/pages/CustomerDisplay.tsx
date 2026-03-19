@@ -405,7 +405,7 @@ export default function CustomerDisplay() {
               </div>
 
               <div className="mt-6 shrink-0">
-                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words max-h-[clamp(260px,38vh,420px)] overflow-y-auto no-scrollbar">
+                <div className="flex h-[clamp(230px,32vh,360px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-y-auto no-scrollbar">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
                   {paymentMethod === "cash" && cashReceived !== null && (
@@ -417,14 +417,14 @@ export default function CustomerDisplay() {
                     <p className="mt-1 text-xs text-slate-300 break-words">Nội dung: {transferContent}</p>
                   )}
                   {transferQrUrl && (
-                    <div className="mt-4 rounded-2xl bg-white/10 p-4 text-center text-white">
+                    <div className="mt-4 rounded-2xl bg-white/10 p-3 text-center text-white">
                       <div className="text-xs font-semibold text-slate-200 mb-2">
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <img
                         src={transferQrUrl}
                         alt="QR chuyển khoản"
-                        className="mx-auto w-full max-w-[clamp(160px,18vw,230px)] aspect-square object-contain"
+                        className="mx-auto w-full max-w-[clamp(140px,16vw,200px)] max-h-[clamp(140px,16vw,200px)] aspect-square object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
