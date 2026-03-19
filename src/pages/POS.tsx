@@ -303,6 +303,26 @@ export default function POS() {
         cashierName: operatorName,
         status: items.length > 0 ? "processing" : "idle",
         items: mappedItems,
+        customer: {
+          name: "Khách lẻ",
+          phone: null,
+          loyaltyPoints: 0,
+          loyaltyPointsUsed: 0,
+        },
+        discount: {
+          code: null,
+          amount: 0,
+        },
+        loyalty: {
+          pointsUsed: 0,
+          discountAmount: 0,
+        },
+        payment: {
+          method: null,
+          cashReceived: null,
+          change: null,
+          transferContent: null,
+        },
         totals: {
           subtotal,
           discount: 0,

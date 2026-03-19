@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BadgeCheck, Info, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { BANK_ACCOUNT_NUMBER, BANK_BIN, BANK_NAME } from "@/lib/bank";
 
 type DisplayItem = {
   id: string;
@@ -22,6 +23,26 @@ type DisplayPayload = {
   cashierName?: string;
   status?: string;
   items?: DisplayItem[];
+  customer?: {
+    name?: string;
+    phone?: string | null;
+    loyaltyPoints?: number;
+    loyaltyPointsUsed?: number;
+  };
+  discount?: {
+    code?: string | null;
+    amount?: number;
+  };
+  loyalty?: {
+    pointsUsed?: number;
+    discountAmount?: number;
+  };
+  payment?: {
+    method?: "cash" | "transfer" | null;
+    cashReceived?: number | null;
+    change?: number | null;
+    transferContent?: string | null;
+  };
   totals?: {
     subtotal?: number;
     discount?: number;
@@ -139,6 +160,27 @@ export default function CustomerDisplay() {
     displayPayload?.totals?.total ?? subtotal - discount,
     0
   );
+  const customerName = displayPayload?.customer?.name?.trim() || "Khách lẻ";
+  const customerPhone = displayPayload?.customer?.phone ?? null;
+  const loyaltyPoints = displayPayload?.customer?.loyaltyPoints ?? 0;
+  const loyaltyPointsUsed = displayPayload?.loyalty?.pointsUsed ?? displayPayload?.customer?.loyaltyPointsUsed ?? 0;
+  const loyaltyDiscount = displayPayload?.loyalty?.discountAmount ?? 0;
+  const discountCode = displayPayload?.discount?.code?.trim() || null;
+  const discountAmount = displayPayload?.discount?.amount ?? 0;
+  const paymentMethod = displayPayload?.payment?.method ?? null;
+  const transferContent = displayPayload?.payment?.transferContent ?? "";
+  const cashReceived = displayPayload?.payment?.cashReceived ?? null;
+  const changeAmount = displayPayload?.payment?.change ?? null;
+  const hasDiscountCode = !!discountCode && discountAmount > 0;
+  const hasLoyaltyDiscount = loyaltyDiscount > 0 || loyaltyPointsUsed > 0;
+  const paymentLabel =
+    paymentMethod === "transfer" ? "Chuyển khoản" : paymentMethod === "cash" ? "Tiền mặt" : "Chờ thanh toán";
+  const transferQrUrl =
+    paymentMethod === "transfer" && transferContent
+      ? `https://img.vietqr.io/image/${BANK_BIN}-${BANK_ACCOUNT_NUMBER}-compact2.png?amount=${total}&addInfo=${encodeURIComponent(
+          transferContent
+        )}`
+      : null;
   const statusLabel = loading
     ? "Đang đồng bộ..."
     : displayPayload?.status === "processing"
@@ -289,19 +331,46 @@ export default function CustomerDisplay() {
                   KH
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-slate-800">Khách lẻ</h3>
-                  <p className="text-sm text-slate-500">
-                    {displayPayload?.cashierName ? `Thu ngân: ${displayPayload.cashierName}` : "Đang phục vụ"}
-                  </p>
+                  <h3 className="text-xl font-semibold text-slate-800">{customerName}</h3>
+                  <p className="text-sm text-slate-500">{customerPhone ? customerPhone : "Khách lẻ"}</p>
+                  {displayPayload?.cashierName && (
+                    <p className="text-xs text-slate-400">Thu ngân: {displayPayload.cashierName}</p>
+                  )}
+                  {loyaltyPoints > 0 && (
+                    <p className="text-xs text-emerald-600 font-semibold mt-1">
+                      Điểm loyalty: {loyaltyPoints}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="flex flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
-              <div className="mt-4 flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
-                <span className="font-mono text-sm font-semibold text-sky-700">SUMMER20</span>
-                <span className="rounded-full bg-sky-600 px-2 py-1 text-xs font-semibold text-white">Active</span>
+              <div className="mt-4 space-y-3">
+                {hasDiscountCode ? (
+                  <div className="flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                    <span className="font-mono text-sm font-semibold text-sky-700">{discountCode}</span>
+                    <span className="rounded-full bg-sky-600 px-2 py-1 text-xs font-semibold text-white">
+                      -{formatCurrency(discountAmount)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-400">
+                    Chưa áp dụng mã giảm giá
+                  </div>
+                )}
+
+                {hasLoyaltyDiscount && (
+                  <div className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                    <span className="text-xs font-semibold text-emerald-700">
+                      Dùng {loyaltyPointsUsed} điểm
+                    </span>
+                    <span className="rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                      -{formatCurrency(loyaltyDiscount)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 flex-1 space-y-4 border-t border-slate-100 pt-6">
@@ -309,10 +378,17 @@ export default function CustomerDisplay() {
                   <span className="text-slate-500">Tạm tính</span>
                   <span className="font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
                 </div>
-                <div className="flex items-center justify-between text-base text-red-500">
-                  <span>Giảm giá</span>
-                  <span className="font-semibold">-{formatCurrency(discount)}</span>
-                </div>
+                {discount > 0 ? (
+                  <div className="flex items-center justify-between text-base text-red-500">
+                    <span>Giảm giá</span>
+                    <span className="font-semibold">-{formatCurrency(discount)}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-base text-slate-400">
+                    <span>Giảm giá</span>
+                    <span>0 đ</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-base text-emerald-600">
                   <span>Điểm thưởng</span>
                   <span className="font-semibold">{formatCurrency(0)}</span>
@@ -326,9 +402,31 @@ export default function CustomerDisplay() {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Sẵn sàng thanh toán</p>
-                <p className="mt-2 text-lg font-semibold">Vui lòng làm theo hướng dẫn của nhân viên</p>
+              <div className="mt-6 space-y-4">
+                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
+                  <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
+                  {paymentMethod === "cash" && cashReceived !== null && (
+                    <p className="mt-1 text-xs text-slate-300">
+                      Khách đưa: {formatCurrency(cashReceived)} · Thối lại: {formatCurrency(changeAmount ?? 0)}
+                    </p>
+                  )}
+                  {paymentMethod === "transfer" && transferContent && (
+                    <p className="mt-1 text-xs text-slate-300">Nội dung: {transferContent}</p>
+                  )}
+                </div>
+
+                {transferQrUrl && (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4 text-center">
+                    <div className="text-xs font-semibold text-slate-400 mb-2">
+                      Quét QR chuyển khoản · {BANK_NAME}
+                    </div>
+                    <img src={transferQrUrl} alt="QR chuyển khoản" className="mx-auto w-40 h-40 object-contain" />
+                    <p className="mt-2 text-xs text-slate-500">
+                      {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </motion.aside>

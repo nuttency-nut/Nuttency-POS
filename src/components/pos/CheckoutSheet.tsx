@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -179,10 +179,17 @@ export default function CheckoutSheet({
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoConfirmTriggered, setAutoConfirmTriggered] = useState(false);
+  const [storeContext, setStoreContext] = useState<{
+    id: string;
+    warehouseCode: string;
+    displayName: string;
+  } | null>(null);
+  const [displayActiveByMe, setDisplayActiveByMe] = useState(false);
   const latestDraftRef = useRef<DraftOrderState | null>(null);
   const initializedExistingOrderIdRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const preserveDraftOnCloseRef = useRef(false);
+  const displayPublishTimerRef = useRef<number | null>(null);
 
   const operatorName = userName?.trim() || "Không rõ";
 
@@ -657,6 +664,103 @@ export default function CheckoutSheet({
   }, [draftOrder]);
 
   useEffect(() => {
+    if (!open || !userId) {
+      setStoreContext(null);
+      setDisplayActiveByMe(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadStore = async () => {
+      const { data: assignment } = await supabase
+        .from("user_store_assignments")
+        .select("store_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (!assignment?.store_id) {
+        setStoreContext(null);
+        setDisplayActiveByMe(false);
+        return;
+      }
+
+      const { data: storeRow } = await supabase
+        .from("store_definitions")
+        .select("id,warehouse_code,display_name")
+        .eq("id", assignment.store_id)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      setStoreContext(
+        storeRow
+          ? {
+              id: String(storeRow.id),
+              warehouseCode: String(storeRow.warehouse_code ?? ""),
+              displayName: String(storeRow.display_name ?? ""),
+            }
+          : {
+              id: String(assignment.store_id),
+              warehouseCode: "",
+              displayName: "",
+            }
+      );
+    };
+
+    void loadStore();
+
+    return () => {
+      mounted = false;
+    };
+  }, [open, userId]);
+
+  useEffect(() => {
+    if (!open || !storeContext?.id) {
+      setDisplayActiveByMe(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const refreshSession = async () => {
+      const { data } = await supabase
+        .from("customer_display_sessions")
+        .select("active_by_id")
+        .eq("store_id", storeContext.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+      setDisplayActiveByMe(data?.active_by_id === userId);
+    };
+
+    void refreshSession();
+
+    const channel = supabase
+      .channel(`customer-display-session-checkout-${storeContext.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "customer_display_sessions", filter: `store_id=eq.${storeContext.id}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setDisplayActiveByMe(false);
+            return;
+          }
+          const row = payload.new as { active_by_id?: string } | null;
+          setDisplayActiveByMe(row?.active_by_id === userId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [open, storeContext?.id, userId]);
+
+  useEffect(() => {
     return () => {
       if (existingDraftOrder) return;
       if (preserveDraftOnCloseRef.current) return;
@@ -699,6 +803,143 @@ export default function CheckoutSheet({
     customerPhone,
     useLoyaltyPoints,
     loyaltyPointsToUse,
+  ]);
+
+  const publishCustomerDisplay = useCallback(async () => {
+    if (!open || !displayActiveByMe || !storeContext?.id) return;
+
+    const mappedItems = items.map((item) => {
+      const detailParts: string[] = [];
+      if (item.classificationLabels?.length) {
+        detailParts.push(item.classificationLabels.join(" · "));
+      }
+      if (item.note) {
+        detailParts.push(`Ghi chú: ${item.note}`);
+      }
+
+      return {
+        id: item.id,
+        name: item.name,
+        detail: detailParts.join(" • "),
+        qty: item.qty,
+        price: item.price,
+        lineTotal: item.price * item.qty,
+        image: item.image_url,
+      };
+    });
+
+    const discountTotal = discountCodeAmount + loyaltyDiscount;
+    const payload = {
+      store: {
+        warehouseCode: storeContext.warehouseCode,
+        displayName: storeContext.displayName,
+      },
+      cashierName: operatorName,
+      status: items.length > 0 ? "processing" : "idle",
+      items: mappedItems,
+      customer: {
+        name: useLoyalty && customerName.trim() ? customerName.trim() : "Khách lẻ",
+        phone: useLoyalty ? customerPhone.trim() || null : null,
+        loyaltyPoints: foundCustomer?.loyalty_points ?? 0,
+        loyaltyPointsUsed: useLoyaltyPoints ? loyaltyPointsToUse : 0,
+      },
+      discount: {
+        code: useDiscountCode ? normalizedDiscountCode : null,
+        amount: discountCodeAmount,
+      },
+      loyalty: {
+        pointsUsed: useLoyaltyPoints ? loyaltyPointsToUse : 0,
+        discountAmount: loyaltyDiscount,
+      },
+      payment: {
+        method: paymentMethod,
+        cashReceived: paymentMethod === "cash" ? cashReceivedNum : null,
+        change: paymentMethod === "cash" ? changeAmount : null,
+        transferContent: paymentMethod === "transfer" ? normalizedTransferContent : null,
+      },
+      totals: {
+        subtotal: totalPrice,
+        discount: discountTotal,
+        total: finalAmount,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("customer_display_states").upsert(
+      {
+        store_id: storeContext.id,
+        payload,
+        updated_by_id: userId,
+        updated_by_name: operatorName,
+      },
+      { onConflict: "store_id" }
+    );
+
+    if (error) {
+      console.error("Không thể cập nhật màn hình khách hàng:", error.message);
+    }
+  }, [
+    cashReceivedNum,
+    changeAmount,
+    customerName,
+    customerPhone,
+    discountCodeAmount,
+    displayActiveByMe,
+    finalAmount,
+    foundCustomer?.loyalty_points,
+    items,
+    loyaltyDiscount,
+    loyaltyPointsToUse,
+    normalizedDiscountCode,
+    normalizedTransferContent,
+    open,
+    operatorName,
+    paymentMethod,
+    storeContext?.displayName,
+    storeContext?.id,
+    storeContext?.warehouseCode,
+    totalPrice,
+    useDiscountCode,
+    useLoyalty,
+    useLoyaltyPoints,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!open || !displayActiveByMe || !storeContext?.id) return;
+    if (displayPublishTimerRef.current) {
+      window.clearTimeout(displayPublishTimerRef.current);
+    }
+    displayPublishTimerRef.current = window.setTimeout(() => {
+      void publishCustomerDisplay();
+    }, 200);
+
+    return () => {
+      if (displayPublishTimerRef.current) {
+        window.clearTimeout(displayPublishTimerRef.current);
+      }
+    };
+  }, [
+    cashReceivedNum,
+    changeAmount,
+    customerName,
+    customerPhone,
+    discountCodeAmount,
+    displayActiveByMe,
+    finalAmount,
+    foundCustomer?.loyalty_points,
+    items,
+    loyaltyDiscount,
+    loyaltyPointsToUse,
+    normalizedDiscountCode,
+    normalizedTransferContent,
+    open,
+    paymentMethod,
+    publishCustomerDisplay,
+    storeContext?.id,
+    useDiscountCode,
+    useLoyalty,
+    useLoyaltyPoints,
   ]);
 
   const searchCustomer = async () => {
