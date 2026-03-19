@@ -319,12 +319,12 @@ export default function CustomerDisplay() {
           </motion.main>
 
           <motion.aside
-            className="flex flex-col gap-4"
+            className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md">
+            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md max-h-[clamp(150px,20vh,220px)] overflow-y-auto no-scrollbar pr-2">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khách hàng</p>
               <div className="mt-4 flex items-center gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700">
@@ -405,7 +405,7 @@ export default function CustomerDisplay() {
               </div>
 
               <div className="mt-6 shrink-0">
-                <div className="flex h-[clamp(230px,32vh,360px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-y-auto no-scrollbar">
+                <div className="flex max-h-[clamp(220px,32vh,360px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-y-auto no-scrollbar">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
                   {paymentMethod === "cash" && cashReceived !== null && (
