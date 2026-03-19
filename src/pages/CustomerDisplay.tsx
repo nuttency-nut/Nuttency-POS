@@ -195,7 +195,7 @@ export default function CustomerDisplay() {
       <div className="relative h-screen w-full p-4">
         <div className="grid h-full w-full gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
           <motion.aside
-            className="flex flex-col gap-4"
+            className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -345,7 +345,7 @@ export default function CustomerDisplay() {
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md">
+            <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-y-auto">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
               <div className="mt-4 space-y-3">
                 {hasDiscountCode ? (
@@ -403,7 +403,7 @@ export default function CustomerDisplay() {
               </div>
 
               <div className="mt-6 space-y-4">
-                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg">
+                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
                   {paymentMethod === "cash" && cashReceived !== null && (
