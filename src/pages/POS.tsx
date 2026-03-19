@@ -58,7 +58,14 @@ export default function POS() {
   const [dialogProduct, setDialogProduct] = useState<Product | null>(null);
   const [flyAnimations, setFlyAnimations] = useState<FlyAnimation[]>([]);
   const [cashHeld, setCashHeld] = useState<number | null>(null);
+  const [storeContext, setStoreContext] = useState<{
+    id: string;
+    warehouseCode: string;
+    displayName: string;
+  } | null>(null);
+  const [displayActiveByMe, setDisplayActiveByMe] = useState(false);
   const lastTapRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const displayPublishTimerRef = useRef<number | null>(null);
 
   const { data: products = [], isLoading } = useProducts();
   const { data: categories = [] } = useCategories();
@@ -67,6 +74,9 @@ export default function POS() {
     (user?.user_metadata as { full_name?: string } | undefined)?.full_name ||
     user?.email ||
     "Không rõ";
+  const storeId = storeContext?.id ?? null;
+  const storeWarehouseCode = storeContext?.warehouseCode ?? "";
+  const storeDisplayName = storeContext?.displayName ?? "";
 
   const filtered = products.filter((product) => {
     if (!product.is_active) return false;
@@ -165,6 +175,173 @@ export default function POS() {
   }, []);
 
   const cachedCashHeld = useMemo(() => readCachedCashHeld(user?.id), [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setStoreContext(null);
+      setDisplayActiveByMe(false);
+      return;
+    }
+    let mounted = true;
+    const loadStore = async () => {
+      const { data: assignment } = await supabase
+        .from("user_store_assignments")
+        .select("store_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (!assignment?.store_id) {
+        setStoreContext(null);
+        setDisplayActiveByMe(false);
+        return;
+      }
+
+      const { data: storeRow } = await supabase
+        .from("store_definitions")
+        .select("id,warehouse_code,display_name")
+        .eq("id", assignment.store_id)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      setStoreContext(
+        storeRow
+          ? {
+              id: String(storeRow.id),
+              warehouseCode: String(storeRow.warehouse_code ?? ""),
+              displayName: String(storeRow.display_name ?? ""),
+            }
+          : {
+              id: String(assignment.store_id),
+              warehouseCode: "",
+              displayName: "",
+            }
+      );
+    };
+
+    void loadStore();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !storeId) {
+      setDisplayActiveByMe(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const refreshSession = async () => {
+      const { data } = await supabase
+        .from("customer_display_sessions")
+        .select("active_by_id")
+        .eq("store_id", storeId)
+        .maybeSingle();
+
+      if (!mounted) return;
+      setDisplayActiveByMe(data?.active_by_id === user.id);
+    };
+
+    void refreshSession();
+
+    const channel = supabase
+      .channel(`customer-display-session-${storeId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "customer_display_sessions", filter: `store_id=eq.${storeId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setDisplayActiveByMe(false);
+            return;
+          }
+          const row = payload.new as { active_by_id?: string } | null;
+          setDisplayActiveByMe(row?.active_by_id === user.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [storeId, user?.id]);
+
+  const publishCustomerDisplay = useCallback(
+    async (items: CartItem[]) => {
+      if (!displayActiveByMe || !storeId || !user?.id) return;
+
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const mappedItems = items.map((item) => {
+        const detailParts = [];
+        if (item.classificationLabels?.length) {
+          detailParts.push(item.classificationLabels.join(" · "));
+        }
+        if (item.note) {
+          detailParts.push(`Ghi chú: ${item.note}`);
+        }
+        return {
+          id: item.id,
+          name: item.name,
+          detail: detailParts.join(" • "),
+          qty: item.qty,
+          price: item.price,
+          lineTotal: item.price * item.qty,
+          image: item.image_url,
+        };
+      });
+
+      const payload = {
+        store: {
+          warehouseCode: storeWarehouseCode,
+          displayName: storeDisplayName,
+        },
+        cashierName: operatorName,
+        status: items.length > 0 ? "processing" : "idle",
+        items: mappedItems,
+        totals: {
+          subtotal,
+          discount: 0,
+          total: subtotal,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from("customer_display_states").upsert(
+        {
+          store_id: storeId,
+          payload,
+          updated_by_id: user.id,
+          updated_by_name: operatorName,
+        },
+        { onConflict: "store_id" }
+      );
+      if (error) {
+        console.error("Không thể cập nhật màn hình khách hàng:", error.message);
+      }
+    },
+    [displayActiveByMe, operatorName, storeDisplayName, storeId, storeWarehouseCode, user?.id]
+  );
+
+  useEffect(() => {
+    if (!displayActiveByMe || !storeId) return;
+    if (displayPublishTimerRef.current) {
+      window.clearTimeout(displayPublishTimerRef.current);
+    }
+    displayPublishTimerRef.current = window.setTimeout(() => {
+      void publishCustomerDisplay(cartItems);
+    }, 200);
+
+    return () => {
+      if (displayPublishTimerRef.current) {
+        window.clearTimeout(displayPublishTimerRef.current);
+      }
+    };
+  }, [cartItems, displayActiveByMe, publishCustomerDisplay, storeId]);
 
   const loadCashHeld = useCallback(async () => {
     if (!user?.id) return;

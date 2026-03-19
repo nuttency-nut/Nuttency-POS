@@ -1,15 +1,33 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { BadgeCheck, Info, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-type OrderItem = {
+type DisplayItem = {
   id: string;
   name: string;
-  note?: string;
+  detail?: string;
   qty: number;
   price: number;
-  image?: string;
+  lineTotal: number;
+  image?: string | null;
+};
+
+type DisplayPayload = {
+  store?: {
+    warehouseCode?: string;
+    displayName?: string;
+  };
+  cashierName?: string;
+  status?: string;
+  items?: DisplayItem[];
+  totals?: {
+    subtotal?: number;
+    discount?: number;
+    total?: number;
+  };
+  updatedAt?: string;
 };
 
 const PROMOTIONS = [
@@ -31,36 +49,6 @@ const PROMOTIONS = [
   },
 ];
 
-const ORDER_ITEMS: OrderItem[] = [
-  {
-    id: "item-1",
-    name: "Cà phê sữa đá",
-    note: "Size L • Ít đá",
-    qty: 1,
-    price: 32000,
-    image:
-      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    id: "item-2",
-    name: "Bánh croissant hạnh nhân",
-    note: "Nướng nóng",
-    qty: 2,
-    price: 28000,
-    image:
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    id: "item-3",
-    name: "Sandwich đặc biệt",
-    note: "Bánh mì đen",
-    qty: 1,
-    price: 59000,
-    image:
-      "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=600&q=80",
-  },
-];
-
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -70,13 +58,92 @@ const formatCurrency = (value: number) =>
 
 export default function CustomerDisplay() {
   const { warehouseCode } = useParams();
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState<string>("");
+  const [displayPayload, setDisplayPayload] = useState<DisplayPayload | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (!warehouseCode) return;
+    let mounted = true;
+
+    const loadStore = async () => {
+      setLoading(true);
+      const { data: storeRow } = await supabase
+        .from("store_definitions")
+        .select("id,display_name,warehouse_code")
+        .eq("warehouse_code", warehouseCode)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (!storeRow?.id) {
+        setStoreId(null);
+        setStoreName("");
+        setDisplayPayload(null);
+        setLoading(false);
+        return;
+      }
+
+      setStoreId(String(storeRow.id));
+      setStoreName(String(storeRow.display_name ?? ""));
+
+      const { data: stateRow } = await supabase
+        .from("customer_display_states")
+        .select("payload")
+        .eq("store_id", storeRow.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+      setDisplayPayload((stateRow?.payload as DisplayPayload) ?? null);
+      setLoading(false);
+    };
+
+    void loadStore();
+
+    return () => {
+      mounted = false;
+    };
+  }, [warehouseCode]);
+
+  useEffect(() => {
+    if (!storeId) return;
+    const channel = supabase
+      .channel(`customer-display-state-${storeId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "customer_display_states", filter: `store_id=eq.${storeId}` },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            setDisplayPayload(null);
+            return;
+          }
+          const row = payload.new as { payload?: DisplayPayload } | null;
+          setDisplayPayload(row?.payload ?? null);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [storeId]);
+
+  const displayItems = displayPayload?.items ?? [];
   const subtotal = useMemo(
-    () => ORDER_ITEMS.reduce((acc, item) => acc + item.price * item.qty, 0),
-    []
+    () => displayItems.reduce((acc, item) => acc + item.price * item.qty, 0),
+    [displayItems]
   );
-  const discount = 15000;
-  const total = Math.max(subtotal - discount, 0);
+  const discount = displayPayload?.totals?.discount ?? 0;
+  const total = Math.max(
+    displayPayload?.totals?.total ?? subtotal - discount,
+    0
+  );
+  const statusLabel = loading
+    ? "Đang đồng bộ..."
+    : displayPayload?.status === "processing"
+      ? "Đang xử lý..."
+      : "Chờ đơn hàng";
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 text-slate-900 overflow-hidden">
@@ -135,11 +202,13 @@ export default function CustomerDisplay() {
             <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-6 py-5">
               <div>
                 <h1 className="text-2xl font-semibold text-slate-900">Đơn hàng của bạn</h1>
-                <p className="text-sm text-slate-500">Mã đơn: #POS-{warehouseCode ?? "0000"}</p>
+                <p className="text-sm text-slate-500">
+                  {storeName ? `Cửa hàng: ${storeName}` : "Cửa hàng đang cập nhật"}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-sky-100 px-4 py-2 text-xs font-semibold text-sky-700 animate-pulse">
-                  Đang xử lý...
+                  {statusLabel}
                 </span>
                 {warehouseCode && (
                   <span className="rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
@@ -150,34 +219,53 @@ export default function CustomerDisplay() {
             </header>
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 no-scrollbar">
-              {ORDER_ITEMS.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  className="flex items-center gap-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.1 + index * 0.1 }}
-                >
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="h-20 w-20 rounded-2xl object-cover shadow"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-800">{item.name}</h3>
-                    <p className="text-sm text-slate-400">{item.note}</p>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-center">
-                      <p className="text-xs font-semibold uppercase text-slate-400">Qty</p>
-                      <span className="text-xl font-semibold text-slate-800">{item.qty}</span>
-                    </div>
-                    <div className="w-28 text-right text-xl font-semibold text-slate-800">
-                      {formatCurrency(item.price * item.qty)}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+              {loading && displayItems.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-slate-400">
+                  Đang đồng bộ dữ liệu đơn hàng...
+                </div>
+              ) : displayItems.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-slate-400">
+                  Chưa có sản phẩm trong đơn hàng.
+                </div>
+              ) : (
+                displayItems.map((item, index) => {
+                  const lineTotal = item.lineTotal ?? item.price * item.qty;
+                  return (
+                    <motion.div
+                      key={item.id}
+                      className="flex items-center gap-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.1 + index * 0.1 }}
+                    >
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="h-20 w-20 rounded-2xl object-cover shadow"
+                        />
+                      ) : (
+                        <div className="h-20 w-20 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-semibold">
+                          NUT POS
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-slate-800">{item.name}</h3>
+                        {item.detail && <p className="text-sm text-slate-400">{item.detail}</p>}
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-center">
+                          <p className="text-xs font-semibold uppercase text-slate-400">Qty</p>
+                          <span className="text-xl font-semibold text-slate-800">{item.qty}</span>
+                        </div>
+                        <div className="w-28 text-right text-xl font-semibold text-slate-800">
+                          {formatCurrency(lineTotal)}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
 
             <footer className="border-t border-slate-100 bg-slate-50 px-6 py-4">
@@ -202,7 +290,9 @@ export default function CustomerDisplay() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-slate-800">Khách lẻ</h3>
-                  <p className="text-sm text-slate-500">Thành viên tiêu chuẩn</p>
+                  <p className="text-sm text-slate-500">
+                    {displayPayload?.cashierName ? `Thu ngân: ${displayPayload.cashierName}` : "Đang phục vụ"}
+                  </p>
                 </div>
               </div>
             </div>
