@@ -175,9 +175,11 @@ export default function AppSettings() {
   } | null>(null);
   const [loadingDisplaySession, setLoadingDisplaySession] = useState(false);
   const [togglingDisplay, setTogglingDisplay] = useState(false);
+  const [displayTransitionEnabled, setDisplayTransitionEnabled] = useState(false);
 
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
+  const displayTransitionTimeoutRef = useRef<number | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const db = supabase as any;
 
@@ -195,6 +197,9 @@ export default function AppSettings() {
   const showDeclarationsGroup = canDeclareRoles || canDeclareStores;
   const showPaymentsGroup = canAccessPaymentLookup || canAccessCashDeposit;
   const operatorName = userFullName || user?.email || "Không rõ";
+  const displayTransitionClass = displayTransitionEnabled
+    ? "transition-all duration-300"
+    : "transition-none";
 
   const roleById = useMemo(() => {
     return new Map(declaredRoles.map((role) => [role.id, role]));
@@ -622,6 +627,14 @@ export default function AppSettings() {
   }, [user?.id]);
 
   useEffect(() => {
+    return () => {
+      if (displayTransitionTimeoutRef.current) {
+        window.clearTimeout(displayTransitionTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!canManageRoles || activeTab !== "roles") return;
     void loadRoleUsers();
     void loadDeclaredRoles();
@@ -786,6 +799,14 @@ export default function AppSettings() {
       toast.error(`Màn hình đang bật bởi ${ownerName}`);
       return;
     }
+
+    setDisplayTransitionEnabled(true);
+    if (displayTransitionTimeoutRef.current) {
+      window.clearTimeout(displayTransitionTimeoutRef.current);
+    }
+    displayTransitionTimeoutRef.current = window.setTimeout(() => {
+      setDisplayTransitionEnabled(false);
+    }, 350);
 
     setTogglingDisplay(true);
     try {
@@ -987,14 +1008,14 @@ export default function AppSettings() {
                 aria-label="Bật tắt màn hình hiển thị khách hàng"
               >
                 <div
-                  className={`relative w-14 h-8 rounded-full border transition-all duration-300 ${
+                  className={`relative w-14 h-8 rounded-full border ${displayTransitionClass} ${
                     displaySession
                       ? "bg-gradient-to-r from-emerald-400 to-emerald-600 border-emerald-500/60 shadow-inner"
                       : "bg-gradient-to-r from-slate-600 to-slate-700 border-slate-500/50 shadow-inner"
                   }`}
                 >
                   <div
-                    className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md transition-all duration-300 flex items-center justify-center ${
+                    className={`absolute top-0.5 w-7 h-7 rounded-full bg-card shadow-md ${displayTransitionClass} flex items-center justify-center ${
                       displaySession ? "translate-x-6 left-0.5" : "left-0.5"
                     }`}
                   >
