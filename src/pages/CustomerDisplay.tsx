@@ -58,7 +58,7 @@ const PROMOTIONS = [
     title: "Giảm bình giữ nhiệt",
     description: "Giảm 50% cho các bình giữ nhiệt trong BST MITMATCHES.",
     image:
-      "https://bizweb.dktcdn.net/100/487/455/themes/917232/assets/slider_1.jpg?1773743590836",
+      "https://bizweb.dktcdn.net/thumb/1024x1024/100/487/455/products/19.png?v=1759752198957",
   },
   {
     id: "promo-2",
@@ -66,7 +66,7 @@ const PROMOTIONS = [
     title: "PHIN DI",
     description: "Ưu đãi giá tốt cho cà phê việt.",
     image:
-      "https://bizweb.dktcdn.net/100/487/455/themes/917232/assets/slider_2.jpg?1773743590836",
+      "https://bizweb.dktcdn.net/thumb/grande/100/487/455/products/hco-7821-espresso-launch-dc-banner-latte-thumbnail-1-1772698527772.jpg?v=1772698530773",
   },
 ];
 
@@ -188,12 +188,12 @@ export default function CustomerDisplay() {
       : "Chờ đơn hàng";
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 text-slate-900 overflow-hidden">
+    <div className="relative h-[100dvh] min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 text-slate-900 overflow-hidden">
       <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative min-h-screen w-full p-[clamp(12px,2vw,24px)]">
-        <div className="grid min-h-full w-full gap-[clamp(12px,2vw,20px)] lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
+      <div className="relative h-full w-full p-[clamp(12px,2vw,24px)]">
+        <div className="grid h-full w-full gap-[clamp(12px,2vw,20px)] overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
           <motion.aside
             className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
@@ -211,7 +211,7 @@ export default function CustomerDisplay() {
               <p className="mt-2 text-sm text-slate-300">Dành riêng cho khách hàng hôm nay</p>
             </div>
 
-            <div className="flex flex-1 flex-col gap-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 no-scrollbar">
               {PROMOTIONS.map((promo, index) => (
                 <motion.div
                   key={promo.id}
@@ -236,7 +236,7 @@ export default function CustomerDisplay() {
           </motion.aside>
 
           <motion.main
-            className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg"
+            className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
@@ -345,9 +345,10 @@ export default function CustomerDisplay() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-y-auto">
+            <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-2 no-scrollbar">
+                <div className="space-y-3">
                 {hasDiscountCode ? (
                   <div className="flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
                     <span className="font-mono text-sm font-semibold text-sky-700">{discountCode}</span>
@@ -371,9 +372,9 @@ export default function CustomerDisplay() {
                     </span>
                   </div>
                 )}
-              </div>
+                </div>
 
-              <div className="mt-6 flex-1 space-y-4 border-t border-slate-100 pt-6">
+                <div className="space-y-4 border-t border-slate-100 pt-6">
                 <div className="flex items-center justify-between text-base">
                   <span className="text-slate-500">Tạm tính</span>
                   <span className="font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
@@ -400,19 +401,20 @@ export default function CustomerDisplay() {
                     {formatCurrency(total)}
                   </p>
                 </div>
+                </div>
               </div>
 
-              <div className="mt-6">
-                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words">
+              <div className="mt-6 shrink-0">
+                <div className="rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words max-h-[clamp(260px,38vh,420px)] overflow-y-auto no-scrollbar">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
                   {paymentMethod === "cash" && cashReceived !== null && (
-                    <p className="mt-1 text-xs text-slate-300">
+                    <p className="mt-1 text-xs text-slate-300 break-words">
                       Khách đưa: {formatCurrency(cashReceived)} · Thối lại: {formatCurrency(changeAmount ?? 0)}
                     </p>
                   )}
                   {paymentMethod === "transfer" && transferContent && (
-                    <p className="mt-1 text-xs text-slate-300">Nội dung: {transferContent}</p>
+                    <p className="mt-1 text-xs text-slate-300 break-words">Nội dung: {transferContent}</p>
                   )}
                   {transferQrUrl && (
                     <div className="mt-4 rounded-2xl bg-white/10 p-4 text-center text-white">
@@ -422,7 +424,7 @@ export default function CustomerDisplay() {
                       <img
                         src={transferQrUrl}
                         alt="QR chuyển khoản"
-                        className="mx-auto w-full max-w-[clamp(180px,22vw,260px)] aspect-square object-contain"
+                        className="mx-auto w-full max-w-[clamp(160px,18vw,230px)] aspect-square object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
