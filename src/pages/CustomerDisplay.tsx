@@ -319,7 +319,7 @@ export default function CustomerDisplay() {
           </motion.main>
 
           <motion.aside
-            className="flex min-h-0 flex-col gap-[clamp(12px,1.2vw,16px)]"
+            className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-[clamp(12px,1.2vw,16px)]"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -333,19 +333,19 @@ export default function CustomerDisplay() {
                 <div className="min-w-0">
                   <h3 className="text-xl font-semibold text-slate-800 truncate">{customerName}</h3>
                   <p className="text-sm text-slate-500 truncate">{customerPhone ? customerPhone : "Khách lẻ"}</p>
-                  {displayPayload?.cashierName && (
-                    <p className="text-xs text-slate-400 truncate">Thu ngân: {displayPayload.cashierName}</p>
-                  )}
                   {loyaltyPoints > 0 && (
                     <p className="text-xs text-emerald-600 font-semibold mt-1 truncate">
                       Điểm loyalty: {loyaltyPoints}
-                    </p>
+                    </p>                   
+                  )}
+                  {displayPayload?.cashierName && (
+                    <p className="text-xs text-slate-400 truncate">Thu ngân: {displayPayload.cashierName}</p>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-hidden">
+            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
               <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-2 no-scrollbar">
                 <div className="space-y-3">
@@ -404,29 +404,29 @@ export default function CustomerDisplay() {
                 </div>
               </div>
 
-              <div className="mt-6 shrink-0">
-                <div className="flex h-[clamp(200px,28vh,320px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
+              <div className="shrink-0">
+                <div className="flex h-[clamp(260px,34vh,380px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
                   {paymentMethod === "cash" && cashReceived !== null && (
-                    <p className="mt-1 text-xs text-slate-300 break-words max-h-8 overflow-hidden">
+                    <p className="mt-1 text-xs text-slate-300 break-words max-h-10 overflow-hidden">
                       Khách đưa: {formatCurrency(cashReceived)} · Thối lại: {formatCurrency(changeAmount ?? 0)}
                     </p>
                   )}
                   {paymentMethod === "transfer" && transferContent && (
-                    <p className="mt-1 text-xs text-slate-300 break-words max-h-8 overflow-hidden">Nội dung: {transferContent}</p>
+                    <p className="mt-1 text-xs text-slate-300 break-words max-h-10 overflow-hidden">Nội dung: {transferContent}</p>
                   )}
                   </div>
                   {transferQrUrl && (
-                    <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white/10 p-2 text-center text-white">
+                    <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white/10 p-3 text-center text-white">
                       <div className="text-xs font-semibold text-slate-200 mb-2">
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <img
                         src={transferQrUrl}
                         alt="QR chuyển khoản"
-                        className="mx-auto w-full max-w-[clamp(110px,12vw,160px)] max-h-full aspect-square object-contain"
+                        className="mx-auto w-full max-w-[clamp(180px,22vw,260px)] max-h-full aspect-square object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
