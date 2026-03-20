@@ -15,6 +15,8 @@ type DisplayItem = {
   image?: string | null;
 };
 
+type PromotionMediaType = "image" | "video";
+
 type DisplayPayload = {
   store?: {
     warehouseCode?: string;
@@ -57,6 +59,9 @@ const PROMOTIONS = [
     tag: "Ưu đãi hôm nay",
     title: "Giảm bình giữ nhiệt",
     description: "Giảm 50% cho các bình giữ nhiệt trong BST MITMATCHES.",
+    mediaType: "image" as PromotionMediaType,
+    mediaUrl:
+      "https://bizweb.dktcdn.net/thumb/1024x1024/100/487/455/products/19.png?v=1759752198957",
     image:
       "https://bizweb.dktcdn.net/thumb/1024x1024/100/487/455/products/19.png?v=1759752198957",
   },
@@ -65,6 +70,9 @@ const PROMOTIONS = [
     tag: "Giá mới",
     title: "PHIN DI",
     description: "Ưu đãi giá tốt cho cà phê việt.",
+    mediaType: "image" as PromotionMediaType,
+    mediaUrl:
+      "https://bizweb.dktcdn.net/thumb/grande/100/487/455/products/hco-7821-espresso-launch-dc-banner-latte-thumbnail-1-1772698527772.jpg?v=1772698530773",
     image:
       "https://bizweb.dktcdn.net/thumb/grande/100/487/455/products/hco-7821-espresso-launch-dc-banner-latte-thumbnail-1-1772698527772.jpg?v=1772698530773",
   },
@@ -175,6 +183,8 @@ export default function CustomerDisplay() {
   const hasLoyaltyDiscount = loyaltyDiscount > 0 || loyaltyPointsUsed > 0;
   const paymentLabel =
     paymentMethod === "transfer" ? "Chuyển khoản" : paymentMethod === "cash" ? "Tiền mặt" : "Chờ thanh toán";
+  const showPaymentDetails = paymentMethod === "cash" || paymentMethod === "transfer";
+  const marketingPromo = PROMOTIONS[0];
   const transferQrUrl =
     paymentMethod === "transfer" && transferContent
       ? `https://img.vietqr.io/image/${BANK_BIN}-${BANK_ACCOUNT_NUMBER}-compact2.png?amount=${total}&addInfo=${encodeURIComponent(
@@ -220,7 +230,18 @@ export default function CustomerDisplay() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 + index * 0.1 }}
                 >
-                  <img src={promo.image} alt={promo.title} className="h-full w-full object-cover" />
+                  {promo.mediaType === "video" && promo.mediaUrl ? (
+                    <video
+                      className="h-full w-full object-cover"
+                      src={promo.mediaUrl}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : (
+                    <img src={promo.mediaUrl ?? promo.image} alt={promo.title} className="h-full w-full object-cover" />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/30 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white space-y-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs uppercase tracking-[0.2em]">
@@ -410,16 +431,16 @@ export default function CustomerDisplay() {
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
-                  {paymentMethod === "cash" && cashReceived !== null && (
+                  {showPaymentDetails && paymentMethod === "cash" && cashReceived !== null && (
                     <p className="mt-1 text-xs text-slate-300 break-words max-h-10 overflow-hidden">
                       Khách đưa: {formatCurrency(cashReceived)} · Thối lại: {formatCurrency(changeAmount ?? 0)}
                     </p>
                   )}
-                  {paymentMethod === "transfer" && transferContent && (
+                  {showPaymentDetails && paymentMethod === "transfer" && transferContent && (
                     <p className="mt-1 text-xs text-slate-300 break-words max-h-10 overflow-hidden">Nội dung: {transferContent}</p>
                   )}
                   </div>
-                  {transferQrUrl && (
+                  {showPaymentDetails && transferQrUrl && (
                     <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white/10 p-3 text-center text-white">
                       <div className="text-xs font-semibold text-slate-200 mb-2">
                         Quét QR chuyển khoản · {BANK_NAME}
@@ -432,6 +453,33 @@ export default function CustomerDisplay() {
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
                       </p>
+                    </div>
+                  )}
+                  {!showPaymentDetails && marketingPromo && (
+                    <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white/10 p-3 text-center text-white">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-200">
+                        Ưu đãi hôm nay
+                      </p>
+                      <div className="mt-2 w-full max-w-[clamp(220px,30vw,380px)] aspect-[4/3] overflow-hidden rounded-2xl bg-slate-800">
+                        {marketingPromo.mediaType === "video" && marketingPromo.mediaUrl ? (
+                          <video
+                            className="h-full w-full object-cover"
+                            src={marketingPromo.mediaUrl}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            src={marketingPromo.mediaUrl ?? marketingPromo.image}
+                            alt={marketingPromo.title}
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <p className="mt-3 text-sm font-semibold">{marketingPromo.title}</p>
+                      <p className="text-xs text-slate-300">{marketingPromo.description}</p>
                     </div>
                   )}
                 </div>
