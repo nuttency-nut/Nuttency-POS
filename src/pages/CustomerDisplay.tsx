@@ -319,12 +319,12 @@ export default function CustomerDisplay() {
           </motion.main>
 
           <motion.aside
-            className="grid min-h-0 grid-rows-[auto_minmax(240px,1fr)_auto] gap-[clamp(12px,1.2vw,16px)]"
+            className="grid min-h-0 grid-rows-[auto_minmax(220px,1fr)_auto] gap-[clamp(12px,1.2vw,16px)]"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md h-[clamp(120px,18vh,180px)] overflow-hidden">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md h-[clamp(110px,16vh,170px)] overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khách hàng</p>
               <div className="mt-4 flex items-center gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700">
@@ -345,67 +345,68 @@ export default function CustomerDisplay() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-md overflow-hidden">
+            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-[clamp(16px,1.4vw,20px)] shadow-md overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
-              <div className="mt-4 flex min-h-0 flex-1 flex-col gap-4">
-                <div className="space-y-3 max-h-[clamp(120px,18vh,180px)] overflow-y-auto pr-2 no-scrollbar">
+              <div className="mt-3 flex min-h-0 flex-col gap-3">
+                <div className="grid gap-2">
                 {hasDiscountCode ? (
-                  <div className="flex items-center justify-between rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
-                    <span className="font-mono text-sm font-semibold text-sky-700">{discountCode}</span>
-                    <span className="rounded-full bg-sky-600 px-2 py-1 text-xs font-semibold text-white">
+                  <div className="flex items-center justify-between rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+                    <span className="font-mono text-xs font-semibold text-sky-700 truncate">{discountCode}</span>
+                    <span className="rounded-full bg-sky-600 px-2 py-1 text-[11px] font-semibold text-white">
                       -{formatCurrency(discountAmount)}
                     </span>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-400">
+                  <div className="rounded-xl border border-dashed border-slate-200 px-3 py-2 text-[11px] text-slate-400">
                     Chưa áp dụng mã giảm giá
                   </div>
                 )}
 
                 {hasLoyaltyDiscount && (
-                  <div className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                    <span className="text-xs font-semibold text-emerald-700">
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                    <span className="text-[11px] font-semibold text-emerald-700 truncate">
                       Dùng {loyaltyPointsUsed} điểm
                     </span>
-                    <span className="rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                    <span className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white">
                       -{formatCurrency(loyaltyDiscount)}
                     </span>
                   </div>
                 )}
                 </div>
 
-                <div className="space-y-3 border-t border-slate-100 pt-4">
-                <div className="flex items-center justify-between text-base">
+                <div className="space-y-2 border-t border-slate-100 pt-3 text-sm">
+                <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">Tạm tính</span>
                   <span className="font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
                 </div>
                 {discount > 0 ? (
-                  <div className="flex items-center justify-between text-base text-red-500">
+                  <div className="flex items-center justify-between text-sm text-red-500">
                     <span>Giảm giá</span>
                     <span className="font-semibold">-{formatCurrency(discount)}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between text-base text-slate-400">
+                  <div className="flex items-center justify-between text-sm text-slate-400">
                     <span>Giảm giá</span>
                     <span>0 đ</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between text-base text-emerald-600">
+                <div className="flex items-center justify-between text-sm text-emerald-600">
                   <span>Điểm thưởng</span>
                   <span className="font-semibold">{formatCurrency(0)}</span>
                 </div>
 
-                <div className="rounded-2xl border border-dashed border-slate-200 p-4">
+                <div className="rounded-2xl border border-dashed border-slate-200 p-3">
                   <p className="text-xs font-semibold uppercase text-slate-400">Cần thanh toán</p>
-                  <p className="mt-2 text-4xl font-semibold text-slate-900 font-serif">
+                  <p className="mt-1 text-3xl font-semibold text-slate-900 font-serif">
                     {formatCurrency(total)}
                   </p>
                 </div>
                 </div>
               </div>
 
-              <div className="shrink-0">
-                <div className="flex h-[clamp(240px,36vh,420px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
+            </div>
+
+            <div className="flex h-[clamp(260px,38vh,440px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
@@ -426,7 +427,7 @@ export default function CustomerDisplay() {
                       <img
                         src={transferQrUrl}
                         alt="QR chuyển khoản"
-                        className="mx-auto w-full max-w-[clamp(200px,26vw,320px)] max-h-full aspect-square object-contain"
+                        className="mx-auto w-full max-w-[clamp(220px,28vw,360px)] max-h-full aspect-square object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
@@ -434,8 +435,6 @@ export default function CustomerDisplay() {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
           </motion.aside>
         </div>
       </div>
