@@ -427,6 +427,7 @@ export default function CustomerDisplay() {
 
             </div>
 
+            {showPaymentDetails && (
             <div className="flex h-[clamp(260px,38vh,440px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
@@ -455,34 +456,38 @@ export default function CustomerDisplay() {
                       </p>
                     </div>
                   )}
-                  {!showPaymentDetails && marketingPromo && (
-                    <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white/10 p-3 text-center text-white">
-                      <p className="text-[11px] uppercase tracking-[0.3em] text-slate-200">
-                        Ưu đãi hôm nay
-                      </p>
-                      <div className="mt-2 w-full max-w-[clamp(220px,30vw,380px)] aspect-[4/3] overflow-hidden rounded-2xl bg-slate-800">
-                        {marketingPromo.mediaType === "video" && marketingPromo.mediaUrl ? (
-                          <video
-                            className="h-full w-full object-cover"
-                            src={marketingPromo.mediaUrl}
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                          />
-                        ) : (
-                          <img
-                            src={marketingPromo.mediaUrl ?? marketingPromo.image}
-                            alt={marketingPromo.title}
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <p className="mt-3 text-sm font-semibold">{marketingPromo.title}</p>
-                      <p className="text-xs text-slate-300">{marketingPromo.description}</p>
-                    </div>
-                  )}
                 </div>
+            )}
+
+            {!showPaymentDetails && marketingPromo && (
+              <div className="relative h-[clamp(260px,38vh,440px)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md">
+                {marketingPromo.mediaType === "video" && marketingPromo.mediaUrl ? (
+                  <video
+                    className="h-full w-full object-cover"
+                    src={marketingPromo.mediaUrl}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    src={marketingPromo.mediaUrl ?? marketingPromo.image}
+                    alt={marketingPromo.title}
+                    className="h-full w-full object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/30 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-[clamp(16px,1.6vw,22px)] text-white space-y-2">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs uppercase tracking-[0.2em]">
+                    <BadgeCheck className="h-3.5 w-3.5 text-emerald-300" />
+                    {marketingPromo.tag}
+                  </span>
+                  <p className="text-xl font-semibold">{marketingPromo.title}</p>
+                  <p className="text-sm text-white/80">{marketingPromo.description}</p>
+                </div>
+              </div>
+            )}
           </motion.aside>
         </div>
       </div>
