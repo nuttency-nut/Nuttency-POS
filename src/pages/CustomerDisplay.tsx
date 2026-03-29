@@ -85,12 +85,48 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+
+const useOrientation = () => {
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(orientation: portrait)");
+    const update = () => setIsPortrait(media.matches);
+    update();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  return isPortrait;
+};
+
 export default function CustomerDisplay() {
   const { warehouseCode } = useParams();
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>("");
   const [displayPayload, setDisplayPayload] = useState<DisplayPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scale, setScale] = useState(1);
+  const isPortrait = useOrientation();
+
+  useEffect(() => {
+    const updateScale = () => {
+      const nextScale = Math.min(window.innerWidth / BASE_WIDTH, window.innerHeight / BASE_HEIGHT);
+      setScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale));
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   useEffect(() => {
     if (!warehouseCode) return;
@@ -199,16 +235,41 @@ export default function CustomerDisplay() {
       ? "Đang xử lý..."
       : "Chờ đơn hàng";
 
+  const rootStyle = isPortrait
+    ? {
+        width: "100vh",
+        height: "100vw",
+        transform: "rotate(90deg)",
+        transformOrigin: "top left",
+        position: "absolute",
+        top: "100%",
+        left: "0",
+      }
+    : {
+        width: "100vw",
+        height: "100vh",
+        transform: "none",
+      };
+
   return (
     <div
-      className="relative h-[100dvh] w-full bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 text-slate-900 overflow-hidden"
-      style={{ fontSize: "clamp(12px, 1.05vw, 16px)" }}
+      className="relative overflow-hidden text-slate-900"
+      style={{ ...rootStyle, fontSize: "16px" }}
     >
-      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-amber-200/50 blur-3xl" />
+      <div
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          width: BASE_WIDTH,
+          height: BASE_HEIGHT,
+        }}
+      >
+        <div className="relative h-full w-full bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">
+          <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative h-full w-full p-[clamp(12px,2vw,24px)]">
-        <div className="grid h-full w-full gap-[clamp(12px,2vw,20px)] overflow-hidden grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
+          <div className="relative h-full w-full p-6">
+            <div className="grid h-full w-full gap-5 overflow-hidden grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
           <motion.aside
             className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
@@ -343,12 +404,12 @@ export default function CustomerDisplay() {
           </motion.main>
 
           <motion.aside
-            className="grid min-h-0 grid-rows-[auto_minmax(220px,1fr)_auto] gap-[clamp(12px,1.2vw,16px)]"
+            className="grid min-h-0 grid-rows-[auto_minmax(220px,1fr)_auto] gap-4"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md h-[clamp(110px,16vh,170px)] overflow-hidden">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md h-[170px] overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khách hàng</p>
               <div className="mt-4 flex items-center gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-700">
@@ -366,7 +427,7 @@ export default function CustomerDisplay() {
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-[clamp(16px,1.4vw,20px)] shadow-md overflow-hidden">
+            <div className="flex min-h-0 flex-col rounded-3xl border border-slate-200 bg-white p-5 shadow-md overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khuyến mãi áp dụng</p>
               <div className="mt-3 flex min-h-0 flex-col gap-3">
                 <div className="grid gap-2">
@@ -428,7 +489,7 @@ export default function CustomerDisplay() {
             </div>
 
             {showPaymentDetails && (
-              <div className="relative flex h-[clamp(260px,38vh,440px)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-white shadow-xl">
+              <div className="relative flex h-[440px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-6 py-5 text-white shadow-xl">
                 <div className="pointer-events-none absolute -top-24 right-0 h-40 w-40 rounded-full bg-sky-500/20 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-24 left-0 h-40 w-40 rounded-full bg-indigo-500/20 blur-3xl" />
                 <div className="relative flex h-full flex-col gap-4">
@@ -462,7 +523,7 @@ export default function CustomerDisplay() {
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <div className="flex min-h-0 flex-1 gap-4">
-                        <div className="relative h-full w-[clamp(220px,30vw,340px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-square">
+                        <div className="relative h-full w-[340px] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-square">
                           <img
                             src={transferQrUrl}
                             alt="QR chuyển khoản"
@@ -495,7 +556,7 @@ export default function CustomerDisplay() {
             )}
 
             {false && showPaymentDetails && (
-            <div className="flex h-[clamp(260px,38vh,440px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
+            <div className="flex h-[440px] flex-col rounded-3xl bg-slate-900 px-6 py-5 text-center text-white shadow-lg break-words overflow-hidden">
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                   <p className="mt-2 text-lg font-semibold">{paymentLabel}</p>
@@ -516,7 +577,7 @@ export default function CustomerDisplay() {
                       <img
                         src={transferQrUrl}
                         alt="QR chuyển khoản"
-                        className="mx-auto w-full max-w-[clamp(220px,28vw,360px)] max-h-full aspect-square object-contain"
+                        className="mx-auto w-full max-w-[360px] max-h-full aspect-square object-contain"
                       />
                       <p className="mt-2 text-xs text-slate-200">
                         {BANK_ACCOUNT_NUMBER} · {formatCurrency(total)}
@@ -527,7 +588,7 @@ export default function CustomerDisplay() {
             )}
 
             {!showPaymentDetails && marketingPromo && (
-              <div className="relative h-[clamp(260px,38vh,440px)] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md">
+              <div className="relative h-[440px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md">
                 {marketingPromo.mediaType === "video" && marketingPromo.mediaUrl ? (
                   <video
                     className="h-full w-full object-cover"
@@ -545,7 +606,7 @@ export default function CustomerDisplay() {
                   />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/30 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-[clamp(16px,1.6vw,22px)] text-white space-y-2">
+                <div className="absolute bottom-0 left-0 right-0 p-[22px] text-white space-y-2">
                   <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs uppercase tracking-[0.2em]">
                     <BadgeCheck className="h-3.5 w-3.5 text-emerald-300" />
                     {marketingPromo.tag}
@@ -559,5 +620,7 @@ export default function CustomerDisplay() {
         </div>
       </div>
     </div>
+  </div>
+</div>
   );
 }
