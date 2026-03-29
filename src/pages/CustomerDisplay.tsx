@@ -85,12 +85,34 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+const BASE_WIDTH = 1440;
+const BASE_HEIGHT = 900;
+
 export default function CustomerDisplay() {
   const { warehouseCode } = useParams();
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeName, setStoreName] = useState<string>("");
   const [displayPayload, setDisplayPayload] = useState<DisplayPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [layoutScale, setLayoutScale] = useState(1);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateScale = () => {
+      const width = viewport?.width ?? window.innerWidth;
+      const height = viewport?.height ?? window.innerHeight;
+      const nextScale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT, 1);
+      setLayoutScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale));
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    viewport?.addEventListener("resize", updateScale);
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      viewport?.removeEventListener("resize", updateScale);
+    };
+  }, []);
 
   useEffect(() => {
     if (!warehouseCode) return;
@@ -204,8 +226,18 @@ export default function CustomerDisplay() {
       <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-16 h-80 w-80 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative h-full w-full p-[clamp(12px,2vw,24px)]">
-        <div className="grid h-full w-full gap-[clamp(12px,2vw,20px)] overflow-hidden lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          className="relative"
+          style={{
+            width: BASE_WIDTH,
+            height: BASE_HEIGHT,
+            transform: `scale(${layoutScale})`,
+            transformOrigin: "center",
+          }}
+        >
+          <div className="relative h-full w-full p-6">
+            <div className="grid h-full w-full gap-6 overflow-hidden grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_minmax(0,1.1fr)]">
           <motion.aside
             className="flex min-h-0 flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
@@ -459,11 +491,11 @@ export default function CustomerDisplay() {
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <div className="flex min-h-0 flex-1 gap-4">
-                        <div className="relative h-full w-[clamp(210px,28vw,320px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md">
+                        <div className="relative h-full w-[clamp(220px,30vw,340px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-square">
                           <img
                             src={transferQrUrl}
                             alt="QR chuyển khoản"
-                            className="absolute inset-0 h-full w-full object-cover object-[center_6%] origin-top scale-[1.08] [clip-path:inset(0_0_30%_0)]"
+                            className="absolute inset-0 h-full w-full object-cover object-[center_4%] origin-top scale-[1.12] [clip-path:inset(0_0_34%_0)]"
                           />
                         </div>
                         <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 text-left">
@@ -556,5 +588,7 @@ export default function CustomerDisplay() {
         </div>
       </div>
     </div>
+  </div>
+</div>
   );
 }
