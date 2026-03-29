@@ -464,11 +464,11 @@ export default function CustomerDisplay() {
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <div className="flex min-h-0 flex-1 gap-4">
-                        <div className="flex w-[clamp(160px,18vw,220px)] flex-shrink-0 items-center justify-center rounded-2xl bg-white p-3 shadow-md">
+                        <div className="relative w-[clamp(170px,20vw,240px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-[1/1.05]">
                           <img
                             src={transferQrUrl}
                             alt="QR chuyển khoản"
-                            className="h-full w-full max-h-[clamp(160px,22vh,240px)] object-contain"
+                            className="absolute inset-0 h-full w-full object-cover object-top scale-110 origin-top"
                           />
                         </div>
                         <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 text-left">
