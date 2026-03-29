@@ -439,9 +439,6 @@ export default function CustomerDisplay() {
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
                       <p className="text-2xl font-semibold">{paymentLabel}</p>
                     </div>
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                      {formatCurrency(total)}
-                    </span>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-200">
@@ -459,30 +456,31 @@ export default function CustomerDisplay() {
                         </span>
                       </>
                     )}
-                    {paymentMethod === "transfer" && transferContent && (
-                      <span className="max-w-full truncate rounded-full bg-white/10 px-3 py-1">
-                        Nội dung: {transferContent}
-                      </span>
-                    )}
                   </div>
 
                   {paymentMethod === "transfer" && transferQrUrl && (
-                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
-                      <div className="text-xs font-semibold text-slate-200 mb-2">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="text-xs font-semibold text-slate-200 mb-3">
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
-                      <div className="flex min-h-0 flex-1 items-center justify-center">
-                        <div className="rounded-2xl bg-white p-3 shadow-md">
+                      <div className="flex min-h-0 flex-1 gap-4">
+                        <div className="flex w-[clamp(160px,18vw,220px)] flex-shrink-0 items-center justify-center rounded-2xl bg-white p-3 shadow-md">
                           <img
                             src={transferQrUrl}
                             alt="QR chuyển khoản"
-                            className="h-full w-full max-h-[clamp(180px,24vh,280px)] max-w-[clamp(200px,30vw,320px)] object-contain"
+                            className="h-full w-full max-h-[clamp(160px,22vh,240px)] object-contain"
                           />
                         </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-200">
-                        <span className="rounded-full bg-white/10 px-3 py-1">{BANK_ACCOUNT_NUMBER}</span>
-                        <span className="rounded-full bg-white/10 px-3 py-1">{formatCurrency(total)}</span>
+                        <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 text-left">
+                          <div className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Nội dung</p>
+                            <p className="mt-1 text-sm font-semibold">{transferContent || "—"}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-slate-200">
+                            <span className="rounded-full bg-white/10 px-3 py-1">{BANK_ACCOUNT_NUMBER}</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">{formatCurrency(total)}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
