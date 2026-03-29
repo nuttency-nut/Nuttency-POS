@@ -179,6 +179,8 @@ export default function CustomerDisplay() {
   const transferContent = displayPayload?.payment?.transferContent ?? "";
   const cashReceived = displayPayload?.payment?.cashReceived ?? null;
   const changeAmount = displayPayload?.payment?.change ?? null;
+  const cashReceivedLabel = cashReceived === null ? "—" : formatCurrency(cashReceived);
+  const changeLabel = changeAmount === null ? "—" : formatCurrency(changeAmount);
   const hasDiscountCode = !!discountCode && discountAmount > 0;
   const hasLoyaltyDiscount = loyaltyDiscount > 0 || loyaltyPointsUsed > 0;
   const paymentLabel =
@@ -428,6 +430,75 @@ export default function CustomerDisplay() {
             </div>
 
             {showPaymentDetails && (
+              <div className="relative flex h-[clamp(260px,38vh,440px)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-white shadow-xl">
+                <div className="pointer-events-none absolute -top-24 right-0 h-40 w-40 rounded-full bg-sky-500/20 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-24 left-0 h-40 w-40 rounded-full bg-indigo-500/20 blur-3xl" />
+                <div className="relative flex h-full flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3 text-left">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
+                      <p className="text-2xl font-semibold">{paymentLabel}</p>
+                    </div>
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                      {formatCurrency(total)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-200">
+                    {paymentMethod === "cash" && (
+                      <>
+                        <span className="rounded-full bg-white/10 px-3 py-1">
+                          Khách đưa: {cashReceivedLabel}
+                        </span>
+                        <span
+                          className={`rounded-full bg-white/10 px-3 py-1 ${
+                            changeAmount !== null && changeAmount < 0 ? "text-rose-200" : "text-emerald-200"
+                          }`}
+                        >
+                          Thối lại: {changeLabel}
+                        </span>
+                      </>
+                    )}
+                    {paymentMethod === "transfer" && transferContent && (
+                      <span className="max-w-full truncate rounded-full bg-white/10 px-3 py-1">
+                        Nội dung: {transferContent}
+                      </span>
+                    )}
+                  </div>
+
+                  {paymentMethod === "transfer" && transferQrUrl && (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-3 text-center">
+                      <div className="text-xs font-semibold text-slate-200 mb-2">
+                        Quét QR chuyển khoản · {BANK_NAME}
+                      </div>
+                      <div className="flex min-h-0 flex-1 items-center justify-center">
+                        <div className="rounded-2xl bg-white p-3 shadow-md">
+                          <img
+                            src={transferQrUrl}
+                            alt="QR chuyển khoản"
+                            className="h-full w-full max-h-[clamp(180px,24vh,280px)] max-w-[clamp(200px,30vw,320px)] object-contain"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-200">
+                        <span className="rounded-full bg-white/10 px-3 py-1">{BANK_ACCOUNT_NUMBER}</span>
+                        <span className="rounded-full bg-white/10 px-3 py-1">{formatCurrency(total)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "cash" && (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Cần thanh toán</p>
+                      <p className="mt-2 text-4xl font-semibold text-white">{formatCurrency(total)}</p>
+                      <p className="mt-2 text-xs text-slate-300">Vui lòng thanh toán tại quầy</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {false && showPaymentDetails && (
             <div className="flex h-[clamp(260px,38vh,440px)] flex-col rounded-3xl bg-slate-900 px-[clamp(16px,1.6vw,24px)] py-[clamp(14px,1.4vw,20px)] text-center text-white shadow-lg break-words overflow-hidden">
                   <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Phương thức</p>
