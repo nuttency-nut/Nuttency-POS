@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { BadgeCheck, Info, Sparkles } from "lucide-react";
+import { BadgeCheck, Info, Sparkles, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { BANK_ACCOUNT_NUMBER, BANK_BIN, BANK_NAME } from "@/lib/bank";
 
@@ -270,16 +270,14 @@ export default function CustomerDisplay() {
                 <p className="text-sm text-slate-500">
                   {storeName ? `Cửa hàng: ${storeName}` : "Cửa hàng đang cập nhật"}
                 </p>
+                {displayPayload?.cashierName && (
+                  <p className="text-sm text-slate-500">Thu ngân: {displayPayload.cashierName}</p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-sky-100 px-4 py-2 text-xs font-semibold text-sky-700 animate-pulse">
                   {statusLabel}
                 </span>
-                {warehouseCode && (
-                  <span className="rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
-                    Kho {warehouseCode}
-                  </span>
-                )}
               </div>
             </header>
 
@@ -350,8 +348,8 @@ export default function CustomerDisplay() {
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md h-[clamp(110px,16vh,170px)] overflow-hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Khách hàng</p>
               <div className="mt-4 flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-2xl font-semibold text-sky-700">
-                  KH
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                  <UserRound className="h-8 w-8" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-xl font-semibold text-slate-800 truncate">{customerName}</h3>
@@ -360,9 +358,6 @@ export default function CustomerDisplay() {
                     <p className="text-xs text-emerald-600 font-semibold mt-1 truncate">
                       Điểm loyalty: {loyaltyPoints}
                     </p>                   
-                  )}
-                  {displayPayload?.cashierName && (
-                    <p className="text-xs text-slate-400 truncate">Thu ngân: {displayPayload.cashierName}</p>
                   )}
                 </div>
               </div>
@@ -464,11 +459,11 @@ export default function CustomerDisplay() {
                         Quét QR chuyển khoản · {BANK_NAME}
                       </div>
                       <div className="flex min-h-0 flex-1 gap-4">
-                        <div className="relative w-[clamp(170px,20vw,240px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-[1/1.05]">
+                        <div className="relative w-[clamp(180px,22vw,260px)] flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-md aspect-[1/1.15]">
                           <img
                             src={transferQrUrl}
                             alt="QR chuyển khoản"
-                            className="absolute inset-0 h-full w-full object-cover object-top scale-110 origin-top"
+                            className="absolute inset-0 h-full w-full object-cover object-[center_8%] scale-105 origin-top"
                           />
                         </div>
                         <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 text-left">
