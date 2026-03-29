@@ -253,15 +253,19 @@ export default function CustomerDisplay() {
 
   return (
     <div
-      className="relative overflow-hidden text-slate-900"
+      className="relative overflow-hidden text-slate-900 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200"
       style={{ ...rootStyle, fontSize: "16px" }}
     >
       <div
         style={{
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
           width: BASE_WIDTH,
           height: BASE_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: "top center",
+          position: "absolute",
+          top: 0,
+          left: "50%",
+          marginLeft: -(BASE_WIDTH / 2),
         }}
       >
         <div className="relative h-full w-full bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200">
