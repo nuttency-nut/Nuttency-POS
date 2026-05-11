@@ -57,7 +57,7 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-2 p-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 p-3">
         {[1, 2, 3, 4, 5, 6].map((i) =>
         <div key={i} className="aspect-[3/4] rounded-xl bg-card animate-pulse" />
         )}
@@ -80,9 +80,9 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
   }
 
   return (
-    <div className="relative flex overflow-hidden h-full">
+      <div className="relative flex overflow-hidden h-full">
       {/* Main scrollable content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pb-24 pr-4 h-full">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pb-24 pr-6 md:pr-8 h-full">
         {activeLetters.map((letter) =>
         <div
           key={letter}
@@ -93,7 +93,7 @@ export default function ProductGrid({ products, isLoading, onSelect }: ProductGr
               <span className="text-xs font-bold text-muted-foreground">{letter}</span>
             </div>
             {/* Product grid for this letter */}
-            <div className="grid grid-cols-3 gap-2 px-3 py-1">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 px-3 py-1">
               {grouped[letter].map((product) =>
             <button
               key={product.id}

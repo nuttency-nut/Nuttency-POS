@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -402,7 +402,7 @@ export default function Reports() {
         </div>
       }
     >
-      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-4 space-y-4">
         <div className="px-0.5">
           <p className="text-sm text-muted-foreground">Tổng quan hoạt động kinh doanh</p>
         </div>

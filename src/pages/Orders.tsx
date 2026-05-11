@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
@@ -429,7 +429,7 @@ export default function Orders() {
 
   return (
     <AppLayout title="Đơn hàng">
-      <div className="h-full min-h-0 flex flex-col overflow-hidden p-4 gap-3">
+      <div className="h-full min-h-0 flex flex-col overflow-hidden p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 gap-3">
         <div className="shrink-0 space-y-3">
           <div className="grid grid-cols-2 gap-3">
           <SummaryCard

@@ -1,4 +1,4 @@
-﻿import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AppLayout from "@/components/layout/AppLayout";
 import { useProducts, Product } from "@/hooks/useProducts";
@@ -447,7 +447,7 @@ export default function POS() {
           )}
         </div>
 
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           <ProductGrid products={filtered} isLoading={isLoading} onSelect={handleSelectProduct} />
         </div>
       </div>

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
@@ -1155,7 +1155,7 @@ export default function AppSettings() {
 
   return (
     <AppLayout title="Cài đặt">
-      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] space-y-4">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-4 space-y-4">
         {canManageRoles ? (
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SettingsTab)} className="w-full">
             <TabsList className="grid grid-cols-2 w-full">

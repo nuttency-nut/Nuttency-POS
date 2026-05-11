@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +72,7 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button className="fixed left-1/2 -translate-x-1/2 z-30 w-[calc(100%-24px)] max-w-sm h-12 rounded-2xl bg-primary text-primary-foreground flex items-center px-3 shadow-lg active:scale-[0.98] transition-transform bottom-[calc(env(safe-area-inset-bottom,0px)+84px)]">
+        <button className="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-30 w-[calc(100%-24px)] max-w-sm md:max-w-xs h-12 rounded-2xl bg-primary text-primary-foreground flex items-center px-3 shadow-lg active:scale-[0.98] transition-transform bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-6">
           <span className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-sm font-bold shrink-0">
             {totalQty}
           </span>
@@ -95,8 +95,8 @@ export default function Cart({ items, onUpdateQty, onRemove, onCheckoutSuccess, 
           }
         }}
         className={cn(
-          "inset-x-0 mx-auto w-full max-w-lg rounded-t-3xl flex flex-col p-0",
-          step === "checkout" ? "h-[90vh] max-h-[90vh]" : "max-h-[80vh]"
+          "inset-x-0 mx-auto w-full md:inset-y-0 md:right-0 md:left-auto md:mx-0 rounded-none md:rounded-l-3xl md:rounded-t-none rounded-t-3xl flex flex-col p-0",
+          step === "checkout" ? "h-[90vh] max-h-[90vh] md:h-full md:max-h-full md:w-[480px]" : "max-h-[80vh] md:max-h-full md:w-[420px]"
         )}
       >
         {step === "cart" ? (

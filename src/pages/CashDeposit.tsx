@@ -120,7 +120,7 @@ export default function CashDeposit() {
         </Button>
       }
     >
-      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-4">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-4 space-y-4">
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">

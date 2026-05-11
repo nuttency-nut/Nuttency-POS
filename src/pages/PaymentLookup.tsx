@@ -252,7 +252,7 @@ export default function PaymentLookup() {
         </Button>
       }
     >
-      <div className="h-full overflow-y-auto no-scrollbar p-4 space-y-3">
+      <div className="h-full overflow-y-auto no-scrollbar p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-4 space-y-3">
         <form onSubmit={handleLookup} className="rounded-xl border border-border bg-card p-3 space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Tra cứu theo 3 điều kiện bắt buộc
