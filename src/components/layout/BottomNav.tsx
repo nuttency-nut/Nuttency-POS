@@ -88,7 +88,7 @@ export default function BottomNav() {
         <div className="flex flex-col h-full">
           {/* Logo area */}
           <div className="flex items-center h-14 px-4 border-b border-border/40 shrink-0">
-            <span className="text-base font-bold text-primary tracking-tight">NUT POS</span>
+            <span className="text-base font-bold text-primary tracking-tight">NUT HOUSE POS</span>
           </div>
 
           {/* Nav items */}

@@ -245,31 +245,43 @@ export default function AppSettings() {
     return descendantsById.get(currentRoleId) ?? new Set<string>();
   }, [currentRoleId, descendantsById]);
 
+  const isSuperAdmin = useMemo(() => {
+    if (!currentRoleId) return false;
+    const rootRoleIds = childrenByParent.get(null) ?? [];
+    return rootRoleIds.includes(currentRoleId);
+  }, [currentRoleId, childrenByParent]);
+
   const canEditTarget = useCallback(
     (targetUserId: string, targetRoleId: string | null) => {
       if (!canManageRoles) return false;
       if (!user?.id) return false;
       if (targetUserId === user.id) return false;
-      if (!currentRoleId) return false;
 
-      const targetStoreId = workplaceByUser[targetUserId] ?? "";
-      const storeAllowed = !targetStoreId || (currentStoreId && targetStoreId === currentStoreId);
-      if (!storeAllowed) return false;
+      if (!isSuperAdmin) {
+        const targetStoreId = workplaceByUser[targetUserId] ?? "";
+        const storeAllowed = !targetStoreId || (currentStoreId && targetStoreId === currentStoreId);
+        if (!storeAllowed) return false;
+      }
 
       if (!targetRoleId) return true;
       if (targetRoleId === currentRoleId) return false;
-      const descendants = descendantsById.get(currentRoleId);
-      return descendants ? descendants.has(targetRoleId) : false;
+
+      if (!isSuperAdmin) {
+        const descendants = descendantsById.get(currentRoleId);
+        return descendants ? descendants.has(targetRoleId) : false;
+      }
+
+      return true;
     },
-    [canManageRoles, user?.id, currentRoleId, workplaceByUser, currentStoreId, descendantsById]
+    [canManageRoles, user?.id, currentRoleId, workplaceByUser, currentStoreId, descendantsById, isSuperAdmin]
   );
 
   const visibleRoleUsers = useMemo(() => {
     if (!user?.id) return [];
     return roleUsers.filter(
-      (u) => u.user_id === user.id || canEditTarget(u.user_id, u.declared_role_id)
+      (u) => u.user_id === user.id || canEditTarget(u.user_id, u.declared_role_id) || isSuperAdmin
     );
-  }, [roleUsers, user?.id, canEditTarget]);
+  }, [roleUsers, user?.id, canEditTarget, isSuperAdmin]);
 
   const filteredRoleUsers = useMemo(() => {
     const query = roleSearch.trim().toLowerCase();
