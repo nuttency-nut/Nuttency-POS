@@ -1283,14 +1283,7 @@ export default function AppSettings() {
                         : "Chưa khai báo cửa hàng";
                     const workplaceOpen = workplaceOpenFor === u.user_id;
                     const isSavingWorkplace = savingWorkplaceUserId === u.user_id;
-                    const isOwnCard = u.user_id === user?.id;
                     const roleSelectDisabled = !editable || isSaving || loadingDeclaredRoles;
-
-                    const canManageAllStores = isSuperAdmin || isOwnCard;
-                    const filteredWorkplaceOptions = canManageAllStores
-                      ? workplaceOptions
-                      : workplaceOptions.filter((o) => o.id === selectedWorkplaceId);
-                    const showUnassignedOption = canManageAllStores && (!selectedWorkplaceId || selectedWorkplace);
 
                     return (
                       <Card key={u.user_id} className="border-0 shadow-sm">
@@ -1348,24 +1341,22 @@ export default function AppSettings() {
                                     <CommandList>
                                       <CommandEmpty>Không tìm thấy cửa hàng.</CommandEmpty>
                                       <CommandGroup>
-                                        {showUnassignedOption && (
-                                          <CommandItem
-                                            key={UNASSIGNED_STORE_VALUE}
-                                            value="Chưa chọn cửa hàng"
-                                            onSelect={() => {
-                                              void handleChangeWorkplace(u.user_id, UNASSIGNED_STORE_VALUE);
-                                              setWorkplaceOpenFor(null);
-                                            }}
-                                          >
-                                            <Check
-                                              className={`mr-2 h-4 w-4 ${
-                                                !selectedWorkplaceId ? "opacity-100" : "opacity-0"
-                                              }`}
-                                            />
-                                            Chưa chọn cửa hàng
-                                          </CommandItem>
-                                        )}
-                                        {filteredWorkplaceOptions.map((option) => {
+                                        <CommandItem
+                                          key={UNASSIGNED_STORE_VALUE}
+                                          value="Chưa chọn cửa hàng"
+                                          onSelect={() => {
+                                            void handleChangeWorkplace(u.user_id, UNASSIGNED_STORE_VALUE);
+                                            setWorkplaceOpenFor(null);
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${
+                                              !selectedWorkplaceId ? "opacity-100" : "opacity-0"
+                                            }`}
+                                          />
+                                          Chưa chọn cửa hàng
+                                        </CommandItem>
+                                        {workplaceOptions.map((option) => {
                                           const isSelected = option.id === selectedWorkplaceId;
                                           const optionLabel =
                                             option.status === "inactive"
@@ -1392,9 +1383,6 @@ export default function AppSettings() {
                               </Popover>
                               {isSavingWorkplace && (
                                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                              )}
-                              {!canManageAllStores && !isOwnCard && (
-                                <p className="text-[10px] text-muted-foreground">Chỉ xem cửa hàng hiện tại của người dùng này.</p>
                               )}
                             </div>
                           </div>
