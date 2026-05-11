@@ -15,7 +15,7 @@ import {
   getRegistrationQrSecondsRemaining,
   getRegistrationQrSlot,
 } from "@/lib/registration-qr";
-import logo from "../../NutHouse_logo_169.png";
+import logo from "../../NutHouse_169.png";
 
 const QR_APPROVAL_POLL_MS = 3000;
 const REGISTER_FORM_REVEAL_DELAY_MS = 1000;
