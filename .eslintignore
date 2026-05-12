@@ -1,0 +1,2 @@
+# Supabase Edge Functions use Deno runtime (not Node/browser)
+supabase/functions/

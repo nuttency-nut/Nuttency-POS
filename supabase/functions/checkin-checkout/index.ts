@@ -17,14 +17,13 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 function ipMatchesPattern(clientIp: string, pattern: string): boolean {
-  // Exact match
   if (!pattern.includes("/")) {
     return clientIp === pattern;
   }
-  // CIDR match (IPv4 only for simplicity)
   const [subnet, bitsStr] = pattern.split("/");
   const bits = parseInt(bitsStr, 10);
-  const mask = ~(2 ** (32 - bits) - 1);
+  if (bits < 0 || bits > 32) return false;
+  const mask = ~((2 ** (32 - bits)) - 1) >>> 0;
 
   const ipToNum = (ip: string) =>
     ip.split(".").reduce((acc, oct) => ((acc << 8) + parseInt(oct, 10)) >>> 0, 0) >>> 0;
@@ -36,25 +35,47 @@ function ipMatchesPattern(clientIp: string, pattern: string): boolean {
   }
 }
 
-async function isAllowedWifiIp(clientIp: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("allowed_wifi_ips")
-    .select("ip_pattern")
-    .eq("is_active", true);
+async function getStoreWifiPattern(userId: string): Promise<string | null> {
+  // Get the user's assigned store
+  const { data: assignment, error: assignError } = await supabaseAdmin
+    .from("user_store_assignments")
+    .select("store_id")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  if (!data || data.length === 0) {
-    // No restrictions configured — allow everything
+  if (assignError || !assignment?.store_id) {
+    return null; // No store assigned — no restriction
+  }
+
+  // Get the WiFi IP pattern for that store
+  const { data: store, error: storeError } = await supabaseAdmin
+    .from("store_definitions")
+    .select("wifi_ip_pattern")
+    .eq("id", assignment.store_id)
+    .maybeSingle();
+
+  if (storeError || !store) {
+    return null;
+  }
+
+  return (store as { wifi_ip_pattern?: string }).wifi_ip_pattern ?? null;
+}
+
+async function isWifiAllowed(clientIp: string, userId: string): Promise<boolean> {
+  const pattern = await getStoreWifiPattern(userId);
+
+  if (!pattern || !pattern.trim()) {
+    // No restriction configured for this user's store
     return true;
   }
 
-  return data.some((row: { ip_pattern: string }) => ipMatchesPattern(clientIp, row.ip_pattern));
+  return ipMatchesPattern(clientIp, pattern.trim());
 }
 
 async function uploadPhoto(
   userId: string,
   photoBase64: string,
 ): Promise<string | null> {
-  // Decode base64
   const binaryStr = atob(photoBase64.replace(/\s/g, ""));
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) {
@@ -63,7 +84,7 @@ async function uploadPhoto(
 
   const ext = "jpg";
   const fileName = `${userId}/${Date.now()}.${ext}`;
-  const path = `${fileName}`;
+  const path = fileName;
 
   const { error } = await supabaseAdmin.storage
     .from(STORAGE_BUCKET)
@@ -93,7 +114,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Get auth header
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
@@ -102,7 +122,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify user token
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(
     authHeader.replace("Bearer ", ""),
   );
@@ -119,7 +138,6 @@ Deno.serve(async (req) => {
     req.headers.get("cf-connecting-ip")?.trim() ??
     "unknown";
 
-  // Parse body
   let body: { photo_base64?: string; device_info?: Record<string, unknown> };
   try {
     body = await req.json();
@@ -130,22 +148,36 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Determine action: if user has a session with no checkout → checkout, else checkin
+  // Verify WiFi IP against assigned store
+  const ipAllowed = await isWifiAllowed(clientIp, userId);
+  if (!ipAllowed) {
+    const storePattern = await getStoreWifiPattern(userId);
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "wifi_ip_mismatch",
+        detail: `WiFi IP không hợp lệ. Vui lòng check-in tại cửa hàng được gán (WiFi: ${storePattern ?? "chưa cấu hình"}).`,
+      }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  // Determine action type
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Find today's work session for this user
   const { data: existingSession } = await supabaseAdmin
     .from("work_sessions")
-    .select("id, latest_checkout_at")
+    .select("id, latest_checkout_at, total_records")
     .eq("user_id", userId)
     .eq("session_date", todayStr)
     .maybeSingle();
 
-  const isCheckout = existingSession !== null && existingSession.latest_checkout_at === null;
-  const actionType = isCheckout ? "checkout" : "checkin";
-
-  // Check WiFi IP
-  const ipAllowed = await isAllowedWifiIp(clientIp);
+  const hasSession = existingSession !== null;
+  const hasCheckout = existingSession?.latest_checkout_at !== null;
+  const actionType = hasSession && !hasCheckout ? "checkout" : "checkin";
 
   // Upload photo if provided
   let photoUrl: string | null = null;
@@ -155,6 +187,7 @@ Deno.serve(async (req) => {
 
   // Get or create work session
   let workSessionId: string;
+  let currentTotal = existingSession?.total_records ?? 0;
 
   if (existingSession) {
     workSessionId = existingSession.id;
@@ -198,23 +231,19 @@ Deno.serve(async (req) => {
   }
 
   // Update work session summary
+  const updatePayload: Record<string, unknown> = {
+    total_records: currentTotal + 1,
+  };
   if (actionType === "checkin") {
-    await supabaseAdmin
-      .from("work_sessions")
-      .update({
-        earliest_checkin_at: new Date().toISOString(),
-        total_records: (existingSession?.total_records ?? 0) + 1,
-      })
-      .eq("id", workSessionId);
+    updatePayload.earliest_checkin_at = new Date().toISOString();
   } else {
-    await supabaseAdmin
-      .from("work_sessions")
-      .update({
-        latest_checkout_at: new Date().toISOString(),
-        total_records: (existingSession?.total_records ?? 0) + 1,
-      })
-      .eq("id", workSessionId);
+    updatePayload.latest_checkout_at = new Date().toISOString();
   }
+
+  await supabaseAdmin
+    .from("work_sessions")
+    .update(updatePayload)
+    .eq("id", workSessionId);
 
   return new Response(
     JSON.stringify({

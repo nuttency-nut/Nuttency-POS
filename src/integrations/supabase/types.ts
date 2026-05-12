@@ -588,33 +588,6 @@ export type Database = {
           },
         ]
       }
-      allowed_wifi_ips: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          ip_pattern: string
-          is_active: boolean
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          ip_pattern: string
-          is_active?: boolean
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          ip_pattern?: string
-          is_active?: boolean
-        }
-        Relationships: []
-      }
       work_sessions: {
         Row: {
           created_at: string

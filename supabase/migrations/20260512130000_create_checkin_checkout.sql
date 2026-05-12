@@ -36,21 +36,7 @@ CREATE INDEX IF NOT EXISTS checkin_records_action_at_idx ON public.checkin_recor
 
 ALTER TABLE public.checkin_records ENABLE ROW LEVEL SECURITY;
 
--- Allowed WiFi IP ranges (whitelist) – managed by admin
-CREATE TABLE IF NOT EXISTS public.allowed_wifi_ips (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ip_pattern TEXT NOT NULL,         -- CIDR or exact IP, e.g. "192.168.1.0/24" or "192.168.1.100"
-  description TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
-  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS allowed_wifi_ips_pattern_idx ON public.allowed_wifi_ips(ip_pattern);
-
-ALTER TABLE public.allowed_wifi_ips ENABLE ROW LEVEL SECURITY;
-
--- RLS policies
+-- RLS policies for work_sessions
 DROP POLICY IF EXISTS "Authenticated users manage own work sessions" ON public.work_sessions;
 CREATE POLICY "Authenticated users manage own work sessions"
   ON public.work_sessions FOR ALL
@@ -58,6 +44,7 @@ CREATE POLICY "Authenticated users manage own work sessions"
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+-- RLS policies for checkin_records
 DROP POLICY IF EXISTS "Authenticated users manage own check-in records" ON public.checkin_records;
 CREATE POLICY "Authenticated users manage own check-in records"
   ON public.checkin_records FOR ALL
@@ -65,20 +52,15 @@ CREATE POLICY "Authenticated users manage own check-in records"
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Admin can manage allowed WiFi IPs" ON public.allowed_wifi_ips;
-CREATE POLICY "Admin can manage allowed WiFi IPs"
-  ON public.allowed_wifi_ips FOR ALL
+-- Admin-only policy: allow manager to update wifi_ip_pattern on store_definitions
+DROP POLICY IF EXISTS "Managers can update wifi_ip_pattern on store_definitions" ON public.store_definitions;
+CREATE POLICY "Managers can update wifi_ip_pattern on store_definitions"
+  ON public.store_definitions FOR UPDATE
   TO authenticated
   USING (public.can_manage(auth.uid()))
   WITH CHECK (public.can_manage(auth.uid()));
 
-DROP POLICY IF EXISTS "All authenticated can view allowed WiFi IPs" ON public.allowed_wifi_ips;
-CREATE POLICY "All authenticated can view allowed WiFi IPs"
-  ON public.allowed_wifi_ips FOR SELECT
-  TO authenticated
-  USING (is_active = TRUE);
-
--- updated_at trigger
+-- updated_at trigger for work_sessions
 DROP TRIGGER IF EXISTS update_work_sessions_updated_at ON public.work_sessions;
 CREATE TRIGGER update_work_sessions_updated_at
   BEFORE UPDATE ON public.work_sessions

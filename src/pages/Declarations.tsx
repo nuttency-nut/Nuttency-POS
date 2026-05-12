@@ -26,6 +26,7 @@ type StoreDeclaration = {
   warehouseCode: string;
   displayName: string;
   status: "active" | "inactive";
+  wifi_ip_pattern: string | null;
 };
 
 const mapRoleRow = (row: any): RoleDeclaration => ({
@@ -45,6 +46,7 @@ const mapStoreRow = (row: any): StoreDeclaration => ({
   warehouseCode: String(row?.warehouse_code ?? ""),
   displayName: String(row?.display_name ?? ""),
   status: row?.status === "inactive" ? "inactive" : "active",
+  wifi_ip_pattern: row?.wifi_ip_pattern ?? null,
 });
 
 export default function Declarations() {
@@ -74,6 +76,7 @@ export default function Declarations() {
     storeName: "",
     warehouseCode: "",
     status: "active" as StoreDeclaration["status"],
+    wifi_ip_pattern: "",
   }));
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const roleFormRef = useRef<HTMLDivElement | null>(null);
@@ -235,7 +238,7 @@ export default function Declarations() {
     try {
       const { data, error } = await db
         .from("store_definitions")
-        .select("id,store_name,warehouse_code,display_name,status,created_at")
+        .select("id,store_name,warehouse_code,display_name,status,wifi_ip_pattern,created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       setStoreDeclarations((data ?? []).map(mapStoreRow));
@@ -267,6 +270,7 @@ export default function Declarations() {
       storeName: "",
       warehouseCode: "",
       status: "active",
+      wifi_ip_pattern: "",
     });
     setEditingStoreId(null);
   };
@@ -397,12 +401,13 @@ export default function Declarations() {
           warehouse_code: warehouseCode,
           display_name: displayName,
           status: storeForm.status,
+          wifi_ip_pattern: storeForm.wifi_ip_pattern.trim() || null,
         };
         const { data, error } = await db
           .from("store_definitions")
           .update(payload)
           .eq("id", editingStoreId)
-          .select("id,store_name,warehouse_code,display_name,status")
+          .select("id,store_name,warehouse_code,display_name,status,wifi_ip_pattern")
           .single();
         if (error) throw error;
         setStoreDeclarations((prev) =>
@@ -418,11 +423,12 @@ export default function Declarations() {
         warehouse_code: warehouseCode,
         display_name: displayName,
         status: storeForm.status,
+        wifi_ip_pattern: storeForm.wifi_ip_pattern.trim() || null,
       };
       const { data, error } = await db
         .from("store_definitions")
         .insert(payload)
-        .select("id,store_name,warehouse_code,display_name,status")
+        .select("id,store_name,warehouse_code,display_name,status,wifi_ip_pattern")
         .single();
       if (error) throw error;
       setStoreDeclarations((prev) => [...prev, mapStoreRow(data ?? payload)]);
@@ -440,6 +446,7 @@ export default function Declarations() {
       storeName: store.storeName,
       warehouseCode: store.warehouseCode,
       status: store.status,
+      wifi_ip_pattern: store.wifi_ip_pattern ?? "",
     });
     scrollToForm(storeFormRef);
   };
@@ -690,7 +697,14 @@ export default function Declarations() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
-                          <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
+                          <div className="flex flex-start gap-2">
+                        <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
+                        {store.wifi_ip_pattern && (
+                          <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                            WiFi: {store.wifi_ip_pattern}
+                          </span>
+                        )}
+                      </div>
                         </div>
                         <span className="text-xs text-muted-foreground">
                           {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
@@ -764,6 +778,22 @@ export default function Declarations() {
                       <SelectItem value="inactive">Tạm dừng</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    WiFi IP cho phép check-in
+                  </label>
+                  <Input
+                    value={storeForm.wifi_ip_pattern}
+                    onChange={(e) =>
+                      setStoreForm((prev) => ({ ...prev, wifi_ip_pattern: e.target.value }))
+                    }
+                    placeholder="VD: 192.168.1.0/24 hoặc 192.168.1.100"
+                    className="h-10 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Để trống = không giới hạn WiFi. Hỗ trợ CIDR (192.168.1.0/24) hoặc IP cố định.
+                  </p>
                 </div>
               </div>
 
