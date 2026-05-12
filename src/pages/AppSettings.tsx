@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Clock, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
+import { Banknote, Building2, Camera, Check, ChevronLeft, ChevronRight, ChevronsUpDown, Clock, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
 import QrScannerDialog from "@/components/common/QrScannerDialog";
 import { isValidRegistrationQrPayload } from "@/lib/registration-qr";
-import CheckInCheckOutCard from "@/components/common/CheckInCheckOutCard";
 
 type SystemRole = "admin" | "manager" | "staff" | "no_role";
 type SettingsTab = "general" | "roles";
@@ -898,13 +897,18 @@ export default function AppSettings() {
 
   const generalContent = (
     <div className="space-y-4">
+      {/* User info card — clickable to check-in/out page */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
+            {/* Avatar button — separate from the navigate action */}
             <button
               type="button"
-              onClick={() => !uploadingAvatar && avatarInputRef.current?.click()}
-              className="relative w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!uploadingAvatar) avatarInputRef.current?.click();
+              }}
+              className="relative w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center overflow-hidden shrink-0"
             >
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -918,30 +922,41 @@ export default function AppSettings() {
                   <Camera className="w-3 h-3 text-primary" />
                 )}
               </span>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarUpload}
-              />
             </button>
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-semibold text-foreground truncate">
-                {userFullName || "Chưa có tên"}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "Chưa có email"}</p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <Shield className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-medium text-primary">{roleLabel}</span>
+
+            {/* Navigate to check-in/out page */}
+            <button
+              type="button"
+              onClick={() => navigate("/checkin-out")}
+              className="flex-1 min-w-0 flex items-center justify-between gap-2 active:scale-[0.99] transition-transform"
+            >
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-base font-semibold text-foreground truncate">
+                  {userFullName || "Chưa có tên"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email ?? "Chưa có email"}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Shield className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-medium text-primary">{roleLabel}</span>
+                </div>
               </div>
-            </div>
+              <div className="flex flex-col items-center gap-0.5 shrink-0">
+                <span className="text-xs text-primary font-medium">Check-in/out</span>
+                <ChevronRight className="w-4 h-4 text-primary" />
+              </div>
+            </button>
           </div>
+
+          {/* Hidden avatar upload input */}
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
         </CardContent>
       </Card>
-
-      {/* Check-in / Check-out card */}
-      <CheckInCheckOutCard />
 
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">

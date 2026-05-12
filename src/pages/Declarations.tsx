@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, ChevronLeft, Pencil, Plus, Shield, Trash2 } from "lucide-react";
+import { Building2, ChevronLeft, Pencil, Plus, Shield, Trash2, Wifi } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -693,37 +693,51 @@ export default function Declarations() {
               ) : (
                 <div className="space-y-2">
                   {storeDeclarations.map((store) => (
-                    <div key={store.id} className="rounded-xl border border-border bg-card p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
-                          <div className="flex flex-start gap-2">
-                        <p className="text-xs text-muted-foreground">Mã kho: {store.warehouseCode || "-"}</p>
-                        {store.wifi_ip_pattern && (
-                          <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
-                            WiFi: {store.wifi_ip_pattern}
+                    <div key={store.id} className="rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <Building2 className="h-4 w-4" />
                           </span>
-                        )}
-                      </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-foreground truncate">{store.displayName}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Mã kho: {store.warehouseCode || "-"}</p>
+
+                            {store.wifi_ip_pattern ? (
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <code className="text-xs font-mono bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-2 py-0.5 rounded-full">
+                                  {store.wifi_ip_pattern}
+                                </code>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <Wifi className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                                <span className="text-xs text-muted-foreground/60 italic">Không giới hạn WiFi</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => handleEditStore(store)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          Sửa
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 gap-1 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteStore(store)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Xóa
-                        </Button>
+
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              store.status === "active"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            }`}
+                          >
+                            {store.status === "active" ? "Đang hoạt động" : "Tạm dừng"}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditStore(store)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteStore(store)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -779,20 +793,24 @@ export default function Declarations() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                    <Wifi className="h-3 w-3" />
                     WiFi IP cho phép check-in
                   </label>
-                  <Input
-                    value={storeForm.wifi_ip_pattern}
-                    onChange={(e) =>
-                      setStoreForm((prev) => ({ ...prev, wifi_ip_pattern: e.target.value }))
-                    }
-                    placeholder="VD: 192.168.1.0/24 hoặc 192.168.1.100"
-                    className="h-10 font-mono text-sm"
-                  />
+                  <div className="relative">
+                    <Wifi className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                    <Input
+                      value={storeForm.wifi_ip_pattern}
+                      onChange={(e) =>
+                        setStoreForm((prev) => ({ ...prev, wifi_ip_pattern: e.target.value }))
+                      }
+                      placeholder="VD: 192.168.1.0/24 hoặc 103.97.x.x"
+                      className="h-10 font-mono text-sm pl-9"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Để trống = không giới hạn WiFi. Hỗ trợ CIDR (192.168.1.0/24) hoặc IP cố định.
+                    Để trống = không giới hạn. Hỗ trợ CIDR (192.168.1.0/24) hoặc IP cố định.
                   </p>
                 </div>
               </div>

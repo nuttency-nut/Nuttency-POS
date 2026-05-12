@@ -10,6 +10,7 @@ import Orders from "./pages/Orders";
 import Products from "./pages/Products";
 import Reports from "./pages/Reports";
 import AppSettings from "./pages/AppSettings";
+import CheckInOut from "./pages/CheckInOut";
 import PaymentLookup from "./pages/PaymentLookup";
 import Declarations from "./pages/Declarations";
 import CashDeposit from "./pages/CashDeposit";
@@ -167,6 +168,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkin-out"
+        element={
+          <ProtectedRoute>
+            <CheckInOut />
           </ProtectedRoute>
         }
       />

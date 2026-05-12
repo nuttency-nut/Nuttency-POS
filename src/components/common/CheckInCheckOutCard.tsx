@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Check, CheckCircle2, Clock, Loader2, Wifi, WifiOff } from "lucide-react";
+import { Building2, Camera, Check, CheckCircle2, Clock, Loader2, Wifi, WifiOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/sonner";
 
 interface WorkSession {
   id: string;
+  session_date: string;
   earliest_checkin_at: string | null;
   latest_checkout_at: string | null;
   total_records: number;
@@ -25,6 +26,7 @@ interface StoreDefinition {
 }
 
 type CheckInState = "loading" | "not_checked_in" | "checked_in" | "checked_out";
+type WifiStatus = boolean | null; // true=allowed, false=blocked, null=no restriction
 
 function formatTime(isoString: string | null): string {
   if (!isoString) return "--:--";
@@ -65,7 +67,12 @@ function ipMatchesPattern(clientIp: string, pattern: string): boolean {
   }
 }
 
-export default function CheckInCheckOutCard() {
+interface CheckInCheckOutCardProps {
+  compact?: boolean;
+  onSessionUpdate?: () => void;
+}
+
+export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }: CheckInCheckOutCardProps) {
   const { user } = useAuth();
 
   const [state, setState] = useState<CheckInState>("loading");
@@ -76,7 +83,10 @@ export default function CheckInCheckOutCard() {
   // WiFi / store info
   const [assignedStore, setAssignedStore] = useState<StoreDefinition | null>(null);
   const [clientIp, setClientIp] = useState<string | null>(null);
-  const [wifiAllowed, setWifiAllowed] = useState<boolean | null>(null);
+  const [wifiAllowed, setWifiAllowed] = useState<WifiStatus>(null);
+
+  // WiFi not configured (store assigned but no wifi_ip_pattern set)
+  const [wifiNotConfigured, setWifiNotConfigured] = useState(false);
 
   const loadRef = useRef(0);
 
@@ -90,7 +100,7 @@ export default function CheckInCheckOutCard() {
         const today = getTodayDateStr();
         const { data, error } = await supabase
           .from("work_sessions")
-          .select("id, earliest_checkin_at, latest_checkout_at, total_records")
+          .select("id, session_date, earliest_checkin_at, latest_checkout_at, total_records")
           .eq("user_id", user.id)
           .eq("session_date", today)
           .maybeSingle();
@@ -114,10 +124,10 @@ export default function CheckInCheckOutCard() {
   const loadStoreAndIp = useCallback(async () => {
     if (!user?.id) return;
 
-    // 1. Get assigned store
     let storeId: string | null = null;
     let storeName: string | null = null;
     let storePattern: string | null = null;
+    let notConfigured = false;
     try {
       const { data: assignData } = await supabase
         .from("user_store_assignments")
@@ -138,12 +148,14 @@ export default function CheckInCheckOutCard() {
           const store = storeData as StoreDefinition;
           storeName = store.display_name;
           storePattern = store.wifi_ip_pattern;
+          // If store is assigned but has no WiFi IP configured — treat as "not configured"
+          notConfigured = storeId !== null && (!storePattern || !storePattern.trim());
           setAssignedStore(store);
         }
       }
     } catch { /* ignore */ }
 
-    // 2. Get client public IP
+    // Get client public IP
     let ip = "unknown";
     try {
       const res = await fetch("https://api.ipify.org?format=json");
@@ -154,14 +166,20 @@ export default function CheckInCheckOutCard() {
     } catch { /* ignore */ }
 
     setClientIp(ip);
+    setWifiNotConfigured(notConfigured);
 
-    // 3. Check if IP matches store WiFi pattern
-    const allowed =
-      !storePattern || !storePattern.trim()
-        ? null
-        : ipMatchesPattern(ip, storePattern.trim());
-
-    setWifiAllowed(allowed);
+    // Evaluate WiFi access
+    if (notConfigured) {
+      // Store assigned but no WiFi configured — BLOCK
+      setWifiAllowed(false);
+    } else if (!storePattern || !storePattern.trim()) {
+      // No store assigned, no restriction — ALLOW
+      setWifiAllowed(null);
+    } else {
+      // Has pattern — verify IP
+      const allowed = ipMatchesPattern(ip, storePattern.trim());
+      setWifiAllowed(allowed);
+    }
   }, [user?.id]);
 
   useEffect(() => {
@@ -213,13 +231,13 @@ export default function CheckInCheckOutCard() {
       }
 
       const action = json.action_type === "checkout" ? "Check-out" : "Check-in";
-      const ipWarn = json.ip_allowed === false ? " (WiFi không đúng)" : "";
-      toast.success(`${action} thành công${ipWarn}`, {
+      toast.success(`${action} thành công!`, {
         description: formatTime(new Date().toISOString()),
       });
 
       void loadSession(true);
-      void loadStoreAndIp(); // refresh WiFi status
+      void loadStoreAndIp();
+      onSessionUpdate?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Có lỗi xảy ra";
       toast.error(msg);
@@ -232,7 +250,7 @@ export default function CheckInCheckOutCard() {
 
   const statusText: Record<CheckInState, string> = {
     loading: "",
-    not_checked_in: "Chưa check-in hôm nay",
+    not_checked_in: "Chưa check-in",
     checked_in: "Đang làm việc",
     checked_out: "Đã kết thúc",
   };
@@ -242,6 +260,13 @@ export default function CheckInCheckOutCard() {
     not_checked_in: "text-muted-foreground",
     checked_in: "text-emerald-600 dark:text-emerald-400",
     checked_out: "text-amber-600 dark:text-amber-400",
+  };
+
+  const statusBg: Record<CheckInState, string> = {
+    loading: "",
+    not_checked_in: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+    checked_in: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+    checked_out: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
   };
 
   const StatusIcon: Record<CheckInState, typeof Clock> = {
@@ -254,155 +279,179 @@ export default function CheckInCheckOutCard() {
   const currentStatusIcon = StatusIcon[state];
   const currentStatusText = statusText[state];
   const currentStatusColor = statusColor[state];
+  const currentStatusBg = statusBg[state];
+
+  // Determine button disabled reason
+  const buttonDisabled = wifiAllowed === false || wifiNotConfigured;
 
   return (
     <>
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4 space-y-3">
-          {/* Header */}
+      <Card className="border-0 shadow-sm overflow-hidden">
+        {/* Header strip with WiFi status */}
+        <div className="bg-gradient-to-r from-primary/5 to-transparent px-4 pt-4 pb-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Clock className="h-5 w-5" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-foreground">Check-in / Check-out</p>
-              <p className="text-xs text-muted-foreground">{formatDate(today)}</p>
-            </div>
-
-            {/* WiFi status badge */}
-            {state !== "loading" && (
-              <div
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                  wifiAllowed === true
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                    : wifiAllowed === false
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                }`}
-                title={
-                  wifiAllowed === true
-                    ? "WiFi hợp lệ"
-                    : wifiAllowed === false
-                    ? `WiFi không hợp lệ. Cần: ${assignedStore?.wifi_ip_pattern ?? "?"}`
-                    : "Cửa hàng chưa cấu hình WiFi — không giới hạn"
-                }
-              >
-                {wifiAllowed === true ? (
-                  <Wifi className="w-3 h-3" />
-                ) : wifiAllowed === false ? (
-                  <WifiOff className="w-3 h-3" />
-                ) : (
-                  <Wifi className="w-3 h-3" />
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold text-foreground">
+                  {compact ? "Check-in / Check-out hôm nay" : "Check-in / Check-out"}
+                </p>
+                {state !== "loading" && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0 ${currentStatusBg}`}>
+                    <currentStatusIcon className={`w-3 h-3 ${currentStatusColor}`} />
+                    {currentStatusText}
+                  </span>
                 )}
-                WiFi
               </div>
-            )}
+              {!compact && (
+                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(today)}</p>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* Assigned store info */}
+        <CardContent className="p-4 space-y-3">
+          {/* Assigned store + WiFi info */}
           {assignedStore && state !== "loading" && (
-            <div className="bg-muted/50 rounded-lg px-3 py-2">
-              <p className="text-xs text-muted-foreground">Cửa hàng được gán</p>
-              <p className="text-sm font-medium truncate">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/60 border border-border/50">
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate flex-1 min-w-0">
                 {assignedStore.display_name ?? "Không rõ"}
-              </p>
-              {assignedStore.wifi_ip_pattern && (
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  WiFi: {assignedStore.wifi_ip_pattern}
-                  {clientIp && (
-                    <span className="ml-1">
-                      (IP của bạn: <span className={wifiAllowed === false ? "text-red-500 font-semibold" : ""}>{clientIp}</span>)
-                    </span>
-                  )}
-                </p>
-              )}
-              {!assignedStore.wifi_ip_pattern && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Chưa cấu hình WiFi — không giới hạn check-in
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Session info */}
-          {state !== "loading" && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-muted/50 rounded-lg px-3 py-2">
-                <p className="text-xs text-muted-foreground">Check-in sớm nhất</p>
-                <p className="text-sm font-semibold font-mono">
-                  {session?.earliest_checkin_at
-                    ? formatTime(session.earliest_checkin_at)
-                    : "--:--"}
-                </p>
-              </div>
-              <div className="bg-muted/50 rounded-lg px-3 py-2">
-                <p className="text-xs text-muted-foreground">Check-out muộn nhất</p>
-                <p className="text-sm font-semibold font-mono">
-                  {session?.latest_checkout_at
-                    ? formatTime(session.latest_checkout_at)
-                    : "--:--"}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Status row */}
-          {state !== "loading" && (
-            <div className="flex items-center gap-2">
-              <currentStatusIcon
-                className={`w-4 h-4 ${currentStatusColor} ${
-                  state === "checked_in" ? "animate-pulse" : ""
-                }`}
-              />
-              <span className={`text-sm font-medium ${currentStatusColor}`}>
-                {currentStatusText}
               </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {assignedStore.wifi_ip_pattern ? (
+                  <>
+                    <Wifi
+                      className={`h-3.5 w-3.5 ${
+                        wifiAllowed === true
+                          ? "text-emerald-500"
+                          : wifiAllowed === false
+                          ? "text-red-500"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                    <code
+                      className={`text-xs font-mono px-1.5 py-0.5 rounded-full ${
+                        wifiAllowed === true
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                          : wifiAllowed === false
+                          ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {assignedStore.wifi_ip_pattern}
+                    </code>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">Tự do</span>
+                )}
+              </div>
             </div>
+          )}
+
+          {/* Times + your IP */}
+          {state !== "loading" && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-muted/50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="text-emerald-500 font-bold">↑</span> Check-in sớm
+                  </p>
+                  <p className="text-sm font-bold font-mono mt-0.5">
+                    {session?.earliest_checkin_at
+                      ? formatTime(session.earliest_checkin_at)
+                      : "--:--"}
+                  </p>
+                </div>
+                <div className="bg-muted/50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="text-amber-500 font-bold">↓</span> Check-out muộn
+                  </p>
+                  <p className="text-sm font-bold font-mono mt-0.5">
+                    {session?.latest_checkout_at
+                      ? formatTime(session.latest_checkout_at)
+                      : "--:--"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Your IP */}
+              {clientIp && assignedStore?.wifi_ip_pattern && (
+                <p className="text-xs text-muted-foreground text-center">
+                  IP của bạn:{" "}
+                  <span className={`font-mono font-medium ${wifiAllowed === false ? "text-red-500" : "text-foreground"}`}>
+                    {clientIp}
+                  </span>
+                </p>
+              )}
+            </>
           )}
 
           {/* Main action button */}
           {state !== "loading" && (
-            <Button
-              className="w-full gap-2"
-              variant={
-                state === "not_checked_in" || state === "checked_out"
-                  ? "default"
-                  : "destructive"
-              }
-              disabled={loading || wifiAllowed === false}
-              onClick={() => setCameraOpen(true)}
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : wifiAllowed === false ? (
-                <>
-                  <WifiOff className="w-4 h-4" />
-                  Không đúng WiFi
-                </>
-              ) : state === "not_checked_in" || state === "checked_out" ? (
-                <>
-                  <Camera className="w-4 h-4" />
-                  Check-in
-                </>
-              ) : (
-                <>
-                  <Camera className="w-4 h-4" />
-                  Check-out
-                </>
+            <>
+              {/* Warning banners */}
+              {wifiNotConfigured && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-900">
+                  <WifiOff className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-red-700 dark:text-red-400">
+                      Cửa hàng chưa cấu hình WiFi
+                    </p>
+                    <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
+                      Vui lòng liên hệ quản lý để được cấu hình WiFi cho cửa hàng{" "}
+                      <strong>{assignedStore?.display_name}</strong> trước khi check-in/out.
+                    </p>
+                  </div>
+                </div>
               )}
-            </Button>
-          )}
 
-          {wifiAllowed === false && assignedStore && (
-            <p className="text-xs text-destructive text-center">
-              Bạn đang ở IP: {clientIp} — cần kết nối WiFi của cửa hàng{" "}
-              <strong>{assignedStore.display_name ?? "?"}</strong> (WiFi:{" "}
-              <strong>{assignedStore.wifi_ip_pattern}</strong>)
-            </p>
+              {wifiAllowed === false && !wifiNotConfigured && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-900">
+                  <WifiOff className="h-4 w-4 text-red-500 shrink-0" />
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    Không đúng WiFi cửa hàng — vui lòng kết nối WiFi:{" "}
+                    <strong>{assignedStore?.wifi_ip_pattern}</strong>
+                  </p>
+                </div>
+              )}
+
+              <Button
+                className="w-full gap-2 h-11 text-base font-semibold"
+                variant={
+                  state === "not_checked_in" || state === "checked_out"
+                    ? "default"
+                    : "destructive"
+                }
+                disabled={loading || buttonDisabled}
+                onClick={() => setCameraOpen(true)}
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : buttonDisabled ? (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    {wifiNotConfigured ? "Chưa cấu hình WiFi" : "Không đúng WiFi"}
+                  </>
+                ) : state === "not_checked_in" || state === "checked_out" ? (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    Check-in
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    Check-out
+                  </>
+                )}
+              </Button>
+            </>
           )}
 
           {state === "loading" && (
-            <div className="flex items-center justify-center py-2">
+            <div className="flex items-center justify-center py-3">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
           )}
