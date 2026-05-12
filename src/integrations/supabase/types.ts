@@ -541,6 +541,113 @@ export type Database = {
         }
         Relationships: []
       }
+      checkin_records: {
+        Row: {
+          action_at: string
+          action_type: string
+          client_ip: string | null
+          created_at: string
+          device_info: Json | null
+          id: string
+          is_verified_ip: boolean
+          photo_url: string | null
+          user_id: string
+          work_session_id: string | null
+        }
+        Insert: {
+          action_at?: string
+          action_type: string
+          client_ip?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          is_verified_ip?: boolean
+          photo_url?: string | null
+          user_id: string
+          work_session_id?: string | null
+        }
+        Update: {
+          action_at?: string
+          action_type?: string
+          client_ip?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          is_verified_ip?: boolean
+          photo_url?: string | null
+          user_id?: string
+          work_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_records_work_session_id_fkey"
+            columns: ["work_session_id"]
+            isOneToOne: false
+            referencedRelation: "work_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      allowed_wifi_ips: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          ip_pattern: string
+          is_active: boolean
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          ip_pattern: string
+          is_active?: boolean
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          ip_pattern?: string
+          is_active?: boolean
+        }
+        Relationships: []
+      }
+      work_sessions: {
+        Row: {
+          created_at: string
+          earliest_checkin_at: string | null
+          id: string
+          latest_checkout_at: string | null
+          session_date: string
+          total_records: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          earliest_checkin_at?: string | null
+          id?: string
+          latest_checkout_at?: string | null
+          session_date?: string
+          total_records?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          earliest_checkin_at?: string | null
+          id?: string
+          latest_checkout_at?: string | null
+          session_date?: string
+          total_records?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

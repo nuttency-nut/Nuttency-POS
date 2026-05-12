@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
+import { Banknote, Building2, Camera, Check, ChevronRight, ChevronsUpDown, Clock, Loader2, LogOut, Monitor, Moon, QrCode, ReceiptText, RefreshCw, Search, Shield, Sun, User } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/sonner";
 import QrScannerDialog from "@/components/common/QrScannerDialog";
 import { isValidRegistrationQrPayload } from "@/lib/registration-qr";
+import CheckInCheckOutCard from "@/components/common/CheckInCheckOutCard";
 
 type SystemRole = "admin" | "manager" | "staff" | "no_role";
 type SettingsTab = "general" | "roles";
@@ -938,6 +939,9 @@ export default function AppSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Check-in / Check-out card */}
+      <CheckInCheckOutCard />
 
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
