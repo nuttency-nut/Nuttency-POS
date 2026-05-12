@@ -76,7 +76,7 @@ export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }
   const { user } = useAuth();
 
   const [state, setState] = useState<CheckInState>("loading");
-  const [session, setSession] = useState<WorkSession | null>(null);
+  const [session, setSession] = useState<WorkSession | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
 
@@ -110,7 +110,7 @@ export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }
 
         const hasSession = data != null;
         const hasCheckout = data?.latest_checkout_at != null;
-        setSession(data ?? null);
+        setSession(data ?? undefined);
         setState(hasSession ? (hasCheckout ? "checked_out" : "checked_in") : "not_checked_in");
       } catch {
         if (loadRef.current === currentSeq) setState("not_checked_in");
@@ -361,7 +361,7 @@ export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }
                   </p>
                   <p className="text-sm font-bold font-mono mt-0.5">
                     {session?.earliest_checkin_at
-                      ? formatTime(session.earliest_checkin_at)
+                      ? formatTime(session?.earliest_checkin_at)
                       : "--:--"}
                   </p>
                 </div>
@@ -371,7 +371,7 @@ export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }
                   </p>
                   <p className="text-sm font-bold font-mono mt-0.5">
                     {session?.latest_checkout_at
-                      ? formatTime(session.latest_checkout_at)
+                      ? formatTime(session?.latest_checkout_at)
                       : "--:--"}
                   </p>
                 </div>

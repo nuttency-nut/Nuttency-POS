@@ -70,7 +70,7 @@ export default function WorkCalendar() {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
-  const [sessions, setSessions] = useState<Map<string, WorkSession>>(new Map());
+  const [sessions, setSessions] = useState<Map<string, WorkSession | undefined>>(new Map());
   const [loading, setLoading] = useState(false);
 
   // Load sessions for the visible month
@@ -131,7 +131,7 @@ export default function WorkCalendar() {
   const monthSessions = days
     .filter(d => d.getMonth() === viewMonth && !isFuture(d))
     .map(d => sessions.get(dateToStr(d)))
-    .filter((s): s is WorkSession => s !== null);
+    .filter((s): s is WorkSession => s != null);
 
   const totalDaysWorked = monthSessions.length;
   const totalHoursWorked = monthSessions.reduce((sum, s) => {
@@ -195,8 +195,8 @@ export default function WorkCalendar() {
             const isToday = dateStr === todayStr;
             const inCurrentMonth = d.getMonth() === viewMonth;
             const future = isFuture(d);
-            const hasSession = session !== null && !future;
-            const noCheckout = hasSession && session.latest_checkout_at === null;
+            const hasSession = session != null && !future;
+            const noCheckout = hasSession && session.latest_checkout_at == null;
 
             let bgClass = "";
             if (hasSession) {
