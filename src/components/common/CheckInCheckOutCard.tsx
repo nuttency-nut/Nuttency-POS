@@ -108,9 +108,9 @@ export default function CheckInCheckOutCard({ compact = false, onSessionUpdate }
         if (loadRef.current !== currentSeq) return;
         if (error) throw error;
 
-        const hasSession = data !== null;
-        const hasCheckout = data?.latest_checkout_at !== null;
-        setSession(data as WorkSession | null);
+        const hasSession = data != null;
+        const hasCheckout = data?.latest_checkout_at != null;
+        setSession(data ?? null);
         setState(hasSession ? (hasCheckout ? "checked_out" : "checked_in") : "not_checked_in");
       } catch {
         if (loadRef.current === currentSeq) setState("not_checked_in");
